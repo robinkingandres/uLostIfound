@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Eye } from 'lucide-react';
-import DashboardHeader from '../components/DashboardHeader';
-import ReportDetailsModal from '../components/ReportDetailsModal';
-import { mockReports } from '../data/mockReports';
-import type { Report, ReportStatus, ReportType } from '../types/report';
+import DashboardHeader from '../../components/admin/DashboardHeader';
+import ReportDetailsModal from '../../components/ReportDetailsModal';
+import { mockReports } from '../../data/mockReports';
+import type { Report, ReportStatus, ReportType } from '../../types/report';
 
 type FilterType = 'All' | 'Lost' | 'Found' | 'Verified' | 'Pending' | 'Rejected';
 

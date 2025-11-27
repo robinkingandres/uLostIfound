@@ -11,8 +11,8 @@ import {
   Trash2,
   UserCircle
 } from 'lucide-react';
-import DashboardHeader from '../components/DashboardHeader';
-import StatCard from '../components/StatCard';
+import DashboardHeader from '../components/admin/DashboardHeader';
+import StatCard from '../components/admin/StatCard';
 import { mockUsers } from '../data/mockUsers';
 import type { User, UserRole } from '../types/user';
 

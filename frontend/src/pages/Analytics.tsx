@@ -1,5 +1,5 @@
 import { Download } from 'lucide-react';
-import DashboardHeader from '../components/DashboardHeader';
+import DashboardHeader from '../components/admin/DashboardHeader';
 
 // --- KPI Card Component ---
 const KPICard = ({ title, value, subtext }: { title: string; value: string; subtext?: string }) => (

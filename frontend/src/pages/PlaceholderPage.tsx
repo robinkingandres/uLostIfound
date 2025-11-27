@@ -1,4 +1,4 @@
-import DashboardHeader from '../components/DashboardHeader';
+import DashboardHeader from '../components/admin/DashboardHeader';
 
 interface PlaceholderPageProps {
   title: string;

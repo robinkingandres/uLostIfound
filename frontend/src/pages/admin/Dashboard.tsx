@@ -1,10 +1,10 @@
 import { Package, PackageCheck, CheckCircle } from 'lucide-react';
-import DashboardHeader from '../components/DashboardHeader';
-import StatCard from '../components/StatCard';
-import TotalReportsChart from '../components/TotalReportsChart';
-import ClaimedUnclaimedChart from '../components/ClaimedUnclaimedChart';
-import InfoCard from '../components/InfoCard';
-import ActivityFeed from '../components/ActivityFeed';
+import DashboardHeader from '../../components/admin/DashboardHeader';
+import StatCard from '../../components/admin/StatCard';
+import TotalReportsChart from '../../components/admin/TotalReportsChart';
+import ClaimedUnclaimedChart from '../../components/admin/ClaimedUnclaimedChart';
+import InfoCard from '../../components/InfoCard';
+import ActivityFeed from '../../components/admin/ActivityFeed';
 
 export default function AdminDashboard() {
   return (

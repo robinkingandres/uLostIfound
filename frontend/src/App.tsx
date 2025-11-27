@@ -1,9 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import AdminLogin from './pages/AdminLogin';
 import AdminLayout from './layouts/AdminLayout';
-import AdminDashboard from './pages/AdminDashboard';
-import ManageReports from './pages/ManageReports';
+import AdminLogin from './pages/admin/Login';
+import AdminDashboard from './pages/admin/Dashboard';
+import ManageReports from './pages/admin/Reports';
 import UserManagement from './pages/UserManagement'; // From previous step
 import ClaimManagement from './pages/ClaimManagement'; // From previous step
 import Analytics from './pages/Analytics'; // 1. Import Analytics

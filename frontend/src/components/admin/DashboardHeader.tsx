@@ -1,6 +1,5 @@
 import { ChevronDown } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-
+import { useAuth } from '../../contexts/AuthContext';
 export default function DashboardHeader() {
   const { user } = useAuth();
 

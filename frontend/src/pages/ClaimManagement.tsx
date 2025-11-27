@@ -6,8 +6,8 @@ import {
   Eye, 
   X 
 } from 'lucide-react';
-import DashboardHeader from '../components/DashboardHeader';
-import StatCard from '../components/StatCard';
+import DashboardHeader from '../components/admin/DashboardHeader';
+import StatCard from '../components/admin/StatCard';
 import { mockClaims } from '../data/mockClaims';
 import type { Claim, ClaimStatus } from '../types/claim';
 
