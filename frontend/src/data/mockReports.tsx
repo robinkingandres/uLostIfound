@@ -80,3 +80,4 @@ export const mockReports: Report[] = [
     image: 'https://images.pexels.com/photos/278887/pexels-photo-278887.jpeg',
   },
 ];
+
