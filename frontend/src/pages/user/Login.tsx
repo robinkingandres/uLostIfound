@@ -1,0 +1,115 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Hand, Search } from 'lucide-react';
+
+export default function UserLogin() {
+  const [isLogin, setIsLogin] = useState(true);
+  // FIXED: Correctly naming the setter function here
+  const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log("User logging in...");
+    // Add logic here to verify user credentials
+    navigate('/home'); 
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-600 flex items-center justify-center px-4 font-sans">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden p-8">
+        
+        {/* Header Toggle */}
+        <div className="flex gap-4 mb-8 text-sm font-bold text-gray-400">
+          <button 
+            onClick={() => setIsLogin(true)}
+            className={`${isLogin ? 'text-gray-800 border-b-2 border-gray-800' : ''} pb-1`}
+          >
+            LOGIN
+          </button>
+          <span>/</span>
+          <button 
+            onClick={() => setIsLogin(false)}
+            className={`${!isLogin ? 'text-gray-800 border-b-2 border-gray-800' : ''} pb-1`}
+          >
+            SIGNUP
+          </button>
+        </div>
+
+        {/* Logo Section */}
+        <div className="flex flex-col items-center mb-10">
+          <div className="relative w-40 h-40 mb-2">
+            <div className="flex w-full h-full rounded-full overflow-hidden border-4 border-gray-100 shadow-inner">
+              {/* Left Blue Half */}
+              <div className="w-1/2 h-full bg-[#29b6f6] flex items-center justify-center relative">
+                 <Hand className="text-white w-12 h-12 absolute top-8 left-4 rotate-[-15deg]" strokeWidth={2.5} />
+                 <div className="absolute bottom-8 right-2 w-8 h-6 border-2 border-white rounded-sm"></div>
+              </div>
+              
+              {/* Right Orange Half */}
+              <div className="w-1/2 h-full bg-[#ff9800] flex items-center justify-center relative">
+                 <div className="absolute top-10 right-6">
+                    <div className="border-2 border-black rounded-full p-1">
+                        <div className="w-6 h-10 border-2 border-black rounded-md"></div>
+                    </div>
+                 </div>
+                 <Search className="text-black w-10 h-10 absolute bottom-10 left-[-10px] z-10" strokeWidth={3} />
+              </div>
+            </div>
+            
+            {/* Logo Text Overlay */}
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-full text-center">
+              <span className="text-2xl font-black text-[#1e293b] tracking-tighter">
+                uLost<span className="text-[#1e293b]">iFound</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Form Section */}
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div className="space-y-4">
+            {/* Username/Email Input */}
+            <div>
+              <input
+                type="text"
+                placeholder="Username / Email"
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#00aaff] focus:ring-1 focus:ring-[#00aaff] transition-colors"
+              />
+            </div>
+
+            {/* Password Input */}
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#00aaff] focus:ring-1 focus:ring-[#00aaff] transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center text-sm">
+            <a href="#" className="text-[#00aaff] hover:underline font-medium">
+              Forgotten your password?
+            </a>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full bg-[#0091ea] hover:bg-[#0081d5] text-white font-bold py-3.5 rounded-xl transition-colors shadow-lg shadow-blue-200"
+          >
+            Login
+          </button>
+        </form>
+
+      </div>
+    </div>
+  );
+}
