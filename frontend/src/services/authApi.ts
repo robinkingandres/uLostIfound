@@ -1,5 +1,5 @@
 // This file needs to be imported by api.ts, so we must define the root API URL
-const API_URL = 'http://127.0.0.1:8000/api';
+const API_URL = 'http://localhost:8000/api'; // <-- FIXED HOSTNAMEconst ROOT_API_URL = `${API_URL}/`;
 const ROOT_API_URL = `${API_URL}/`;
 const LOGIN_URL = `${API_URL}/auth/login/`;
 const LOGOUT_URL = `${API_URL}/auth/logout/`;
@@ -24,9 +24,26 @@ const getCsrfToken = () => {
  * Forces a GET request to a safe endpoint (like /api/) to ensure Django sets the csrftoken cookie.
  * This is used as a fallback if the token is unexpectedly missing on subsequent POST requests.
  */
-export const fetchCsrfToken = async () => {
-    // Send a safe GET request. Django will set the 'csrftoken' cookie in the response headers.
-    await fetch(ROOT_API_URL, { credentials: 'include' });
+export const fetchCsrfToken = async (maxRetries = 5): Promise<string | null> => {
+    let csrfToken = getCsrfToken();
+    if (csrfToken) return csrfToken; // Found immediately
+
+    for (let i = 0; i < maxRetries; i++) {
+        // Send a safe GET request. Django will set the 'csrftoken' cookie in the response headers.
+        await fetch(ROOT_API_URL, { credentials: 'include' });
+        
+        // Wait briefly for the browser to process the cookie header
+        // 100ms is a safe delay for modern browsers to process Set-Cookie headers
+        await new Promise(resolve => setTimeout(resolve, 100)); 
+        
+        csrfToken = getCsrfToken();
+        if (csrfToken) {
+            console.log(`CSRF token successfully retrieved after ${i + 1} retries.`);
+            return csrfToken;
+        }
+    }
+    console.error("Failed to retrieve CSRF token after maximum retries.");
+    return null;
 };
 
 // --- AUTH API CALLS ---

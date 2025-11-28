@@ -141,3 +141,26 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend', # Keep Django's default for safety
 ]
 
+# -----------------------------------------------------
+# --- FIX: CSRF/COOKIE CONFIGURATION FOR CORS/DEV ---
+
+# 1. Trust the frontend origin for CSRF purposes
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+    
+]
+
+# 2. Relax SameSite policy. Necessary for cross-origin local dev.
+# Since we are not using HTTPS, we must set these to False/None.
+CSRF_COOKIE_SAMESITE = None
+SESSION_COOKIE_SAMESITE = None
+
+# 3. Must be False when running on HTTP (e.g., localhost/127.0.0.1)
+CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = False
+
+# 4. CRITICAL FIX: Allow JavaScript to read the CSRF cookie
+# Django sets this to True by default, which makes the cookie inaccessible to fetchCsrfToken().
+CSRF_COOKIE_HTTPONLY = False

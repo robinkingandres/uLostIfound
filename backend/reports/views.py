@@ -2,6 +2,11 @@ from rest_framework import viewsets, permissions, filters
 from rest_framework.decorators import action
 from .models import Report
 from .serializers import ReportSerializer
+# Import get_user_model to check user role/type
+from django.contrib.auth import get_user_model 
+
+# Load the custom user model once
+User = get_user_model() 
 
 class ReportViewSet(viewsets.ModelViewSet):
     """
@@ -23,15 +28,29 @@ class ReportViewSet(viewsets.ModelViewSet):
         serializer.save(reporter=self.request.user)
 
     def get_queryset(self):
-        # Custom queryset logic to handle query parameters (used by frontend filters)
+        # Start with the base queryset
         queryset = self.queryset
-        report_type = self.request.query_params.get('type')
-        status = self.request.query_params.get('status')
         
+        # --- FIX: Bypass status filtering if we are looking up a single object by ID (detail view) ---
+        if self.detail:
+            return queryset
+            
+        report_type = self.request.query_params.get('type')
+        status_filter = self.request.query_params.get('status')
+        
+        is_admin = self.request.user.is_authenticated and self.request.user.role == 'Admin'
+
+        # 1. Apply filter by requested report type
         if report_type:
             queryset = queryset.filter(type=report_type)
-        if status:
-            queryset = queryset.filter(status=status)
+            
+        # 2. Apply filter by requested status, or default to 'Verified'
+        if status_filter:
+            # If an explicit status is given (e.g., from admin panel filters), use it
+            queryset = queryset.filter(status=status_filter)
+        elif not is_admin:
+            # Default behavior for public non-admin access: only show 'Verified' reports.
+            queryset = queryset.filter(status='Verified')
             
         return queryset
     

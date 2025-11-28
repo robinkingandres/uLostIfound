@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 # Use the correct Django imports
 from django.contrib.auth import authenticate, login, logout, get_user_model 
+from django.middleware.csrf import get_token # <-- ADD THIS IMPORT
 # REMOVED: from django.views.decorators.csrf import csrf_protect
 # REMOVED: from django.utils.decorators import method_decorator
 from .serializers import UserSerializer
@@ -11,9 +12,6 @@ from .serializers import UserSerializer
 # Load the custom user model once
 User = get_user_model() 
 
-# We keep the UserViewSet for CRUD operations, but add these separate API views for auth:
-
-# @method_decorator(csrf_protect, name='dispatch') <-- REMOVED THIS DECORATOR
 class LoginView(APIView):
     permission_classes = () # Allow any request
     
@@ -30,14 +28,20 @@ class LoginView(APIView):
             
             # Use the existing UserSerializer to return user data
             serializer = UserSerializer(user)
-            return Response(serializer.data)
+            
+            # --- FIX: Create Response object and explicitly set CSRF cookie ---
+            response = Response(serializer.data)
+            csrf_token = get_token(request) # Get the current token
+            response.set_cookie('csrftoken', csrf_token) # Set the cookie explicitly
+            
+            return response
         else:
             # User not found or incorrect password/inactive account
             return Response(
                 {"detail": "Invalid credentials or account not active."}, 
                 status=status.HTTP_401_UNAUTHORIZED
             )
-
+        
 class LogoutView(APIView):
     # Logout views generally still require CSRF tokens when the user is authenticated 
     # to prevent log out attacks, but we will leave it as is for simplicity.

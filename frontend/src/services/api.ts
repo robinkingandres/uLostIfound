@@ -2,12 +2,10 @@ import type { Report, ReportStatus, ReportType } from '../types/report';
 // FIX: Ensure correct import of fetchCsrfToken from authApi.ts
 import { fetchCsrfToken } from './authApi'; 
 
-const API_URL = 'http://127.0.0.1:8000/api';
+const API_URL = 'http://localhost:8000/api'; // <-- FIXED HOSTNAME
 const REPORT_URL = `${API_URL}/reports/`;
 const USER_URL = `${API_URL}/users/`;
 
-// Helper utility for introducing a delay
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // --- Utility function to get CSRF Token from cookie ---
 const getCsrfToken = () => {
@@ -43,21 +41,9 @@ export interface ReportPayload {
  * Creates a new report (Lost or Found item).
  */
 export const createReport = async (data: ReportPayload, imageFile: File | null): Promise<Report> => {
-  let csrfToken = getCsrfToken();
+  // --- FIX: Use the robust fetcher directly and let it handle retries/delays ---
+  const csrfToken = await fetchCsrfToken();
   
-  // RERUN LOGIC: If CSRF token is missing, attempt to refresh it with a delay.
-  if (!csrfToken) {
-    try {
-      console.warn("CSRF token missing. Attempting to refresh token...");
-      await fetchCsrfToken(); 
-      // --- FIX: Ensure enough time for cookie processing (increasing to 100ms as 50ms failed) ---
-      await sleep(100); 
-      csrfToken = getCsrfToken(); // Re-read the cookie
-    } catch (e) {
-      console.error("Failed to fetch CSRF token fallback:", e);
-    }
-  }
-
   if (!csrfToken) {
     // If it's still missing after the attempt, throw the error.
     throw new Error('CSRF token not found. Please ensure you are logged in.'); 

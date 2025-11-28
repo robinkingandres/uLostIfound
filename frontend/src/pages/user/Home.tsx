@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // 1. Import useNavigate
+import { useState, useEffect, useCallback } from 'react'; // Added useEffect, useCallback
+import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
   Filter, 
@@ -11,27 +11,93 @@ import {
   User as UserIcon,
   Bot
 } from 'lucide-react';
-import { mockReports } from '../../data/mockReports';
+// import { mockReports } from '../../data/mockReports'; // REMOVED MOCK DATA
+import { fetchReports } from '../../services/api'; // IMPORT API
 import type { Report } from '../../types/report';
 
 export default function UserHome() {
-  const navigate = useNavigate(); // 2. Initialize the hook
+  const navigate = useNavigate(); 
+  
+  // NEW STATE: Loading, Error, and Live Reports
+  const [reports, setReports] = useState<Report[]>([]); // Initialize with empty array
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+    
+  // Filter states (kept from original component)
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All Status');
+  const [statusFilter, setStatusFilter] = useState('All Status'); // Filters report.type
   const [categoryFilter, setCategoryFilter] = useState('All Categories');
 
-  // Filter Logic
-  const filteredReports = mockReports.filter((report) => {
+  // New fetch logic encapsulated in a callback
+  const loadReports = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      // Calling fetchReports() with no parameters returns ALL Verified reports for public users (backend logic)
+      const data = await fetchReports();
+      setReports(data);
+    } catch (err) {
+      console.error('Failed to fetch verified reports:', err);
+      setError('Failed to load items. Please check the server connection.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Effect to load data on mount
+  useEffect(() => {
+    loadReports();
+  }, [loadReports]);
+
+
+  // Filter Logic (Applied to the fetched 'reports' state)
+  const filteredReports = reports.filter((report) => {
     const matchesSearch = 
       report.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.description.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Simple direct comparison for status
-    const matchesStatus = statusFilter === 'All Status' || report.status === statusFilter;
+    // Status filter filters by report.type (Lost/Found)
+    const matchesType = statusFilter === 'All Status' || report.type === statusFilter;
+    
+    // Category filter
     const matchesCategory = categoryFilter === 'All Categories' || report.category === categoryFilter;
 
-    return matchesSearch && matchesStatus && matchesCategory;
+    return matchesSearch && matchesType && matchesCategory; 
   });
+  
+  // Helper for Status Badge Color (kept from original)
+  const getTypeColor = (type: string) => {
+    return type === 'Lost' ? 'bg-[#f06565]' : 'bg-[#3b82f6]';
+  };
+
+  // --- Render Loading/Error States ---
+  if (loading) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-white font-sans">
+             <div className="text-center p-8">
+                 <div className="animate-spin rounded-full h-10 w-10 border-4 border-t-4 border-blue-500 border-opacity-50 mx-auto mb-4"></div>
+                 <p className="text-gray-600">Loading verified reports...</p>
+             </div>
+        </div>
+    );
+  }
+
+  if (error) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-white font-sans">
+            <div className="text-center p-8 border border-red-300 bg-red-50 rounded-lg max-w-md">
+                <h1 className="text-xl font-bold text-red-700 mb-2">Error Loading Items</h1>
+                <p className="text-red-600">{error}</p>
+                <button 
+                  onClick={loadReports} 
+                  className="mt-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                >
+                  Try Again
+                </button>
+            </div>
+        </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 relative">
@@ -50,17 +116,17 @@ export default function UserHome() {
           {/* Navigation Actions (Desktop/Tablet) */}
           <div className="hidden md:flex items-center gap-6">
             <button 
-              onClick={() => navigate('/report-lost')} // 3. Connected navigation
+              onClick={() => navigate('/report-lost')} 
               className="text-gray-600 hover:text-blue-600 font-medium text-sm transition-colors"
             >
               Report Lost
             </button>
             <button 
-  onClick={() => navigate('/report-found')} // Add this
-  className="text-gray-600 hover:text-blue-600 font-medium text-sm transition-colors"
->
-  Report Found
-</button>
+              onClick={() => navigate('/report-found')} 
+              className="text-gray-600 hover:text-blue-600 font-medium text-sm transition-colors"
+            >
+              Report Found
+            </button>
           </div>
 
           {/* Icons */}
@@ -76,6 +142,7 @@ export default function UserHome() {
         </div>
       </header>
 
+
       {/* --- MAIN CONTENT --- */}
       <main className="max-w-md mx-auto md:max-w-5xl px-4 py-6 pb-24">
         
@@ -83,10 +150,10 @@ export default function UserHome() {
         <div className="text-center mb-8">
           <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">
             San Isidro National High School <br />
-            <span className="text-gray-900">Lost & Found Items</span>
+            <span className="text-gray-900">Verified Lost & Found Items</span> 
           </h1>
           <p className="text-gray-500 text-sm mt-3">
-            Browse through reported items and find what you're looking for
+            Browse through verified reports from the community
           </p>
         </div>
 
@@ -105,7 +172,7 @@ export default function UserHome() {
             />
           </div>
 
-          {/* Status Select */}
+          {/* Type Select (labeled as Status, filters 'type') */}
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
             <select
@@ -116,7 +183,7 @@ export default function UserHome() {
               <option>All Status</option>
               <option value="Lost">Lost</option>
               <option value="Found">Found</option>
-              <option value="Claimed">Claimed</option>
+              {/* Removed "Claimed" as the reports here are verified and this filter should ideally only filter by item TYPE, not status */}
             </select>
           </div>
 
@@ -146,6 +213,7 @@ export default function UserHome() {
               
               {/* Image Section */}
               <div className="relative h-48 w-full bg-gray-100">
+                {/* Note: Ensure the 'image' field contains a valid public URL from Django/Media folder */}
                 <img 
                   src={report.image} 
                   alt={report.itemName} 
@@ -154,7 +222,7 @@ export default function UserHome() {
                 
                 {/* Status Badge */}
                 <span className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-bold text-white
-                  ${report.type === 'Lost' ? 'bg-[#f06565]' : 'bg-[#3b82f6]'}`}>
+                  ${getTypeColor(report.type)}`}>
                   {report.type}
                 </span>
               </div>
@@ -164,7 +232,7 @@ export default function UserHome() {
                 <h3 className="text-lg font-bold text-gray-900 mb-1">{report.itemName}</h3>
                 
                 {/* Date */}
-                <p className="text-xs text-gray-400 mb-3">Oct 17 • </p>
+                <p className="text-xs text-gray-400 mb-3">{report.date} • </p>
 
                 <p className="text-sm text-gray-600 mb-4 line-clamp-2">
                   {report.description}
@@ -195,7 +263,7 @@ export default function UserHome() {
 
           {filteredReports.length === 0 && (
             <div className="text-center py-10 text-gray-400">
-              No items found matching your filters.
+              No verified items found matching your filters.
             </div>
           )}
         </div>
