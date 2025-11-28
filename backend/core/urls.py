@@ -12,6 +12,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     # API endpoints from the users app
     path('api/', include('users.urls')),
+    # API endpoints for the new reports app <-- ADD THIS LINE
+    path('api/', include('reports.urls')),
     # Root URL handler
     path('', home),
 ]

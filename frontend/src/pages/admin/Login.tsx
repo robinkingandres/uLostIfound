@@ -10,7 +10,8 @@ export default function AdminLogin() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // New async structure:
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -19,12 +20,16 @@ export default function AdminLogin() {
       return;
     }
 
-    if (login(username, password)) {
+    // Call the async login function
+    const success = await login(username, password);
+
+    if (success) {
       navigate('/admin/dashboard');
     } else {
+      // The error should ideally be caught and set by the AuthContext login function
       setError('Invalid credentials');
     }
-  };
+};
 
   return (
     <div className="min-h-screen bg-gray-200 flex items-center justify-center px-4">

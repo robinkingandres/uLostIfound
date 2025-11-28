@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // 1. Import Hook
+import { useNavigate } from 'react-router-dom'; 
 import { 
   Bell, 
   Menu, 
@@ -9,37 +9,83 @@ import {
   Info,
   ChevronDown
 } from 'lucide-react';
+// Import the new API function and payload type
+import { createReport, type ReportPayload } from '../../services/api';
 
 export default function ReportLost() {
-  const navigate = useNavigate(); // 2. Initialize Hook
+  const navigate = useNavigate(); 
   const [formData, setFormData] = useState({
     itemTitle: '',
     category: 'Phone',
     dateLost: '',
     location: '',
     description: '',
-    image: null as File | null
   });
+  const [image, setImage] = useState<File | null>(null); // State for the image file
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+  
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setImage(e.target.files?.[0] || null);
+  };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Submitting Lost Item Report:', formData);
-    
-    // 1. (Future) Add your backend API call here
-    
-    // 2. Redirect to the success page
-    navigate('/report-success');
+    setLoading(true);
+    setError('');
+
+    // Form validation (minimal example)
+    if (!formData.itemTitle || !formData.dateLost || !formData.location || !formData.description) {
+      setError('Please fill out all required fields.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Prepare the payload to match the backend serializer's expectations
+      const payload: ReportPayload = {
+        itemName: formData.itemTitle,
+        category: formData.category,
+        date: formData.dateLost, // Maps to 'date_lost_or_found'
+        location: formData.location,
+        description: formData.description,
+        type: 'Lost', // Hardcoded as 'Lost'
+      };
+      
+      // Send the request
+      await createReport(payload, image);
+      
+      // Redirect to the success page
+      navigate('/report-success');
+    } catch (err) {
+      console.error('Report submission failed:', err);
+      // Attempt to parse a better error message if it's a JSON string
+      let message = 'Failed to submit report. Please try again.';
+      try {
+        const errorObject = JSON.parse((err as Error).message);
+        if (errorObject.non_field_errors) {
+            message = errorObject.non_field_errors[0];
+        } else if (errorObject.detail) {
+            message = errorObject.detail;
+        }
+      } catch {
+        // Fallback to generic message
+      }
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 relative pb-20">
       
-      {/* --- HEADER --- */}
+      {/* --- HEADER --- (omitted for brevity) */}
       <header className="sticky top-0 z-20 bg-white border-b border-gray-100 shadow-sm px-4 py-3">
         <div className="max-w-md mx-auto md:max-w-5xl flex items-center justify-between">
           
@@ -99,6 +145,8 @@ export default function ReportLost() {
              Your report will be reviewed by admin before being published. You'll be notified once it's approved.
            </p>
         </div>
+        
+        {error && <p className="text-sm text-red-500 bg-red-100 p-3 rounded-lg mb-4">{error}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           
@@ -201,17 +249,17 @@ export default function ReportLost() {
             <button
               type="button"
               className="flex items-center gap-2 px-4 py-2.5 bg-white border border-blue-200 rounded-lg text-blue-500 text-sm font-semibold hover:bg-blue-50 transition-colors shadow-sm"
-              onClick={() => document.getElementById('imageUpload')?.click()}
+              onClick={() => document.getElementById('imageUploadLost')?.click()}
             >
               <Upload className="w-4 h-4" />
-              Add file
+              {image ? image.name : 'Add file'}
             </button>
             <input 
-              id="imageUpload" 
+              id="imageUploadLost" 
               type="file" 
               className="hidden" 
               accept="image/*"
-              onChange={(e) => setFormData(prev => ({...prev, image: e.target.files?.[0] || null}))}
+              onChange={handleImageChange} // Use the new handler
             />
           </div>
 
@@ -222,14 +270,16 @@ export default function ReportLost() {
               // Add Cancel functionality to go back home
               onClick={() => navigate('/home')}
               className="px-8 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+              disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-8 py-2.5 bg-[#29b6f6] hover:bg-[#0288d1] text-white rounded-lg text-sm font-bold shadow-md transition-colors"
+              className="px-8 py-2.5 bg-[#29b6f6] hover:bg-[#0288d1] text-white rounded-lg text-sm font-bold shadow-md transition-colors flex items-center justify-center"
+              disabled={loading}
             >
-              Submit <br/> Lost Item
+              {loading ? 'Submitting...' : 'Submit Lost Item'}
             </button>
           </div>
         </form>

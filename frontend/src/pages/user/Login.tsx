@@ -1,18 +1,42 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Hand, Search } from 'lucide-react';
+import { Eye, EyeOff, Hand, Search } from 'lucide-react'; 
+import { useAuth } from '../../contexts/AuthContext'; // Import useAuth
 
 export default function UserLogin() {
-  const [isLogin, setIsLogin] = useState(true);
-  // FIXED: Correctly naming the setter function here
-  const [showPassword, setShowPassword] = useState(false);
+  const [isLogin, setIsLogin] = useState(true); 
+  const [showPassword, setShowPassword] = useState(false); // Correctly named setter
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  
   const navigate = useNavigate();
+  const { login } = useAuth(); // Get the real login function
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("User logging in...");
-    // Add logic here to verify user credentials
-    navigate('/home'); 
+    setError('');
+    setLoading(true);
+
+    if (!username || !password) {
+      setError('Please enter both username/email and password.');
+      setLoading(false);
+      return;
+    }
+    
+    // Call the real, async login function
+    const success = await login(username, password);
+
+    setLoading(false);
+
+    if (success) {
+      // Login successful, navigate to the user home page
+      navigate('/home'); 
+    } else {
+      // Login failed (Invalid credentials)
+      setError('Invalid username or password.');
+    }
   };
 
   return (
@@ -32,7 +56,7 @@ export default function UserLogin() {
             onClick={() => setIsLogin(false)}
             className={`${!isLogin ? 'text-gray-800 border-b-2 border-gray-800' : ''} pb-1`}
           >
-            SIGNUP
+            SIGNUP (WIP)
           </button>
         </div>
 
@@ -68,12 +92,21 @@ export default function UserLogin() {
 
         {/* Form Section */}
         <form onSubmit={handleLogin} className="space-y-6">
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl text-sm" role="alert">
+              {error}
+            </div>
+          )}
+
           <div className="space-y-4">
             {/* Username/Email Input */}
             <div>
               <input
                 type="text"
                 placeholder="Username / Email"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={loading}
                 className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#00aaff] focus:ring-1 focus:ring-[#00aaff] transition-colors"
               />
             </div>
@@ -83,12 +116,16 @@ export default function UserLogin() {
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
                 className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#00aaff] focus:ring-1 focus:ring-[#00aaff] transition-colors"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                disabled={loading}
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
@@ -103,9 +140,15 @@ export default function UserLogin() {
 
           <button
             type="submit"
-            className="w-full bg-[#0091ea] hover:bg-[#0081d5] text-white font-bold py-3.5 rounded-xl transition-colors shadow-lg shadow-blue-200"
+            disabled={loading}
+            className="w-full bg-[#0091ea] hover:bg-[#0081d5] text-white font-bold py-3.5 rounded-xl transition-colors shadow-lg shadow-blue-200 flex items-center justify-center"
           >
-            Login
+            {loading ? (
+              <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : 'Login'}
           </button>
         </form>
 

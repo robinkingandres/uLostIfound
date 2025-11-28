@@ -1,36 +1,78 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Eye } from 'lucide-react';
 import DashboardHeader from '../../components/admin/DashboardHeader';
 import ReportDetailsModal from '../../components/ReportDetailsModal';
-import { mockReports } from '../../data/mockReports';
+// Import new API functions and payload type
+import { fetchReports, updateReportStatus } from '../../services/api';
 import type { Report, ReportStatus, ReportType } from '../../types/report';
 
 type FilterType = 'All' | 'Lost' | 'Found' | 'Verified' | 'Pending' | 'Rejected';
 
 export default function ManageReports() {
-  const [reports, setReports] = useState<Report[]>(mockReports);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [filter, setFilter] = useState<FilterType>('All');
+  
+  // Memoize fetch function to prevent unnecessary re-runs
+  const loadReports = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    
+    // Map filters to API parameters
+    let typeFilter: ReportType | undefined = undefined;
+    let statusFilter: ReportStatus | undefined = undefined;
 
-  const filteredReports = reports.filter((report) => {
-    if (filter === 'All') return true;
-    if (filter === 'Lost' || filter === 'Found') return report.type === filter;
-    return report.status === filter;
-  });
+    if (filter === 'Lost' || filter === 'Found') {
+      typeFilter = filter;
+    } else if (filter !== 'All') {
+      statusFilter = filter as ReportStatus;
+    }
 
-  const handleVerify = (reportId: number) => {
-    setReports((prev) =>
-      prev.map((r) => (r.id === reportId ? { ...r, status: 'Verified' as ReportStatus } : r))
-    );
-    setSelectedReport(null);
+    try {
+      // Call the new API function
+      const data = await fetchReports(typeFilter, statusFilter);
+      setReports(data);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load reports. Please check the backend connection.');
+    } finally {
+      setLoading(false);
+    }
+  }, [filter]); // Re-run whenever filter changes
+
+  useEffect(() => {
+    loadReports();
+  }, [loadReports]);
+
+
+  const handleStatusUpdate = async (reportId: number, newStatus: ReportStatus) => {
+    try {
+      // Call the API to update the status
+      await updateReportStatus(reportId, newStatus);
+      
+      // Update the local state (or reload data)
+      setReports((prev) =>
+        prev.map((r) => (r.id === reportId ? { ...r, status: newStatus } : r))
+      );
+      setSelectedReport(null); // Close modal
+      
+      // If the filter is active, force a reload to filter out the updated item
+      if (filter !== 'All' && filter !== 'Lost' && filter !== 'Found') {
+          setTimeout(loadReports, 100); 
+      }
+
+    } catch (err) {
+      console.error(`Failed to update status to ${newStatus}:`, err);
+      alert(`Failed to update report status. Error: ${err}`);
+    }
   };
 
-  const handleReject = (reportId: number) => {
-    setReports((prev) =>
-      prev.map((r) => (r.id === reportId ? { ...r, status: 'Rejected' as ReportStatus } : r))
-    );
-    setSelectedReport(null);
-  };
+
+  const handleVerify = (reportId: number) => handleStatusUpdate(reportId, 'Verified');
+
+  const handleReject = (reportId: number) => handleStatusUpdate(reportId, 'Rejected');
 
   const getStatusColor = (status: ReportStatus) => {
     switch (status) {
@@ -62,6 +104,9 @@ export default function ManageReports() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Manage Reports</h1>
           <p className="text-gray-600">Review and manage all lost and found items</p>
         </div>
+        
+        {error && <div className="text-red-500 p-4 bg-red-100 rounded-lg mb-6">Error: {error}</div>}
+
 
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex items-center gap-4 mb-6">
@@ -89,66 +134,71 @@ export default function ManageReports() {
             ))}
           </div>
         </div>
-
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-100 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Reporter</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Item name</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Location</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredReports.map((report) => (
-                  <tr key={report.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-sm">
-                      <div>
-                        <p className="font-medium text-gray-900">{report.reporter}</p>
-                        <p className="text-xs text-gray-500">{report.reporterRole}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{report.itemName}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{report.description}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getTypeColor(report.type)}`}>
-                        {report.type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{report.location}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(report.status)}`}>
-                        {report.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{report.date}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <button
-                        onClick={() => setSelectedReport(report)}
-                        className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                        See more
-                      </button>
-                    </td>
+        
+        {loading ? (
+          <div className="text-center py-12 text-gray-500">Loading reports...</div>
+        ) : (
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-100 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Reporter</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Item name</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Description</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Location</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {reports.map((report) => (
+                    <tr key={report.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 text-sm">
+                        <div>
+                          {/* Use reporterName and reporterRole from the API response */}
+                          <p className="font-medium text-gray-900">{report.reporter}</p>
+                          <p className="text-xs text-gray-500">{report.reporterRole}</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{report.itemName}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{report.description}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getTypeColor(report.type)}`}>
+                          {report.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{report.location}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(report.status)}`}>
+                          {report.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{report.date}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <button
+                          onClick={() => setSelectedReport(report)}
+                          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                          See more
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
+              <p className="text-sm text-gray-600">
+                Showing <span className="font-semibold">{reports.length}</span> reports
+              </p>
+            </div>
           </div>
-          <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
-            <p className="text-sm text-gray-600">
-              Showing <span className="font-semibold">{filteredReports.length}</span> of{' '}
-              <span className="font-semibold">{reports.length}</span> reports
-            </p>
-          </div>
-        </div>
+        )}
+        
       </div>
 
       {selectedReport && (

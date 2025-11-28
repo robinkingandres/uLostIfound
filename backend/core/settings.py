@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'users',
+    'reports',
     'rest_framework',
 ]
 
@@ -131,3 +132,12 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 AUTH_USER_MODEL = 'users.User'
+
+CORS_ALLOW_CREDENTIALS = True # <-- ADD THIS LINE
+
+# --- NEW: Custom Authentication Backend ---
+AUTHENTICATION_BACKENDS = [
+    'users.backends.CustomUserAuthBackend', # Use the custom logic first
+    'django.contrib.auth.backends.ModelBackend', # Keep Django's default for safety
+]
+
