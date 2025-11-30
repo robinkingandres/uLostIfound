@@ -1,11 +1,13 @@
 import type { Report, ReportStatus, ReportType } from '../types/report';
+import type { Claim, ClaimStatus } from '../types/claim'; // Ensure Claim/ClaimStatus are imported
 // FIX: Ensure correct import of fetchCsrfToken from authApi.ts
 import { fetchCsrfToken } from './authApi'; 
 
 const API_URL = 'http://localhost:8000/api'; // <-- FIXED HOSTNAME
 const REPORT_URL = `${API_URL}/reports/`;
+const CLAIM_URL = `${API_URL}/claims/`; // <-- NEW CLAIM URL
 const USER_URL = `${API_URL}/users/`;
-
+const DASHBOARD_STATS_URL = `${API_URL}/dashboard/stats/`; // <-- NEW URL
 
 // --- Utility function to get CSRF Token from cookie ---
 const getCsrfToken = () => {
@@ -35,6 +37,120 @@ export interface ReportPayload {
 
 // =================================================================
 //                      REPORT API FUNCTIONS
+// =================================================================
+
+
+// Define the expected return structure for clarity in frontend logic
+interface DashboardStats {
+  totalReports: number;
+  totalLostItems: number;
+  totalFoundItems: number;
+  totalClaimedItems: number;
+  pendingReports: number;
+  totalUsers: number;
+}
+
+/**
+ * Fetches core statistics for the Admin Dashboard.
+ */
+export const fetchDashboardStats = async (): Promise<DashboardStats> => {
+    // CRITICAL FIX: Explicitly call fetchCsrfToken() to ensure the session cookie 
+    // is present and active before hitting the protected API endpoint.
+    const csrfToken = await fetchCsrfToken(); 
+
+    if (!csrfToken) {
+      // If the robust fetcher failed, the user is likely not logged in or the session is corrupted.
+      throw new Error('Authentication required for dashboard access.');
+    }
+    
+    // Authentication is required, so we must include credentials.
+    const response = await fetch(DASHBOARD_STATS_URL, { 
+      credentials: 'include', 
+      headers: {
+        // Including the token even in the header for a GET can help satisfy Django's check
+        'X-CSRFToken': csrfToken, 
+      }
+    }); 
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      // Throw the raw error detail from the server for better debugging
+      throw new Error(JSON.stringify(errorData)); 
+    }
+  
+    return response.json() as Promise<DashboardStats>;
+};
+
+// =================================================================
+//                      CLAIM API FUNCTIONS
+// =================================================================
+
+// --- Create a new claim (User) ---
+export const createClaim = async (reportId: number, proofDescription: string) => {
+  const csrfToken = await fetchCsrfToken();
+  
+  if (!csrfToken) {
+    throw new Error('CSRF token not found. Please ensure you are logged in.');
+  }
+
+  const response = await fetch(CLAIM_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify({ 
+      reportId: reportId, 
+      proofDescription: proofDescription 
+    }),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+
+  return response.json();
+};
+
+// --- NEW: Fetch all claims (Admin sees all, User sees own) ---
+export const fetchClaims = async (): Promise<Claim[]> => {
+  // Authentication is required, include credentials
+  const response = await fetch(CLAIM_URL, { 
+    credentials: 'include' 
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch claims');
+  }
+  return response.json();
+};
+
+// --- NEW: Update claim status (Approve/Reject) ---
+export const updateClaimStatus = async (id: number, status: ClaimStatus): Promise<Claim> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
+
+  const response = await fetch(`${CLAIM_URL}${id}/`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify({ status }),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+  return response.json();
+};
+
+// =================================================================
+//                      REPORT CRUD FUNCTIONS
 // =================================================================
 
 /**

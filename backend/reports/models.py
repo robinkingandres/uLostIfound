@@ -2,7 +2,7 @@ from django.db import models
 from django.conf import settings
 
 class Report(models.Model):
-    # --- Choices for Report Fields ---
+    # ... (Keep existing Report code unchanged) ...
     REPORT_STATUS_CHOICES = (
         ('Pending', 'Pending'),
         ('Verified', 'Verified'),
@@ -15,7 +15,6 @@ class Report(models.Model):
         ('Found', 'Found'),
     )
 
-    # --- Foreign Key (Links to your User model) ---
     reporter = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE,
@@ -23,19 +22,14 @@ class Report(models.Model):
         verbose_name='Reported By'
     )
     
-    # --- Core Item Details (Matches frontend input fields) ---
     item_name = models.CharField(max_length=255)
     description = models.TextField()
     type = models.CharField(max_length=10, choices=REPORT_TYPE_CHOICES)
     category = models.CharField(max_length=100)
     location = models.CharField(max_length=255)
-    date_lost_or_found = models.DateField() # Renamed to 'date' on the frontend
-    
-    # --- Admin/Status Fields ---
+    date_lost_or_found = models.DateField()
     status = models.CharField(max_length=10, choices=REPORT_STATUS_CHOICES, default='Pending')
-    date_reported = models.DateTimeField(auto_now_add=True) # Automatically set on creation
-    
-    # --- Media Field ---
+    date_reported = models.DateTimeField(auto_now_add=True)
     image = models.ImageField(upload_to='report_images/', null=True, blank=True)
 
     class Meta:
@@ -45,3 +39,23 @@ class Report(models.Model):
 
     def __str__(self):
         return f"[{self.type}] {self.item_name} ({self.status})"
+
+# --- NEW CLAIM MODEL ---
+class Claim(models.Model):
+    CLAIM_STATUS_CHOICES = (
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    )
+
+    report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='claims')
+    claimant = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='claims')
+    proof_description = models.TextField(help_text="Describe why this item belongs to you (e.g., specific marks, contents).")
+    status = models.CharField(max_length=10, choices=CLAIM_STATUS_CHOICES, default='Pending')
+    date_created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date_created']
+
+    def __str__(self):
+        return f"Claim for {self.report.item_name} by {self.claimant.username}"

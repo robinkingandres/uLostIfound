@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'; // Added useEffect, useCallback
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
@@ -8,32 +8,34 @@ import {
   MapPin, 
   Calendar, 
   Tag, 
-  User as UserIcon,
-  Bot
+  User as UserIcon
 } from 'lucide-react';
-// import { mockReports } from '../../data/mockReports'; // REMOVED MOCK DATA
-import { fetchReports } from '../../services/api'; // IMPORT API
+import { fetchReports } from '../../services/api';
 import type { Report } from '../../types/report';
+import ClaimModal from '../../components/ClaimModal'; // Import the Claim Modal
 
 export default function UserHome() {
   const navigate = useNavigate(); 
   
-  // NEW STATE: Loading, Error, and Live Reports
-  const [reports, setReports] = useState<Report[]>([]); // Initialize with empty array
+  // State: Loading, Error, and Live Reports
+  const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
     
-  // Filter states (kept from original component)
+  // State: Filters
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All Status'); // Filters report.type
+  const [statusFilter, setStatusFilter] = useState('All Status'); 
   const [categoryFilter, setCategoryFilter] = useState('All Categories');
 
-  // New fetch logic encapsulated in a callback
+  // State: Claim Modal
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+
+  // Fetch logic
   const loadReports = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      // Calling fetchReports() with no parameters returns ALL Verified reports for public users (backend logic)
       const data = await fetchReports();
       setReports(data);
     } catch (err) {
@@ -44,13 +46,17 @@ export default function UserHome() {
     }
   }, []);
 
-  // Effect to load data on mount
   useEffect(() => {
     loadReports();
   }, [loadReports]);
 
+  // Handler for opening the Claim Modal
+  const handleClaimClick = (report: Report) => {
+    setSelectedReport(report);
+    setIsClaimModalOpen(true);
+  };
 
-  // Filter Logic (Applied to the fetched 'reports' state)
+  // Filter Logic
   const filteredReports = reports.filter((report) => {
     const matchesSearch = 
       report.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -65,7 +71,6 @@ export default function UserHome() {
     return matchesSearch && matchesType && matchesCategory; 
   });
   
-  // Helper for Status Badge Color (kept from original)
   const getTypeColor = (type: string) => {
     return type === 'Lost' ? 'bg-[#f06565]' : 'bg-[#3b82f6]';
   };
@@ -106,14 +111,12 @@ export default function UserHome() {
       <header className="sticky top-0 z-20 bg-white border-b border-gray-100 shadow-sm px-4 py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           
-          {/* Logo Area */}
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 rounded-full bg-blue-900 flex items-center justify-center text-white font-bold text-xs shadow-md border-2 border-yellow-400">
               NHS
             </div>
           </div>
 
-          {/* Navigation Actions (Desktop/Tablet) */}
           <div className="hidden md:flex items-center gap-6">
             <button 
               onClick={() => navigate('/report-lost')} 
@@ -129,7 +132,6 @@ export default function UserHome() {
             </button>
           </div>
 
-          {/* Icons */}
           <div className="flex items-center gap-4">
             <button className="relative text-gray-600 hover:text-blue-600 transition-colors">
               <Bell className="w-6 h-6" />
@@ -142,11 +144,9 @@ export default function UserHome() {
         </div>
       </header>
 
-
       {/* --- MAIN CONTENT --- */}
       <main className="max-w-md mx-auto md:max-w-5xl px-4 py-6 pb-24">
         
-        {/* Title */}
         <div className="text-center mb-8">
           <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">
             San Isidro National High School <br />
@@ -172,7 +172,7 @@ export default function UserHome() {
             />
           </div>
 
-          {/* Type Select (labeled as Status, filters 'type') */}
+          {/* Type Select */}
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
             <select
@@ -183,7 +183,6 @@ export default function UserHome() {
               <option>All Status</option>
               <option value="Lost">Lost</option>
               <option value="Found">Found</option>
-              {/* Removed "Claimed" as the reports here are verified and this filter should ideally only filter by item TYPE, not status */}
             </select>
           </div>
 
@@ -207,13 +206,12 @@ export default function UserHome() {
         </div>
 
         {/* --- ITEMS LIST --- */}
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredReports.map((report) => (
-            <div key={report.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+            <div key={report.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
               
               {/* Image Section */}
               <div className="relative h-48 w-full bg-gray-100">
-                {/* Note: Ensure the 'image' field contains a valid public URL from Django/Media folder */}
                 <img 
                   src={report.image} 
                   alt={report.itemName} 
@@ -228,41 +226,53 @@ export default function UserHome() {
               </div>
 
               {/* Content Section */}
-              <div className="p-5">
+              <div className="p-5 flex-1 flex flex-col">
                 <h3 className="text-lg font-bold text-gray-900 mb-1">{report.itemName}</h3>
                 
-                {/* Date */}
-                <p className="text-xs text-gray-400 mb-3">{report.date} • </p>
+                <p className="text-xs text-gray-400 mb-3">{report.date}</p>
 
                 <p className="text-sm text-gray-600 mb-4 line-clamp-2">
                   {report.description}
                 </p>
 
                 {/* Meta Details */}
-                <div className="space-y-2 text-sm text-gray-500">
+                <div className="space-y-2 text-sm text-gray-500 mb-4">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-gray-400" />
                     <span>{report.location}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    <span>{report.date}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
                     <Tag className="w-4 h-4 text-gray-400" />
                     <span>{report.category}</span>
                   </div>
-                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                  <div className="flex items-center gap-2">
                     <UserIcon className="w-4 h-4 text-gray-400" />
                     <span className="font-medium text-gray-700">{report.reporter}</span>
                   </div>
+                </div>
+
+                {/* ACTION BUTTON (Only for Found Items) */}
+                <div className="mt-auto pt-3 border-t border-gray-100">
+                  {report.type === 'Found' ? (
+                    <button 
+                      onClick={() => handleClaimClick(report)}
+                      className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <img src="https://cdn-icons-png.flaticon.com/512/10697/10697240.png" className="w-4 h-4 invert brightness-0" alt="" />
+                      Claim This Item
+                    </button>
+                  ) : (
+                    <button className="w-full py-2.5 bg-gray-100 text-gray-400 rounded-lg text-sm font-medium cursor-default">
+                      Reported as Lost
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
           ))}
 
           {filteredReports.length === 0 && (
-            <div className="text-center py-10 text-gray-400">
+            <div className="text-center py-10 text-gray-400 col-span-full">
               No verified items found matching your filters.
             </div>
           )}
@@ -282,6 +292,16 @@ export default function UserHome() {
            </div>
         </button>
       </div>
+
+      {/* Claim Modal */}
+      {selectedReport && (
+        <ClaimModal 
+          isOpen={isClaimModalOpen}
+          onClose={() => setIsClaimModalOpen(false)}
+          reportId={selectedReport.id}
+          itemName={selectedReport.itemName}
+        />
+      )}
 
     </div>
   );
