@@ -1,27 +1,24 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-// Import the new API functions
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { fetchLogin, fetchLogout } from '../services/authApi'; 
 import type { UserRole } from '../types/user';
 
-// Define the User structure to match the Django serializer response
 interface AuthUser {
     id: number;
     username: string;
-    role: UserRole; // Assuming the serializer returns the role field
-    name: string; // The combined name from Django's serializer
-    // Include other fields returned by UserSerializer if needed
+    role: UserRole;
+    name: string;
 }
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: AuthUser | null; // Use the real AuthUser type
-  login: (username: string, password: string) => Promise<boolean>;
+  user: AuthUser | null;
+  // CHANGED: login now returns the User object (or null) instead of boolean
+  login: (username: string, password: string) => Promise<AuthUser | null>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Helper function to check stored state (we will modify this slightly)
 const getInitialState = (): { isAuthenticated: boolean; user: AuthUser | null } => {
     try {
         const storedAuth = localStorage.getItem('isAuthenticated');
@@ -42,16 +39,13 @@ const getInitialState = (): { isAuthenticated: boolean; user: AuthUser | null } 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const initialState = getInitialState();
   const [isAuthenticated, setIsAuthenticated] = useState(initialState.isAuthenticated);
-  const [user, setUser] = useState(initialState.user);
+  const [user, setUser] = useState<AuthUser | null>(initialState.user);
 
-  // We rely solely on the initial state loading and API interactions, removing the redundant useEffect
-  
-  // REAL LOGIN IMPLEMENTATION
-  const login = async (username: string, password: string): Promise<boolean> => {
+  // CHANGED: Return AuthUser | null
+  const login = async (username: string, password: string): Promise<AuthUser | null> => {
     try {
-        const userData = await fetchLogin(username, password); // Call the real API
+        const userData = await fetchLogin(username, password);
         
-        // Map the backend response to the local AuthUser structure
         const authUser: AuthUser = {
             id: userData.id,
             username: userData.username,
@@ -63,17 +57,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(authUser);
         localStorage.setItem('isAuthenticated', 'true');
         localStorage.setItem('user', JSON.stringify(authUser));
-        return true;
+        
+        return authUser; // Return the user object so we can check roles immediately
     } catch (e) {
         console.error("Login failed:", e);
-        return false;
+        return null;
     }
   };
 
   const logout = () => {
-    // Send logout request to clear Django session
     fetchLogout(); 
-    
     setIsAuthenticated(false);
     setUser(null);
     localStorage.removeItem('isAuthenticated');

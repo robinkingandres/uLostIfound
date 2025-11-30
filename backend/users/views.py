@@ -1,13 +1,12 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
 # Use the correct Django imports
 from django.contrib.auth import authenticate, login, logout, get_user_model 
-from django.middleware.csrf import get_token # <-- ADD THIS IMPORT
-# REMOVED: from django.views.decorators.csrf import csrf_protect
-# REMOVED: from django.utils.decorators import method_decorator
+from django.middleware.csrf import get_token 
 from .serializers import UserSerializer
+# Import the shared permission class
+from core.permissions import IsAdmin 
 
 # Load the custom user model once
 User = get_user_model() 
@@ -57,6 +56,9 @@ class UserViewSet(viewsets.ModelViewSet):
     # Use the User model instance loaded above
     queryset = User.objects.all() 
     serializer_class = UserSerializer
+    
+    # RBAC: Restrict User Management to Admins only
+    permission_classes = [IsAdmin] 
     
     # Add search capability (e.g. search by name or ID)
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]

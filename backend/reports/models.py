@@ -45,6 +45,7 @@ class Claim(models.Model):
     CLAIM_STATUS_CHOICES = (
         ('Pending', 'Pending'),
         ('Approved', 'Approved'),
+        ('Claimed', 'Claimed'),
         ('Rejected', 'Rejected'),
     )
 

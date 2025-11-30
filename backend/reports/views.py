@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, filters, status
+from rest_framework import viewsets, permissions, filters, status, exceptions
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -10,23 +10,16 @@ from .models import Report, Claim, Notification
 # Import serializers including the new NotificationSerializer
 from .serializers import ReportSerializer, ClaimSerializer, NotificationSerializer
 
+# Import the new shared permission
+from core.permissions import IsAdmin 
+
 # Load the custom user model once
 User = get_user_model() 
 
-# --- PERMISSION CLASS ---
-class IsAdmin(permissions.BasePermission):
-    """
-    Custom permission to only allow users with role 'Admin' OR Superusers to access.
-    """
-    def has_permission(self, request, view):
-        # Check if user is logged in AND (is an Admin role OR is a Django superuser)
-        return request.user.is_authenticated and (
-            request.user.role == 'Admin' or request.user.is_superuser
-        )
-
 # --- DASHBOARD STATS API ---
 class DashboardStatsView(APIView):
-    permission_classes = [IsAdmin] # Only Admins/Superusers can access
+    # RBAC: Only Admins/Superusers can access dashboard stats
+    permission_classes = [IsAdmin]
 
     def get(self, request, format=None):
         # Report Counts
@@ -64,6 +57,19 @@ class ReportViewSet(viewsets.ModelViewSet):
         serializer.save(reporter=self.request.user)
 
     def perform_update(self, serializer):
+        user = self.request.user
+        is_admin = (user.role == 'Admin' or user.is_superuser)
+
+        # RBAC Check: Prevent non-admins from changing the status
+        # We check if 'status' is in the data being updated
+        if 'status' in serializer.validated_data:
+            new_status_req = serializer.validated_data['status']
+            instance = self.get_object()
+            
+            # If the status is changing and the user is NOT an admin
+            if instance.status != new_status_req and not is_admin:
+                raise exceptions.PermissionDenied("Only Admins can change the report status.")
+
         # 1. Get the old object before saving to compare status
         instance = self.get_object()
         old_status = instance.status
@@ -95,17 +101,24 @@ class ReportViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = self.queryset
         
-        # Allow detailed view of any item
+        # Allow detailed view of any item (DRF handles 404 if not found)
         if self.detail:
             return queryset
             
         report_type = self.request.query_params.get('type')
         status_filter = self.request.query_params.get('status')
+        user = self.request.user
         
         # Check if user is Admin or Superuser
-        is_admin = self.request.user.is_authenticated and (
-            self.request.user.role == 'Admin' or self.request.user.is_superuser
+        is_admin = user.is_authenticated and (
+            user.role == 'Admin' or user.is_superuser
         )
+
+        # RBAC Visibility Logic:
+        # Admins see everything.
+        # Regular users (including the reporter) ONLY see 'Verified' reports in the public feed.
+        if not is_admin:
+            queryset = queryset.filter(status='Verified')
 
         # Filter by type (Lost/Found)
         if report_type:
@@ -114,16 +127,14 @@ class ReportViewSet(viewsets.ModelViewSet):
         # Filter by status
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-        elif not is_admin:
-            # Regular users only see 'Verified' reports in the public feed
-            queryset = queryset.filter(status='Verified')
             
         return queryset
     
-    # Endpoint for users to see their own reports
+    # Endpoint for users to see their own reports (Profile History)
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def my_reports(self, request):
-        queryset = self.get_queryset().filter(reporter=request.user)
+        # Explicitly filter for the current user's reports
+        queryset = Report.objects.filter(reporter=request.user)
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
@@ -147,6 +158,19 @@ class ClaimViewSet(viewsets.ModelViewSet):
             return Claim.objects.all()
         # Regular users only see their own claims
         return Claim.objects.filter(claimant=user)
+
+    def update(self, request, *args, **kwargs):
+        """
+        RBAC: Restrict updating claims (e.g. changing status to Approved) to Admins.
+        Regular users create claims, they shouldn't edit them (or definitely not approve them).
+        """
+        user = request.user
+        if user.role != 'Admin' and not user.is_superuser:
+             return Response(
+                 {"detail": "You do not have permission to update claims."}, 
+                 status=status.HTTP_403_FORBIDDEN
+             )
+        return super().update(request, *args, **kwargs)
 
 # --- NOTIFICATION VIEWSET ---
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):

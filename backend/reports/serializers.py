@@ -50,7 +50,7 @@ class ClaimSerializer(serializers.ModelSerializer):
             'id', 'reportId', 'itemName', 'claimantName', 
             'claimantRole', 'proofDescription', 'status', 'date'
         ]
-        read_only_fields = ['id', 'itemName', 'claimantName', 'claimantRole', 'status', 'date']
+        read_only_fields = ['id', 'itemName', 'claimantName', 'claimantRole', 'date']
 
     def get_claimantName(self, obj):
         user = obj.claimant

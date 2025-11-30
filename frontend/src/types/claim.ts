@@ -1,4 +1,4 @@
-export type ClaimStatus = 'Pending' | 'Approved' | 'Rejected';
+export type ClaimStatus = 'Pending' | 'Approved' | 'Claimed' | 'Rejected';
 
 export interface Claim {
   id: number;

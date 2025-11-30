@@ -4,72 +4,76 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // Admin Imports
 import AdminLayout from './layouts/AdminLayout';
-import AdminLogin from './pages/admin/Login';
 import AdminDashboard from './pages/admin/Dashboard';
 import ManageReports from './pages/admin/Reports';
 import UserManagement from './pages/UserManagement';
 import ClaimManagement from './pages/ClaimManagement';
 import Analytics from './pages/Analytics';
-import PlaceholderPage from './pages/PlaceholderPage';
 import AIMatchNotification from './pages/admin/AIMatchNotification';
 
 // User Imports
-import UserLogin from './pages/user/Login'; // Import the new page
+// WE USE ONE UNIFIED LOGIN NOW
+import UserLogin from './pages/user/Login'; 
 import UserHome from './pages/user/Home';
 import ReportLost from './pages/user/ReportLost';
 import ReportFound from './pages/user/ReportFound';
 import ReportSuccess from './pages/user/ReportLostSuccess';
 import ReportFoundSuccess from './pages/user/ReportFoundSuccess';
-import UserProfile from './pages/user/Profile'; // Import the new page
+import UserProfile from './pages/user/Profile';
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* --- USER ROUTES --- */}
-          
-          {/* Default Route: Redirects to User Login for now */}
+          {/* --- PUBLIC ROUTES --- */}
           <Route path="/" element={<Navigate to="/login" replace />} />
-          
-          {/* User Login Page */}
           <Route path="/login" element={<UserLogin />} />
+          {/* Redirect old admin login to the unified login */}
+          <Route path="/admin/login" element={<Navigate to="/login" replace />} />
 
-              
-          {/* User Landing Page */}
-          <Route path="/home" element={<UserHome />} />
-
-              
-          {/* User Report Lost Item */}
-          <Route path="/report-lost" element={<ReportLost />} />
-
-          {/* User Report Found Item */}
-          <Route path="/report-found" element={<ReportFound />} />
-
+          {/* --- PROTECTED USER ROUTES (Access: Student, Teacher, Admin) --- */}
+          <Route path="/home" element={
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+              <UserHome />
+            </ProtectedRoute>
+          } />
           
-          {/* User Submit Lost Item */}
-          <Route path="/report-success" element={<ReportSuccess />} />
+          <Route path="/report-lost" element={
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+              <ReportLost />
+            </ProtectedRoute>
+          } />
 
-          {/* User Submit Lost Item */}
-          <Route path="/report-found-success" element={<ReportFoundSuccess />} />
-          
-          {/* Placeholder for when user logs in */}
-          <Route path="/home" element={<PlaceholderPage title="User Homepage" />} />
-          
-          {/* Add Profile Route */}
-          <Route path="/profile" element={<UserProfile />} />
+          <Route path="/report-found" element={
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+              <ReportFound />
+            </ProtectedRoute>
+          } />
 
+          <Route path="/report-success" element={
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+              <ReportSuccess />
+            </ProtectedRoute>
+          } />
 
-          {/* --- ADMIN ROUTES --- */}
-          
-          {/* Admin Login */}
-          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/report-found-success" element={
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+              <ReportFoundSuccess />
+            </ProtectedRoute>
+          } />
 
-          {/* Protected Admin Dashboard Area */}
+          <Route path="/profile" element={
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+              <UserProfile />
+            </ProtectedRoute>
+          } />
+
+          {/* --- PROTECTED ADMIN ROUTES (Access: Admin Only) --- */}
           <Route
             path="/admin"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={['Admin']}>
                 <AdminLayout />
               </ProtectedRoute>
             }
@@ -79,12 +83,11 @@ function App() {
             <Route path="reports" element={<ManageReports />} />
             <Route path="users" element={<UserManagement />} />
             <Route path="claims" element={<ClaimManagement />} />
-           <Route path="ai-matches" element={<AIMatchNotification />} />
-            
+            <Route path="ai-matches" element={<AIMatchNotification />} />
             <Route path="analytics" element={<Analytics />} />
           </Route>
 
-          {/* Catch-all: Redirect to user login */}
+          {/* Catch-all */}
           <Route path="*" element={<Navigate to="/login" replace />} />
           
         </Routes>
