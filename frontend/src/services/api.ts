@@ -302,3 +302,65 @@ export const updateUser = async (id: number, data: any) => {
   
   return response.json();
 };
+
+
+// profile report
+export const fetchMyReports = async (): Promise<Report[]> => {
+  // The 'my_reports' action creates a URL like: /api/reports/my_reports/
+  const response = await fetch(`${REPORT_URL}my_reports/`, { 
+    credentials: 'include' 
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch user reports');
+  }
+
+  const data = await response.json();
+  
+  // The backend might return a paginated object ({ count: ..., results: [...] }) 
+  // or a flat array depending on your pagination settings. 
+  // This check handles both cases safely.
+  if (Array.isArray(data)) {
+    return data;
+  } else if (data.results && Array.isArray(data.results)) {
+    return data.results;
+  }
+  
+  return [];
+};
+
+
+export interface Notification {
+  id: number;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+  report: number | null;
+}
+
+const NOTIFICATION_URL = `${API_URL}/notifications/`;
+
+// --- NOTIFICATION API ---
+export const fetchNotifications = async (): Promise<Notification[]> => {
+  const response = await fetch(NOTIFICATION_URL, { credentials: 'include' });
+  if (!response.ok) throw new Error('Failed to fetch notifications');
+  return response.json();
+};
+
+export const markNotificationRead = async (id: number) => {
+  const csrfToken = await fetchCsrfToken(); // Ensure you import fetchCsrfToken
+  await fetch(`${NOTIFICATION_URL}${id}/mark_read/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': csrfToken || '' },
+    credentials: 'include',
+  });
+};
+
+export const markAllNotificationsRead = async () => {
+  const csrfToken = await fetchCsrfToken();
+  await fetch(`${NOTIFICATION_URL}mark_all_read/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': csrfToken || '' },
+    credentials: 'include',
+  });
+};

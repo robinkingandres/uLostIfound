@@ -59,3 +59,17 @@ class Claim(models.Model):
 
     def __str__(self):
         return f"Claim for {self.report.item_name} by {self.claimant.username}"
+    
+class Notification(models.Model):
+    recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Optional: Link to a specific report if you want to make the notification clickable
+    report = models.ForeignKey('Report', on_delete=models.CASCADE, null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Notification for {self.recipient.username}: {self.message[:20]}..."

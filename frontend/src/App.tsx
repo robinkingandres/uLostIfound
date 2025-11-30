@@ -20,6 +20,7 @@ import ReportLost from './pages/user/ReportLost';
 import ReportFound from './pages/user/ReportFound';
 import ReportSuccess from './pages/user/ReportLostSuccess';
 import ReportFoundSuccess from './pages/user/ReportFoundSuccess';
+import UserProfile from './pages/user/Profile'; // Import the new page
 
 function App() {
   return (
@@ -54,6 +55,9 @@ function App() {
           
           {/* Placeholder for when user logs in */}
           <Route path="/home" element={<PlaceholderPage title="User Homepage" />} />
+          
+          {/* Add Profile Route */}
+          <Route path="/profile" element={<UserProfile />} />
 
 
           {/* --- ADMIN ROUTES --- */}

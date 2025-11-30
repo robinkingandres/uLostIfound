@@ -3,16 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
   Filter, 
-  Bell, 
-  Menu, 
   MapPin, 
-  Calendar, 
   Tag, 
   User as UserIcon
 } from 'lucide-react';
 import { fetchReports } from '../../services/api';
 import type { Report } from '../../types/report';
-import ClaimModal from '../../components/ClaimModal'; // Import the Claim Modal
+import ClaimModal from '../../components/ClaimModal'; 
+import UserHeader from '../../components/UserHeader'; // <--- Import the new component
 
 export default function UserHome() {
   const navigate = useNavigate(); 
@@ -50,22 +48,17 @@ export default function UserHome() {
     loadReports();
   }, [loadReports]);
 
-  // Handler for opening the Claim Modal
   const handleClaimClick = (report: Report) => {
     setSelectedReport(report);
     setIsClaimModalOpen(true);
   };
 
-  // Filter Logic
   const filteredReports = reports.filter((report) => {
     const matchesSearch = 
       report.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.description.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Status filter filters by report.type (Lost/Found)
     const matchesType = statusFilter === 'All Status' || report.type === statusFilter;
-    
-    // Category filter
     const matchesCategory = categoryFilter === 'All Categories' || report.category === categoryFilter;
 
     return matchesSearch && matchesType && matchesCategory; 
@@ -75,7 +68,6 @@ export default function UserHome() {
     return type === 'Lost' ? 'bg-[#f06565]' : 'bg-[#3b82f6]';
   };
 
-  // --- Render Loading/Error States ---
   if (loading) {
     return (
         <div className="min-h-screen flex items-center justify-center bg-white font-sans">
@@ -107,42 +99,8 @@ export default function UserHome() {
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 relative">
       
-      {/* --- HEADER --- */}
-      <header className="sticky top-0 z-20 bg-white border-b border-gray-100 shadow-sm px-4 py-3">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-full bg-blue-900 flex items-center justify-center text-white font-bold text-xs shadow-md border-2 border-yellow-400">
-              NHS
-            </div>
-          </div>
-
-          <div className="hidden md:flex items-center gap-6">
-            <button 
-              onClick={() => navigate('/report-lost')} 
-              className="text-gray-600 hover:text-blue-600 font-medium text-sm transition-colors"
-            >
-              Report Lost
-            </button>
-            <button 
-              onClick={() => navigate('/report-found')} 
-              className="text-gray-600 hover:text-blue-600 font-medium text-sm transition-colors"
-            >
-              Report Found
-            </button>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button className="relative text-gray-600 hover:text-blue-600 transition-colors">
-              <Bell className="w-6 h-6" />
-              <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
-            </button>
-            <button className="text-gray-600 hover:text-blue-600 transition-colors">
-              <Menu className="w-7 h-7" />
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* --- NEW HEADER IMPLEMENTATION --- */}
+      <UserHeader />
 
       {/* --- MAIN CONTENT --- */}
       <main className="max-w-md mx-auto md:max-w-5xl px-4 py-6 pb-24">
@@ -160,7 +118,6 @@ export default function UserHome() {
         {/* --- FILTERS SECTION --- */}
         <div className="bg-white rounded-xl border border-blue-100 shadow-sm p-4 mb-8 space-y-3">
           
-          {/* Search Input */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
@@ -172,7 +129,6 @@ export default function UserHome() {
             />
           </div>
 
-          {/* Type Select */}
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
             <select
@@ -186,7 +142,6 @@ export default function UserHome() {
             </select>
           </div>
 
-          {/* Category Select */}
           <div className="relative">
              <select
               value={categoryFilter}
@@ -210,32 +165,25 @@ export default function UserHome() {
           {filteredReports.map((report) => (
             <div key={report.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
               
-              {/* Image Section */}
               <div className="relative h-48 w-full bg-gray-100">
                 <img 
                   src={report.image} 
                   alt={report.itemName} 
                   className="w-full h-full object-cover"
                 />
-                
-                {/* Status Badge */}
                 <span className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-bold text-white
                   ${getTypeColor(report.type)}`}>
                   {report.type}
                 </span>
               </div>
 
-              {/* Content Section */}
               <div className="p-5 flex-1 flex flex-col">
                 <h3 className="text-lg font-bold text-gray-900 mb-1">{report.itemName}</h3>
-                
                 <p className="text-xs text-gray-400 mb-3">{report.date}</p>
-
                 <p className="text-sm text-gray-600 mb-4 line-clamp-2">
                   {report.description}
                 </p>
 
-                {/* Meta Details */}
                 <div className="space-y-2 text-sm text-gray-500 mb-4">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-gray-400" />
@@ -251,7 +199,6 @@ export default function UserHome() {
                   </div>
                 </div>
 
-                {/* ACTION BUTTON (Only for Found Items) */}
                 <div className="mt-auto pt-3 border-t border-gray-100">
                   {report.type === 'Found' ? (
                     <button 
@@ -279,7 +226,6 @@ export default function UserHome() {
         </div>
       </main>
 
-      {/* --- FLOATING CHATBOT --- */}
       <div className="fixed bottom-6 right-6 z-50">
         <button className="bg-transparent hover:scale-110 transition-transform duration-200 shadow-none border-0 p-0">
            <div className="w-16 h-16 relative">
@@ -293,7 +239,6 @@ export default function UserHome() {
         </button>
       </div>
 
-      {/* Claim Modal */}
       {selectedReport && (
         <ClaimModal 
           isOpen={isClaimModalOpen}

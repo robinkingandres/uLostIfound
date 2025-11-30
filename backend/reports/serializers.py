@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Report, Claim # Import Claim
+from .models import Report, Claim, Notification # Import Notification
 
 class ReportSerializer(serializers.ModelSerializer):
     # ... (Keep existing ReportSerializer code unchanged) ...
@@ -56,3 +56,8 @@ class ClaimSerializer(serializers.ModelSerializer):
         user = obj.claimant
         full_name = f"{user.first_name} {user.last_name}".strip()
         return full_name if full_name else user.username
+    
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'message', 'is_read', 'created_at', 'report']
