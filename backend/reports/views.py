@@ -8,9 +8,9 @@ from django.db.models.functions import TruncMonth
 from django.utils import timezone
 import calendar
 
-# Import models including the new Notification model
+# Import models
 from .models import Report, Claim, Notification 
-# Import serializers including the new NotificationSerializer
+# Import serializers
 from .serializers import ReportSerializer, ClaimSerializer, NotificationSerializer
 
 # Import the new shared permission
@@ -63,7 +63,7 @@ class DashboardStatsView(APIView):
             'totalClaimedItems': claimed_items,
             'pendingReports': pending_reports,
             'totalUsers': total_users,
-            'reportsByMonth': reports_by_month, # <--- Added this
+            'reportsByMonth': reports_by_month,
         }
         return Response(data, status=status.HTTP_200_OK)
 
@@ -86,27 +86,21 @@ class ReportViewSet(viewsets.ModelViewSet):
         is_admin = (user.role == 'Admin' or user.is_superuser)
 
         # RBAC Check: Prevent non-admins from changing the status
-        # We check if 'status' is in the data being updated
         if 'status' in serializer.validated_data:
             new_status_req = serializer.validated_data['status']
             instance = self.get_object()
             
-            # If the status is changing and the user is NOT an admin
             if instance.status != new_status_req and not is_admin:
                 raise exceptions.PermissionDenied("Only Admins can change the report status.")
 
-        # 1. Get the old object before saving to compare status
         instance = self.get_object()
         old_status = instance.status
         
-        # 2. Save the new data
         updated_report = serializer.save()
         
-        # 3. Check if status changed and create Notification
         new_status = updated_report.status
         
         if old_status != new_status:
-            # Determine message based on status
             message = ""
             if new_status == 'Verified':
                 message = f"Good news! Your report for '{updated_report.item_name}' has been Verified by the admin."
@@ -115,7 +109,6 @@ class ReportViewSet(viewsets.ModelViewSet):
             elif new_status == 'Claimed':
                 message = f"Success! Your found item '{updated_report.item_name}' has been successfully Claimed."
 
-            # Create the notification if a message was generated
             if message:
                 Notification.objects.create(
                     recipient=updated_report.reporter,
@@ -125,8 +118,6 @@ class ReportViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = self.queryset
-        
-        # Allow detailed view of any item (DRF handles 404 if not found)
         if self.detail:
             return queryset
             
@@ -134,31 +125,23 @@ class ReportViewSet(viewsets.ModelViewSet):
         status_filter = self.request.query_params.get('status')
         user = self.request.user
         
-        # Check if user is Admin or Superuser
         is_admin = user.is_authenticated and (
             user.role == 'Admin' or user.is_superuser
         )
 
-        # RBAC Visibility Logic:
-        # Admins see everything.
-        # Regular users (including the reporter) ONLY see 'Verified' reports in the public feed.
         if not is_admin:
             queryset = queryset.filter(status='Verified')
 
-        # Filter by type (Lost/Found)
         if report_type:
             queryset = queryset.filter(type=report_type)
             
-        # Filter by status
         if status_filter:
             queryset = queryset.filter(status=status_filter)
             
         return queryset
     
-    # Endpoint for users to see their own reports (Profile History)
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def my_reports(self, request):
-        # Explicitly filter for the current user's reports
         queryset = Report.objects.filter(reporter=request.user)
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -178,16 +161,13 @@ class ClaimViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        # Admins and Superusers see all claims
         if user.role == 'Admin' or user.is_superuser:
             return Claim.objects.all()
-        # Regular users only see their own claims
         return Claim.objects.filter(claimant=user)
 
     def update(self, request, *args, **kwargs):
         """
-        RBAC: Restrict updating claims (e.g. changing status to Approved) to Admins.
-        Regular users create claims, they shouldn't edit them (or definitely not approve them).
+        RBAC: Restrict updating claims to Admins.
         """
         user = request.user
         if user.role != 'Admin' and not user.is_superuser:
@@ -197,21 +177,57 @@ class ClaimViewSet(viewsets.ModelViewSet):
              )
         return super().update(request, *args, **kwargs)
 
+    # --- FIX START: Override perform_update to handle side effects ---
+    def perform_update(self, serializer):
+        # 1. Get the current instance before saving
+        instance = self.get_object()
+        old_status = instance.status
+        
+        # 2. Save the update (this applies the new status)
+        updated_claim = serializer.save()
+        new_status = updated_claim.status
+
+        # 3. Handle Status Changes
+        if old_status != new_status:
+            message = ""
+            
+            # Scenario A: Admin Approves the claim
+            if new_status == 'Approved':
+                message = f"Great news! Your claim for '{updated_claim.report.item_name}' has been Approved. Please visit the school office to collect your item."
+            
+            # Scenario B: Admin Rejects the claim
+            elif new_status == 'Rejected':
+                message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected."
+            
+            # Scenario C: Item physically handed over (Marked as Claimed)
+            elif new_status == 'Claimed':
+                message = f"Success! The item '{updated_claim.report.item_name}' has been marked as Claimed by you."
+                
+                # CRITICAL: Update the parent Report status to 'Claimed'
+                # This ensures it stops showing up in the 'Found Items' feed
+                report = updated_claim.report
+                report.status = 'Claimed'
+                report.save()
+
+            # 4. Create Notification if a message exists
+            if message:
+                Notification.objects.create(
+                    recipient=updated_claim.claimant,
+                    message=message,
+                    report=updated_claim.report
+                )
+    # --- FIX END ---
+
 # --- NOTIFICATION VIEWSET ---
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    API endpoint for users to retrieve and manage their notifications.
-    """
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Users only see their own notifications, ordered by newest first
         return Notification.objects.filter(recipient=self.request.user).order_by('-created_at')
 
     @action(detail=True, methods=['post'])
     def mark_read(self, request, pk=None):
-        """Mark a single notification as read"""
         notification = self.get_object()
         notification.is_read = True
         notification.save()
@@ -219,6 +235,5 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['post'])
     def mark_all_read(self, request):
-        """Mark all notifications for the current user as read"""
         self.get_queryset().update(is_read=True)
         return Response({'status': 'all marked as read'})
