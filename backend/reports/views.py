@@ -16,7 +16,7 @@ from .models import Report, Claim, Notification
 from .serializers import ReportSerializer, ClaimSerializer, NotificationSerializer
 
 # Import the new shared permission
-from core.permissions import IsAdmin 
+from core.permissions import IsAdmin, IsGuidance
 
 # Load the custom user model once
 User = get_user_model() 
@@ -158,29 +158,32 @@ class ReportViewSet(viewsets.ModelViewSet):
 class ClaimViewSet(viewsets.ModelViewSet):
     queryset = Claim.objects.all()
     serializer_class = ClaimSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    
+    # Allow Authenticated to Create/View own, but strict checks on Update/List
+    permission_classes = [permissions.IsAuthenticated] 
 
-    def perform_create(self, serializer):
-        serializer.save(claimant=self.request.user)
+    # ... (perform_create remains same) ...
 
     def get_queryset(self):
         user = self.request.user
-        if user.role == 'Admin' or user.is_superuser:
+        # Allow Admin AND Guidance to see all claims
+        if user.role in ['Admin', 'Guidance'] or user.is_superuser:
             return Claim.objects.all()
         return Claim.objects.filter(claimant=user)
 
     def update(self, request, *args, **kwargs):
         """
-        RBAC: Restrict updating claims to Admins.
+        RBAC: Restrict updating claims to Admins and Guidance Officers.
         """
         user = request.user
-        if user.role != 'Admin' and not user.is_superuser:
+        # Check if user is Admin OR Guidance
+        if user.role not in ['Admin', 'Guidance'] and not user.is_superuser:
              return Response(
                  {"detail": "You do not have permission to update claims."}, 
                  status=status.HTTP_403_FORBIDDEN
              )
         return super().update(request, *args, **kwargs)
-
+    
     # --- FIX START: Override perform_update to handle side effects ---
     def perform_update(self, serializer):
         # 1. Get the current instance before saving

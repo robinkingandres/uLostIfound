@@ -2,6 +2,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
+// Guidance Imports
+import GuidanceLayout from './layouts/GuidanceLayout';
+import GuidanceDashboard from './pages/guidance/Dashboard';
+import GuidanceClaims from './pages/guidance/ClaimReview';
+
 // Admin Imports
 import AdminLayout from './layouts/AdminLayout';
 import AdminDashboard from './pages/admin/Dashboard';
@@ -32,6 +37,20 @@ function App() {
           <Route path="/login" element={<UserLogin />} />
           {/* Redirect old admin login to the unified login */}
           <Route path="/admin/login" element={<Navigate to="/login" replace />} />
+
+          {/* --- PROTECTED GUIDANCE ROUTES (New) --- */}
+          <Route
+            path="/guidance"
+            element={
+              <ProtectedRoute allowedRoles={['Guidance']}>
+                <GuidanceLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Navigate to="/guidance/dashboard" replace />} />
+            <Route path="dashboard" element={<GuidanceDashboard />} />
+            <Route path="claims" element={<GuidanceClaims />} />
+          </Route>
 
           {/* --- PROTECTED USER ROUTES (Access: Student, Teacher, Admin) --- */}
           <Route path="/home" element={

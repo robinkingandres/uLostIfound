@@ -34,6 +34,8 @@ export default function UserLogin() {
       // --- RBAC REDIRECTION LOGIC ---
       if (loggedInUser.role === 'Admin') {
         navigate('/admin/dashboard');
+      } else if (loggedInUser.role === 'Guidance') {
+        navigate('/guidance/dashboard'); // <--- New Redirection
       } else {
         navigate('/home');
       }

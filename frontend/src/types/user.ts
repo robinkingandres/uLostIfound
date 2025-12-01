@@ -1,10 +1,10 @@
-export type UserRole = 'Admin' | 'Student' | 'Teacher';
+export type UserRole = 'Admin' | 'Student' | 'Teacher' | 'Guidance';
 
 export interface User {
   id: number;
   name: string;
-  userId: string; // The "A-01" or student number
+  userId: string;
   email: string;
   role: UserRole;
-  avatar?: string; // Optional URL for avatar image
+  avatar?: string;
 }

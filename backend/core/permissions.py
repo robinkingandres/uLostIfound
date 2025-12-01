@@ -17,3 +17,12 @@ class IsStudentOrTeacher(permissions.BasePermission):
         return bool(request.user and request.user.is_authenticated and (
             request.user.role in ['Student', 'Teacher']
         ))
+    
+class IsGuidance(permissions.BasePermission):
+    """
+    Allows access only to users with the 'Guidance' role or Superusers.
+    """
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and (
+            request.user.role == 'Guidance' or request.user.is_superuser
+        ))

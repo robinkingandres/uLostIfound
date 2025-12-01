@@ -8,6 +8,7 @@ class User(AbstractUser):
         ('Admin', 'Admin'),
         ('Student', 'Student'),
         ('Teacher', 'Teacher'),
+        ('Guidance', 'Guidance'),
     )
 
     # Extended fields
