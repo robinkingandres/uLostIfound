@@ -7,6 +7,8 @@ from django.db.models import Q, Count
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 import calendar
+from itertools import chain # Add this import if not present, though we can do list concatenation easily
+from operator import itemgetter
 
 # Import models
 from .models import Report, Claim, Notification 
@@ -237,3 +239,48 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     def mark_all_read(self, request):
         self.get_queryset().update(is_read=True)
         return Response({'status': 'all marked as read'})
+    
+class ActivityFeedView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        # 1. Fetch recent Reports (limit 10)
+        recent_reports = Report.objects.select_related('reporter').all().order_by('-date_reported')[:10]
+        
+        # 2. Fetch recent Claims (limit 10)
+        recent_claims = Claim.objects.select_related('claimant', 'report').all().order_by('-date_created')[:10]
+
+        activities = []
+
+        # 3. Format Reports
+        for r in recent_reports:
+            # Use name if available, else username
+            user_name = f"{r.reporter.first_name} {r.reporter.last_name}".strip() or r.reporter.username
+            
+            activities.append({
+                'id': f'report-{r.id}', # Unique string ID
+                'user': user_name,
+                'role': r.reporter.role,
+                'action': f'Reported a {r.type.lower()}',
+                'item': r.item_name,
+                'timestamp': r.date_reported
+            })
+
+        # 4. Format Claims
+        for c in recent_claims:
+            user_name = f"{c.claimant.first_name} {c.claimant.last_name}".strip() or c.claimant.username
+            
+            activities.append({
+                'id': f'claim-{c.id}',
+                'user': user_name,
+                'role': c.claimant.role,
+                'action': 'Submitted a claim for',
+                'item': c.report.item_name,
+                'timestamp': c.date_created
+            })
+
+        # 5. Sort combined list by timestamp descending
+        activities.sort(key=lambda x: x['timestamp'], reverse=True)
+
+        # 6. Return top 10 most recent
+        return Response(activities[:10], status=status.HTTP_200_OK)

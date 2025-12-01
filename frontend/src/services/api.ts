@@ -366,3 +366,29 @@ export const markAllNotificationsRead = async () => {
     credentials: 'include',
   });
 };
+
+const ACTIVITY_URL = `${API_URL}/dashboard/activity/`;
+
+export interface Activity {
+  id: string;
+  user: string;
+  role: string; // Added role to show "Student" or "Teacher"
+  action: string;
+  item: string;
+  timestamp: string;
+}
+
+export const fetchActivityFeed = async (): Promise<Activity[]> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('Authentication required');
+
+  const response = await fetch(ACTIVITY_URL, {
+    credentials: 'include',
+    headers: { 'X-CSRFToken': csrfToken },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch activity feed');
+  }
+  return response.json();
+};

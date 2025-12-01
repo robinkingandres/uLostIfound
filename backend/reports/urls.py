@@ -1,7 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ReportViewSet, DashboardStatsView
-from .views import ReportViewSet, ClaimViewSet, NotificationViewSet# Import ClaimViewSet
+from .views import ReportViewSet, ClaimViewSet, NotificationViewSet, DashboardStatsView, ActivityFeedView
 
 
 # Create a router and register our viewsets with it.
@@ -15,6 +14,7 @@ router.register(r'notifications', NotificationViewSet, basename='notifications')
 urlpatterns = [
 
     path('dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'), # /api/dashboard/stats/
+    path('dashboard/activity/', ActivityFeedView.as_view(), name='dashboard-activity'), # <-- NEW
     path('', include(router.urls)),
     
     
