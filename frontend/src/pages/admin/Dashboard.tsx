@@ -1,3 +1,5 @@
+// frontend/src/pages/admin/Dashboard.tsx
+
 import { useState, useEffect } from 'react';
 import { Package, PackageCheck, CheckCircle } from 'lucide-react';
 import DashboardHeader from '../../components/admin/DashboardHeader';
@@ -17,9 +19,10 @@ interface DashboardData {
     totalLostItems: number;
     totalFoundItems: number;
     totalClaimedItems: number;
+    totalUnclaimedItems: number; // Added this field for the chart
     pendingReports: number;
     totalUsers: number;
-    reportsByMonth: ChartData[]; // Added this field
+    reportsByMonth: ChartData[];
 }
 
 export default function AdminDashboard() {
@@ -27,9 +30,10 @@ export default function AdminDashboard() {
     totalLostItems: 0,
     totalFoundItems: 0,
     totalClaimedItems: 0,
+    totalUnclaimedItems: 0, // Initialize
     pendingReports: 0,
     totalUsers: 0,
-    reportsByMonth: [], // Initialize empty
+    reportsByMonth: [], 
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -38,13 +42,15 @@ export default function AdminDashboard() {
     const loadStats = async () => {
       try {
         const data = await fetchDashboardStats();
+        // @ts-ignore - Ignoring potential type mismatch during dev if API types aren't fully sync'd yet
         setStats({
           totalLostItems: data.totalLostItems,
           totalFoundItems: data.totalFoundItems,
           totalClaimedItems: data.totalClaimedItems,
+          totalUnclaimedItems: data.totalUnclaimedItems, // Map from API response
           pendingReports: data.pendingReports,
           totalUsers: data.totalUsers,
-          reportsByMonth: data.reportsByMonth || [], // Handle potential API delays
+          reportsByMonth: data.reportsByMonth || [],
         });
       } catch (err) {
         console.error("Dashboard data fetch failed:", err);
@@ -94,7 +100,11 @@ export default function AdminDashboard() {
             <TotalReportsChart data={stats.reportsByMonth} />
           </div>
           <div>
-            <ClaimedUnclaimedChart />
+            {/* Pass claimed and unclaimed counts as props */}
+            <ClaimedUnclaimedChart 
+              claimed={stats.totalClaimedItems} 
+              unclaimed={stats.totalUnclaimedItems} 
+            />
           </div>
         </div>
 

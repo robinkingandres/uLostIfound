@@ -23,22 +23,27 @@ User = get_user_model()
 
 # --- DASHBOARD STATS API ---
 class DashboardStatsView(APIView):
-    # RBAC: Only Admins/Superusers can access dashboard stats
     permission_classes = [IsAdmin]
 
     def get(self, request, format=None):
-        # 1. Existing Counts
+        # 1. Basic Counts
         total_reports = Report.objects.count()
-        lost_items = Report.objects.filter(type='Lost').count()
-        found_items = Report.objects.filter(type='Found').count()
-        claimed_items = Report.objects.filter(status='Claimed').count()
+        
+        # 'Found' items are those reported as found
+        found_items_count = Report.objects.filter(type='Found').count()
+        
+        # 'Claimed' items are any report (usually Found) marked as Claimed
+        claimed_items_count = Report.objects.filter(status='Claimed').count()
+        
+        # 'Unclaimed' are Found items that are NOT yet Claimed (Pending, Verified, etc.)
+        unclaimed_items_count = Report.objects.filter(type='Found').exclude(status='Claimed').count()
+        
+        lost_items_count = Report.objects.filter(type='Lost').count()
         pending_reports = Report.objects.filter(status='Pending').count()
         total_users = User.objects.count()
         
-        # 2. Monthly Report Stats (Bar Chart Data)
+        # 2. Monthly Report Stats (for the main bar chart)
         current_year = timezone.now().year
-        
-        # Query: Group by month and count IDs
         monthly_data = (
             Report.objects.filter(date_reported__year=current_year)
             .annotate(month=TruncMonth('date_reported'))
@@ -46,29 +51,26 @@ class DashboardStatsView(APIView):
             .annotate(count=Count('id'))
             .order_by('month')
         )
-
-        # Create a dictionary for quick lookup {month_integer: count}
+        
         stats_dict = {item['month'].month: item['count'] for item in monthly_data}
-
-        # Generate list for all 12 months (Jan-Dec) to ensure the chart has complete x-axis
         reports_by_month = []
         for i in range(1, 13):
             reports_by_month.append({
-                'month': calendar.month_abbr[i], # 'Jan', 'Feb', etc.
-                'value': stats_dict.get(i, 0)    # Default to 0 if no reports
+                'month': calendar.month_abbr[i],
+                'value': stats_dict.get(i, 0)
             })
 
         data = {
             'totalReports': total_reports,
-            'totalLostItems': lost_items,
-            'totalFoundItems': found_items,
-            'totalClaimedItems': claimed_items,
+            'totalLostItems': lost_items_count,
+            'totalFoundItems': found_items_count,
+            'totalClaimedItems': claimed_items_count,
+            'totalUnclaimedItems': unclaimed_items_count, # <-- NEW FIELD
             'pendingReports': pending_reports,
             'totalUsers': total_users,
             'reportsByMonth': reports_by_month,
         }
         return Response(data, status=status.HTTP_200_OK)
-
 # --- REPORT VIEWSET ---
 class ReportViewSet(viewsets.ModelViewSet):
     queryset = Report.objects.all()

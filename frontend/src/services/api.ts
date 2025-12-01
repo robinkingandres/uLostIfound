@@ -46,12 +46,11 @@ interface DashboardStats {
   totalLostItems: number;
   totalFoundItems: number;
   totalClaimedItems: number;
+  totalUnclaimedItems: number; // <-- Added this
   pendingReports: number;
   totalUsers: number;
-  // Added the chart data array
-  reportsByMonth: { month: string; value: number }[]; 
+  reportsByMonth: { month: string; value: number }[];
 }
-
 /**
  * Fetches core statistics for the Admin Dashboard.
  */
