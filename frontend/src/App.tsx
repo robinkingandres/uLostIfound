@@ -20,6 +20,7 @@ import ReportFound from './pages/user/ReportFound';
 import ReportSuccess from './pages/user/ReportLostSuccess';
 import ReportFoundSuccess from './pages/user/ReportFoundSuccess';
 import UserProfile from './pages/user/Profile';
+import ForgotPassword from './pages/user/ForgotPassword';
 
 function App() {
   return (
@@ -68,6 +69,8 @@ function App() {
               <UserProfile />
             </ProtectedRoute>
           } />
+
+          <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* --- PROTECTED ADMIN ROUTES (Access: Admin Only) --- */}
           <Route

@@ -129,9 +129,13 @@ export default function UserLogin() {
           </div>
 
           <div className="flex justify-between items-center text-sm">
-            <a href="#" className="text-[#00aaff] hover:underline font-medium">
+            <button
+              type="button"
+              onClick={() => navigate('/forgot-password')}
+              className="text-[#00aaff] hover:underline font-medium"
+            >
               Forgotten your password?
-            </a>
+            </button>
           </div>
 
           <button

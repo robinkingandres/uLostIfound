@@ -164,3 +164,11 @@ SESSION_COOKIE_SECURE = False
 # 4. CRITICAL FIX: Allow JavaScript to read the CSRF cookie
 # Django sets this to True by default, which makes the cookie inaccessible to fetchCsrfToken().
 CSRF_COOKIE_HTTPONLY = False
+
+# EMAIL CONFIGURATION
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'ulostifound7@gmail.com' # Replace with your actual email
+EMAIL_HOST_PASSWORD = 'sjyl moyr jcwx tlzg' # Replace with your App Password (not login password)

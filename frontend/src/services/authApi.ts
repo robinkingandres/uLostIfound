@@ -3,6 +3,8 @@ const API_URL = 'http://localhost:8000/api'; // <-- FIXED HOSTNAMEconst ROOT_API
 const ROOT_API_URL = `${API_URL}/`;
 const LOGIN_URL = `${API_URL}/auth/login/`;
 const LOGOUT_URL = `${API_URL}/auth/logout/`;
+const RESET_REQUEST_URL = `${API_URL}/auth/password-reset/request/`;
+const RESET_CONFIRM_URL = `${API_URL}/auth/password-reset/confirm/`;
 
 // --- Utility function to get CSRF Token from cookie ---
 const getCsrfToken = () => {
@@ -95,4 +97,38 @@ export const fetchLogout = async () => {
     if (!response.ok) {
         console.error("Server reported error during logout.");
     }
+};
+
+/**
+ * Requests a 6-digit verification code to be sent to the email.
+ */
+export const requestPasswordReset = async (email: string) => {
+    const response = await fetch(RESET_REQUEST_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to send code.');
+    }
+    return response.json();
+};
+
+/**
+ * Resets the password using the email, code, and new password.
+ */
+export const confirmPasswordReset = async (email: string, code: string, password: string) => {
+    const response = await fetch(RESET_CONFIRM_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code, password }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to reset password.');
+    }
+    return response.json();
 };

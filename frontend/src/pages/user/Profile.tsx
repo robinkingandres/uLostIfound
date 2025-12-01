@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User as UserIcon } from 'lucide-react';
-import UserHeader from '../../components/UserHeader'; // Assuming you implemented the header from the previous step
+import UserHeader from '../../components/UserHeader'; 
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchMyReports, fetchClaims } from '../../services/api';
 
@@ -48,9 +48,12 @@ export default function Profile() {
         {/* 2. Blue Profile Card */}
         <div className="bg-[#29b6f6] rounded-xl p-6 shadow-md mb-6 flex items-center gap-6 text-white relative overflow-hidden">
           {/* User Avatar / Icon */}
-          <div className="w-24 h-24 bg-transparent border-4 border-black rounded-full flex items-center justify-center relative z-10 shrink-0">
-             {/* Simulating the specific user icon style from the image */}
-             <UserIcon className="w-16 h-16 text-black" strokeWidth={2.5} />
+          <div className="w-24 h-24 bg-transparent border-4 border-black rounded-full flex items-center justify-center relative z-10 shrink-0 overflow-hidden bg-white/20">
+             {user?.avatar ? (
+                <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
+             ) : (
+                <UserIcon className="w-16 h-16 text-black" strokeWidth={2.5} />
+             )}
           </div>
           
           <div className="z-10">
@@ -71,13 +74,13 @@ export default function Profile() {
             <p className="font-bold text-gray-900">{user?.name || 'N/A'}</p>
           </div>
 
-          {/* School ID */}
+          {/* School ID - Now Real Data */}
           <div className="bg-gray-100 rounded-lg px-5 py-3">
             <p className="text-xs text-gray-500 mb-0.5">School ID</p>
             <p className="font-bold text-gray-900">{user?.userId || 'N/A'}</p>
           </div>
 
-          {/* Email Address */}
+          {/* Email Address - Now Real Data */}
           <div className="bg-gray-100 rounded-lg px-5 py-3">
             <p className="text-xs text-gray-500 mb-0.5">Email Address</p>
             <p className="font-bold text-gray-900">{user?.email || 'N/A'}</p>
@@ -137,7 +140,6 @@ export default function Profile() {
                alt="Chatbot" 
                className="w-full h-full object-contain drop-shadow-xl"
              />
-             {/* Small animated phone element for visual flair */}
              <div className="absolute bottom-2 right-0 w-8 h-10 bg-blue-900 rounded-md -z-10 rotate-12 flex items-center justify-center">
                 <div className="w-6 h-8 bg-blue-400 rounded-sm"></div>
              </div>

@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import ReportViewSet, DashboardStatsView
 from .views import ReportViewSet, ClaimViewSet, NotificationViewSet# Import ClaimViewSet
 
+
 # Create a router and register our viewsets with it.
 router = DefaultRouter()
 router.register(r'reports', ReportViewSet)

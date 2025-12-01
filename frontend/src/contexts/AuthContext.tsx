@@ -7,6 +7,9 @@ interface AuthUser {
     username: string;
     role: UserRole;
     name: string;
+    userId: string; // Maps to school_id
+    email: string;
+    avatar?: string;
 }
 
 interface AuthContextType {
@@ -51,6 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             username: userData.username,
             role: userData.role,
             name: userData.name, 
+            userId: userData.userId, // Capture School ID
+            email: userData.email,   // Capture Email
+            avatar: userData.avatar  // Capture Avatar
         };
 
         setIsAuthenticated(true);

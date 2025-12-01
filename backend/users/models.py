@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 class User(AbstractUser):
     # Role choices based on your frontend types
@@ -26,3 +27,12 @@ class User(AbstractUser):
 
     class Meta:
         ordering = ['-date_joined']
+
+class PasswordResetCode(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reset_codes')
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_valid(self):
+        # Code expires after 15 minutes (900 seconds)
+        return (timezone.now() - self.created_at).total_seconds() < 900
