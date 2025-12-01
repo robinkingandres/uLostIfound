@@ -5,6 +5,12 @@ class ReportSerializer(serializers.ModelSerializer):
     # ... (Keep existing ReportSerializer code unchanged) ...
     reporterName = serializers.SerializerMethodField(read_only=True)
     reporterRole = serializers.SerializerMethodField(read_only=True)
+    
+    # --- NEW FIELDS ---
+    reporterSchoolId = serializers.CharField(source='reporter.school_id', read_only=True)
+    reporterUsername = serializers.CharField(source='reporter.username', read_only=True)
+    # ------------------
+
     itemName = serializers.CharField(source='item_name', required=True)
     date = serializers.DateField(source='date_lost_or_found', required=True)
 
@@ -12,10 +18,11 @@ class ReportSerializer(serializers.ModelSerializer):
         model = Report
         fields = [
             'id', 'reporter', 'reporterName', 'reporterRole', 
+            'reporterSchoolId', 'reporterUsername', # <-- Added here
             'itemName', 'description', 'type', 'category', 
             'location', 'status', 'date', 'image', 'date_reported'
         ]
-        read_only_fields = ['id', 'reporter', 'reporterName', 'reporterRole', 'date_reported']
+        read_only_fields = ['id', 'reporter', 'reporterName', 'reporterRole', 'reporterSchoolId', 'reporterUsername', 'date_reported']
 
     def get_reporterName(self, obj):
         user = obj.reporter

@@ -48,6 +48,8 @@ interface DashboardStats {
   totalClaimedItems: number;
   pendingReports: number;
   totalUsers: number;
+  // Added the chart data array
+  reportsByMonth: { month: string; value: number }[]; 
 }
 
 /**

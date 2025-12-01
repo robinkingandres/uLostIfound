@@ -143,7 +143,10 @@ export default function ManageReports() {
               <table className="w-full">
                 <thead className="bg-gray-100 border-b border-gray-200">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Reporter</th>
+                    {/* CHANGED: Split Reporter column */}
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">School ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Reported By</th>
+                    
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Item name</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Description</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Type</th>
@@ -156,13 +159,19 @@ export default function ManageReports() {
                 <tbody className="divide-y divide-gray-200">
                   {reports.map((report) => (
                     <tr key={report.id} className="hover:bg-gray-50 transition-colors">
+                      {/* CHANGED: Display School ID */}
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {report.reporterSchoolId || 'N/A'}
+                      </td>
+                      
+                      {/* CHANGED: Display Username and Role */}
                       <td className="px-6 py-4 text-sm">
                         <div>
-                          {/* Use reporterName and reporterRole from the API response */}
-                          <p className="font-medium text-gray-900">{report.reporter}</p>
+                          <p className="font-medium text-gray-900">{report.reporterUsername || report.reporterUsername}</p>
                           <p className="text-xs text-gray-500">{report.reporterRole}</p>
                         </div>
                       </td>
+
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{report.itemName}</td>
                       <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{report.description}</td>
                       <td className="px-6 py-4 text-sm">

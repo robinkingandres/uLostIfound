@@ -5,6 +5,10 @@ export interface Report {
   id: number;
   reporter: string;
   reporterRole: string;
+  // --- New Fields ---
+  reporterSchoolId: string;
+  reporterUsername: string;
+  // ------------------
   itemName: string;
   description: string;
   type: ReportType;

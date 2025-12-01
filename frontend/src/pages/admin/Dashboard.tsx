@@ -1,21 +1,25 @@
-import { useState, useEffect } from 'react'; // Added useEffect
-import { Package, PackageCheck, CheckCircle, Users } from 'lucide-react'; // Added Users
+import { useState, useEffect } from 'react';
+import { Package, PackageCheck, CheckCircle } from 'lucide-react';
 import DashboardHeader from '../../components/admin/DashboardHeader';
 import StatCard from '../../components/admin/StatCard';
 import TotalReportsChart from '../../components/admin/TotalReportsChart';
 import ClaimedUnclaimedChart from '../../components/admin/ClaimedUnclaimedChart';
 import InfoCard from '../../components/InfoCard';
 import ActivityFeed from '../../components/admin/ActivityFeed';
-// Import the new API function
 import { fetchDashboardStats } from '../../services/api'; 
 
-// Define a type for the stats state
+interface ChartData {
+  month: string;
+  value: number;
+}
+
 interface DashboardData {
     totalLostItems: number;
     totalFoundItems: number;
     totalClaimedItems: number;
     pendingReports: number;
     totalUsers: number;
+    reportsByMonth: ChartData[]; // Added this field
 }
 
 export default function AdminDashboard() {
@@ -25,11 +29,11 @@ export default function AdminDashboard() {
     totalClaimedItems: 0,
     pendingReports: 0,
     totalUsers: 0,
+    reportsByMonth: [], // Initialize empty
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Fetch data on component mount
   useEffect(() => {
     const loadStats = async () => {
       try {
@@ -40,6 +44,7 @@ export default function AdminDashboard() {
           totalClaimedItems: data.totalClaimedItems,
           pendingReports: data.pendingReports,
           totalUsers: data.totalUsers,
+          reportsByMonth: data.reportsByMonth || [], // Handle potential API delays
         });
       } catch (err) {
         console.error("Dashboard data fetch failed:", err);
@@ -54,14 +59,12 @@ export default function AdminDashboard() {
   if (loading) return <div className="p-8 text-center text-gray-500">Loading Dashboard...</div>;
   if (error) return <div className="p-8 text-center text-red-500 font-semibold">{error}</div>;
 
-
   return (
     <div className="flex-1 bg-gray-50 overflow-auto">
       <DashboardHeader />
 
       <div className="p-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          {/* STATS FROM API */}
           <StatCard
             title="Total Lost Items"
             value={stats.totalLostItems}
@@ -87,7 +90,8 @@ export default function AdminDashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2">
-            <TotalReportsChart />
+            {/* Pass the real data to the chart */}
+            <TotalReportsChart data={stats.reportsByMonth} />
           </div>
           <div>
             <ClaimedUnclaimedChart />
@@ -95,7 +99,6 @@ export default function AdminDashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* INFO CARDS FROM API */}
           <InfoCard title="Pending reports" value={stats.pendingReports} />
           <InfoCard title="Registered users" value={stats.totalUsers} />
           <ActivityFeed />

@@ -3,7 +3,10 @@ from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model 
-from django.db.models import Q
+from django.db.models import Q, Count
+from django.db.models.functions import TruncMonth
+from django.utils import timezone
+import calendar
 
 # Import models including the new Notification model
 from .models import Report, Claim, Notification 
@@ -22,16 +25,37 @@ class DashboardStatsView(APIView):
     permission_classes = [IsAdmin]
 
     def get(self, request, format=None):
-        # Report Counts
+        # 1. Existing Counts
         total_reports = Report.objects.count()
         lost_items = Report.objects.filter(type='Lost').count()
         found_items = Report.objects.filter(type='Found').count()
         claimed_items = Report.objects.filter(status='Claimed').count()
         pending_reports = Report.objects.filter(status='Pending').count()
-        
-        # User Counts
         total_users = User.objects.count()
         
+        # 2. Monthly Report Stats (Bar Chart Data)
+        current_year = timezone.now().year
+        
+        # Query: Group by month and count IDs
+        monthly_data = (
+            Report.objects.filter(date_reported__year=current_year)
+            .annotate(month=TruncMonth('date_reported'))
+            .values('month')
+            .annotate(count=Count('id'))
+            .order_by('month')
+        )
+
+        # Create a dictionary for quick lookup {month_integer: count}
+        stats_dict = {item['month'].month: item['count'] for item in monthly_data}
+
+        # Generate list for all 12 months (Jan-Dec) to ensure the chart has complete x-axis
+        reports_by_month = []
+        for i in range(1, 13):
+            reports_by_month.append({
+                'month': calendar.month_abbr[i], # 'Jan', 'Feb', etc.
+                'value': stats_dict.get(i, 0)    # Default to 0 if no reports
+            })
+
         data = {
             'totalReports': total_reports,
             'totalLostItems': lost_items,
@@ -39,6 +63,7 @@ class DashboardStatsView(APIView):
             'totalClaimedItems': claimed_items,
             'pendingReports': pending_reports,
             'totalUsers': total_users,
+            'reportsByMonth': reports_by_month, # <--- Added this
         }
         return Response(data, status=status.HTTP_200_OK)
 
