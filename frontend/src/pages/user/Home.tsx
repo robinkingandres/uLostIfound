@@ -10,10 +10,12 @@ import {
 import { fetchReports } from '../../services/api';
 import type { Report } from '../../types/report';
 import ClaimModal from '../../components/ClaimModal'; 
-import UserHeader from '../../components/UserHeader'; // <--- Import the new component
+import UserHeader from '../../components/UserHeader';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function UserHome() {
   const navigate = useNavigate(); 
+  const { user } = useAuth(); // Get current user to check ownership
   
   // State: Loading, Error, and Live Reports
   const [reports, setReports] = useState<Report[]>([]);
@@ -195,19 +197,29 @@ export default function UserHome() {
                   </div>
                   <div className="flex items-center gap-2">
                     <UserIcon className="w-4 h-4 text-gray-400" />
-                    <span className="font-medium text-gray-700">{report.reporter}</span>
+                    <span className="font-medium text-gray-700">{report.reporter || report.reporter}</span>
                   </div>
                 </div>
 
                 <div className="mt-auto pt-3 border-t border-gray-100">
                   {report.type === 'Found' ? (
-                    <button 
-                      onClick={() => handleClaimClick(report)}
-                      className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
-                    >
-                      <img src="https://cdn-icons-png.flaticon.com/512/10697/10697240.png" className="w-4 h-4 invert brightness-0" alt="" />
-                      Claim This Item
-                    </button>
+                    // Prevent claiming own reports
+                    (user && Number(report.reporter) === user.id) ? (
+                        <button 
+                          disabled
+                          className="w-full py-2.5 bg-gray-100 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          Reported by You
+                        </button>
+                    ) : (
+                        <button 
+                          onClick={() => handleClaimClick(report)}
+                          className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
+                        >
+                          <img src="https://cdn-icons-png.flaticon.com/512/10697/10697240.png" className="w-4 h-4 invert brightness-0" alt="" />
+                          Claim This Item
+                        </button>
+                    )
                   ) : (
                     <button className="w-full py-2.5 bg-gray-100 text-gray-400 rounded-lg text-sm font-medium cursor-default">
                       Reported as Lost

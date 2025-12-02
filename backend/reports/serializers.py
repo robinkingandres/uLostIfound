@@ -64,6 +64,17 @@ class ClaimSerializer(serializers.ModelSerializer):
         full_name = f"{user.first_name} {user.last_name}".strip()
         return full_name if full_name else user.username
     
+    def validate(self, attrs):
+        # Get the report object from the input data
+        report = attrs.get('report')
+        request = self.context.get('request')
+
+        # Check if the claimant is the same as the reporter
+        if report and request and request.user == report.reporter:
+            raise serializers.ValidationError("You cannot claim an item you reported.")
+            
+        return attrs
+    
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
