@@ -155,14 +155,15 @@ class ReportViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 # --- CLAIM VIEWSET ---
+# backend/reports/views.py
+
 class ClaimViewSet(viewsets.ModelViewSet):
     queryset = Claim.objects.all()
     serializer_class = ClaimSerializer
-    
-    # Allow Authenticated to Create/View own, but strict checks on Update/List
     permission_classes = [permissions.IsAuthenticated] 
 
-    # ... (perform_create remains same) ...
+    def perform_create(self, serializer):
+        serializer.save(claimant=self.request.user)
 
     def get_queryset(self):
         user = self.request.user
@@ -172,51 +173,61 @@ class ClaimViewSet(viewsets.ModelViewSet):
         return Claim.objects.filter(claimant=user)
 
     def update(self, request, *args, **kwargs):
-        """
-        RBAC: Restrict updating claims to Admins and Guidance Officers.
-        """
         user = request.user
-        # Check if user is Admin OR Guidance
+        
+        # 1. Basic RBAC Check
         if user.role not in ['Admin', 'Guidance'] and not user.is_superuser:
-             return Response(
-                 {"detail": "You do not have permission to update claims."}, 
-                 status=status.HTTP_403_FORBIDDEN
-             )
+             return Response({"detail": "You do not have permission to update claims."}, status=status.HTTP_403_FORBIDDEN)
+        
+        # 2. Strict Workflow Check
+        new_status = request.data.get('status')
+        if new_status:
+            # ADMIN RESTRICTION: Can only Approve or Reject. Cannot Release (Claimed).
+            if user.role == 'Admin' and not user.is_superuser:
+                if new_status == 'Claimed':
+                    return Response(
+                        {"detail": "Admins can only Approve/Reject. Guidance Officer must perform final release."}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            
+            # GUIDANCE RESTRICTION: Can only Release (Claimed) or Reject. Cannot Approve from Pending.
+            if user.role == 'Guidance' and not user.is_superuser:
+                current_status = self.get_object().status
+                if current_status == 'Pending' and new_status == 'Approved':
+                     return Response(
+                        {"detail": "Guidance Officers cannot approve pending claims. Admin must verify first."}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+
         return super().update(request, *args, **kwargs)
     
-    # --- FIX START: Override perform_update to handle side effects ---
     def perform_update(self, serializer):
-        # 1. Get the current instance before saving
         instance = self.get_object()
         old_status = instance.status
         
-        # 2. Save the update (this applies the new status)
         updated_claim = serializer.save()
         new_status = updated_claim.status
 
-        # 3. Handle Status Changes
         if old_status != new_status:
             message = ""
             
-            # Scenario A: Admin Approves the claim
+            # Admin Verification
             if new_status == 'Approved':
-                message = f"Great news! Your claim for '{updated_claim.report.item_name}' has been Approved. Please visit the school office to collect your item."
+                message = f"Your claim for '{updated_claim.report.item_name}' has been Verified by Admin. Please proceed to the Guidance Office for physical verification and release."
             
-            # Scenario B: Admin Rejects the claim
+            # Rejection (By either)
             elif new_status == 'Rejected':
                 message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected."
             
-            # Scenario C: Item physically handed over (Marked as Claimed)
+            # Guidance Release
             elif new_status == 'Claimed':
-                message = f"Success! The item '{updated_claim.report.item_name}' has been marked as Claimed by you."
+                message = f"Success! The item '{updated_claim.report.item_name}' has been released to you by the Guidance Office."
                 
-                # CRITICAL: Update the parent Report status to 'Claimed'
-                # This ensures it stops showing up in the 'Found Items' feed
+                # Update parent report
                 report = updated_claim.report
                 report.status = 'Claimed'
                 report.save()
 
-            # 4. Create Notification if a message exists
             if message:
                 Notification.objects.create(
                     recipient=updated_claim.claimant,

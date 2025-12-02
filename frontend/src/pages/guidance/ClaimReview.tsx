@@ -1,4 +1,3 @@
-// frontend/src/pages/guidance/ClaimReview.tsx
 import { useState, useEffect } from 'react';
 import { Eye, Check, X, PackageCheck } from 'lucide-react';
 import DashboardHeader from '../../components/admin/DashboardHeader';
@@ -89,12 +88,19 @@ export default function ClaimReview() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <button 
-                      onClick={() => setSelectedClaim(claim)}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-semibold flex items-center gap-1"
-                    >
-                      <Eye className="w-4 h-4" /> Review
-                    </button>
+                    {/* GUIDANCE ONLY REVIEWS APPROVED ITEMS */}
+                    {claim.status === 'Approved' ? (
+                        <button 
+                          onClick={() => setSelectedClaim(claim)}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-semibold flex items-center gap-1"
+                        >
+                          <Eye className="w-4 h-4" /> Review & Release
+                        </button>
+                    ) : claim.status === 'Pending' ? (
+                        <span className="text-xs text-gray-400 italic">Waiting for Admin</span>
+                    ) : (
+                        <span className="text-xs text-gray-400 italic">Closed</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -172,32 +178,26 @@ export default function ClaimReview() {
               </div>
             </div>
 
-            {/* FOOTER ACTIONS */}
+            {/* FOOTER ACTIONS - STRICT GUIDANCE LOGIC */}
             <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
-              {selectedClaim.status === 'Pending' && (
-                <>
-                  <button 
-                    onClick={() => handleAction(selectedClaim.id, 'Rejected')}
-                    className="px-6 py-3 bg-white border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center gap-2"
-                  >
-                    <X className="w-5 h-5" /> Reject Claim
-                  </button>
-                  <button 
-                    onClick={() => handleAction(selectedClaim.id, 'Approved')}
-                    className="px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-lg shadow-emerald-200"
-                  >
-                    <Check className="w-5 h-5" /> Approve & Notify
-                  </button>
-                </>
-              )}
               
+              {/* Guidance can ONLY act if status is Approved (meaning Admin verified it) */}
               {selectedClaim.status === 'Approved' && (
-                 <button 
-                    onClick={() => handleAction(selectedClaim.id, 'Claimed')}
-                    className="w-full px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg"
-                  >
-                    <PackageCheck className="w-5 h-5" /> Mark as Released / Claimed
-                  </button>
+                 <>
+                    <button 
+                        onClick={() => handleAction(selectedClaim.id, 'Rejected')}
+                        className="px-6 py-3 bg-white border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center gap-2"
+                    >
+                        <X className="w-5 h-5" /> Reject (Physical Mismatch)
+                    </button>
+
+                    <button 
+                        onClick={() => handleAction(selectedClaim.id, 'Claimed')}
+                        className="w-full px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg"
+                    >
+                        <PackageCheck className="w-5 h-5" /> Release Item (Final)
+                    </button>
+                 </>
               )}
             </div>
 
