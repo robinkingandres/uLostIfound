@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Hand, Search } from 'lucide-react'; 
+import { Eye, EyeOff } from 'lucide-react'; 
 import { useAuth } from '../../contexts/AuthContext';
+import logo from '../../assets/logo.png'; // <-- Logo
 
 export default function UserLogin() {
   const [isLogin, setIsLogin] = useState(true); 
@@ -25,17 +26,15 @@ export default function UserLogin() {
       return;
     }
     
-    // CHANGED: We now get the user object back
     const loggedInUser = await login(username, password);
 
     setLoading(false);
 
     if (loggedInUser) {
-      // --- RBAC REDIRECTION LOGIC ---
       if (loggedInUser.role === 'Admin') {
         navigate('/admin/dashboard');
       } else if (loggedInUser.role === 'Guidance') {
-        navigate('/guidance/dashboard'); // <--- New Redirection
+        navigate('/guidance/dashboard');
       } else {
         navigate('/home');
       }
@@ -45,9 +44,13 @@ export default function UserLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-600 flex items-center justify-center px-4 font-sans">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden p-8">
-        
+    /* Background*/
+  <div className="min-min-h-screen bg-transparent flex items-center justify-center px-4 pt-20 font-sans">
+
+    
+{/* Form Card */}
+    <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden p-8">
+
         {/* Header Toggle */}
         <div className="flex gap-4 mb-8 text-sm font-bold text-gray-400">
           <button 
@@ -55,40 +58,47 @@ export default function UserLogin() {
             className={`${isLogin ? 'text-gray-800 border-b-2 border-gray-800' : ''} pb-1`}
           >
             LOGIN
-          </button>
-          <span>/</span>
-          <button 
-            onClick={() => setIsLogin(false)}
-            className={`${!isLogin ? 'text-gray-800 border-b-2 border-gray-800' : ''} pb-1`}
-          >
-            SIGNUP (WIP)
-          </button>
+          </button>         
         </div>
 
-        {/* Logo Section */}
-        <div className="flex flex-col items-center mb-10">
-          <div className="relative w-40 h-40 mb-2">
-            <div className="flex w-full h-full rounded-full overflow-hidden border-4 border-gray-100 shadow-inner">
-              <div className="w-1/2 h-full bg-[#29b6f6] flex items-center justify-center relative">
-                 <Hand className="text-white w-12 h-12 absolute top-8 left-4 rotate-[-15deg]" strokeWidth={2.5} />
-                 <div className="absolute bottom-8 right-2 w-8 h-6 border-2 border-white rounded-sm"></div>
-              </div>
-              <div className="w-1/2 h-full bg-[#ff9800] flex items-center justify-center relative">
-                 <div className="absolute top-10 right-6">
-                    <div className="border-2 border-black rounded-full p-1">
-                        <div className="w-6 h-10 border-2 border-black rounded-md"></div>
-                    </div>
-                 </div>
-                 <Search className="text-black w-10 h-10 absolute bottom-10 left-[-10px] z-10" strokeWidth={3} />
-              </div>
-            </div>
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-full text-center">
-              <span className="text-2xl font-black text-[#1e293b] tracking-tighter">
-                uLost<span className="text-[#1e293b]">iFound</span>
-              </span>
-            </div>
-          </div>
-        </div>
+          {/* Logo Section */}
+<div className="flex flex-col items-center mb-12">
+  {/* Circular Logo Container */}
+  <div className="relative w-40 h-40 mb-6">
+    {/* Circular rotating ring */}
+    <div
+      className="absolute inset-0 rounded-full animate-spin-slow"
+      style={{
+        padding: "8px",
+        background: "conic-gradient(#0059ff95, #f6a51f, #0059ff95)",
+        WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+        WebkitMaskComposite: "xor",
+        maskComposite: "exclude",
+      }}
+    ></div>
+
+    {/* Logo Image */}
+    <div className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center z-10">
+      <img
+        src={logo}
+        alt="uLostiFound Logo"
+        className="w-36 h-36 object-contain rounded-full"
+      />
+    </div>
+  </div>
+
+  {/* Text Section */}
+  <div className="text-center">
+    <h1 className="text-xl font-bold text-[#1e40af] leading-tight">
+      uLostiFound
+    </h1>
+    <p className="text-sm font-semibold text-[#1e40af] mt-1">
+      Lost & Found Management System
+    </p>
+  </div>
+</div>
+
+
 
         {/* Form Section */}
         <form onSubmit={handleLogin} className="space-y-6">
