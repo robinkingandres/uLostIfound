@@ -1,22 +1,53 @@
 from rest_framework import serializers
+from django.conf import settings
 from .models import User
 
 class UserSerializer(serializers.ModelSerializer):
     # Map backend fields to frontend expected keys
     userId = serializers.CharField(source='school_id', read_only=True)
     name = serializers.SerializerMethodField()
+    avatar_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'name', 'userId', 'email', 'role', 'username', 'avatar', 'password']
+        fields = [
+            'id', 'name', 'userId', 'email', 'role', 'username',
+            'first_name', 'last_name',  # writable for profile edit
+            'avatar', 'avatar_url', 'password'
+        ]
         extra_kwargs = {
             'password': {'write_only': True, 'required': False},
-            'email': {'required': True}
+            'email': {'required': True},
+            'avatar': {'write_only': False, 'required': False},
+            'first_name': {'required': False},
+            'last_name': {'required': False},
         }
 
     def get_name(self, obj):
         full_name = f"{obj.first_name} {obj.last_name}".strip()
         return full_name if full_name else obj.username
+
+    def get_avatar_url(self, obj):
+        if obj.avatar:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.avatar.url)
+            # Fallback for when request context is not available
+            return f"http://localhost:8000{settings.MEDIA_URL}{obj.avatar}"
+        return None
+
+    def to_representation(self, instance):
+        """
+        Override to include avatar_url in the response and remove avatar field (which contains the file path).
+        """
+        representation = super().to_representation(instance)
+        # Replace avatar with avatar_url for frontend
+        if 'avatar_url' in representation:
+            representation['avatar'] = representation.pop('avatar_url')
+        # Remove the raw avatar field path
+        if 'avatar' in representation and not representation['avatar']:
+            representation['avatar'] = None
+        return representation
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)

@@ -1,13 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Bell, 
   Menu, 
   Upload, 
-  Calendar, 
   MapPin, 
   Info, 
-  ChevronDown 
+  ChevronDown,
+  Check,
+  Home,
+  FileText,
+  Search,
+  Zap,
+  User,
+  LogOut,
+  X,
+  ChevronUp
 } from 'lucide-react';
 
 // Assets
@@ -16,12 +24,85 @@ import chatbotIcon from '../../assets/chatbot.png';
 
 // Components
 import Chatbot from '../../components/Chatbot';
+import UserHeader from '../../components/UserHeader'; // Added import
 
-// API Service
-import { createReport, type ReportPayload } from '../../services/api';
+// API & Auth
+import { 
+  createReport, 
+  type ReportPayload, 
+  fetchNotifications, 
+  markNotificationRead, 
+  markAllNotificationsRead, 
+  type Notification 
+} from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ReportLost() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  // --- NOTIFICATION STATE (KEEPING AS REQUESTED) ---
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // --- MENU STATE (KEEPING AS REQUESTED) ---
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isReportsOpen, setIsReportsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // --- NOTIFICATION & MENU LOGIC (KEEPING AS REQUESTED) ---
+  const loadNotifications = async () => {
+    try {
+      const data = await fetchNotifications();
+      setNotifications(data);
+    } catch (error) {
+      console.error("Error loading notifications", error);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      loadNotifications(); 
+      const interval = setInterval(loadNotifications, 30000); 
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setIsNotifOpen(false);
+      }
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+        setIsReportsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const menuItems = [
+    { label: 'Home', icon: Home, path: '/home' },
+    { 
+      label: 'Reports', 
+      icon: FileText, 
+      children: [
+        { label: 'Report Lost', icon: FileText, path: '/report-lost' },
+        { label: 'Report Found', icon: Search, path: '/report-found' }
+      ]
+    },
+    { label: 'Matches', icon: Zap, path: '/matches' },
+    { label: 'Profile', icon: User, path: '/profile' },
+  ];
 
   // --- FORM LOGIC ---
   const [formData, setFormData] = useState({
@@ -77,76 +158,51 @@ export default function ReportLost() {
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 relative pb-20">
       
-      {/* --- EXACT USERHEADER IMPLEMENTATION --- */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200/50 shadow-sm transition-all duration-300">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            
-            {/* LOGO AREA */}
-            <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/home')}>
-              <div className="relative w-12 h-12 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-                <div
-                  className="absolute inset-0 rounded-full animate-spin-slow"
-                  style={{
-                    padding: "3px",
-                    background: "conic-gradient(#0059ff95, #f6a51f, #0059ff95)",
-                    WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-                    WebkitMaskComposite: "xor",
-                    maskComposite: "exclude",
+      {/* REPLACED HEADER WITH COMPONENT AS REQUESTED */}
+      <UserHeader />
+
+      {/* --- FORM CONTENT --- */}
+      <main className="max-w-md mx-auto md:max-w-2xl px-6 py-10">
+        
+        {/* DUPLICATED PROFILE BUTTON ADDED HERE */}
+        <div className="flex justify-end mb-4 md:hidden">
+          <button
+            onClick={() => navigate('/profile')}
+            className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-gray-50 border border-gray-100 shadow-sm transition-all duration-200 hover:bg-gray-100 text-gray-600"
+          >
+            <div className="w-8 h-8 rounded-full bg-[#29b6f6] flex items-center justify-center overflow-hidden shrink-0 border border-white">
+              {user?.avatar ? (
+                <img
+                  src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const fb = e.currentTarget.nextElementSibling;
+                    if (fb) (fb as HTMLElement).style.display = 'flex';
                   }}
-                ></div>
-                <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center bg-white shadow-sm">
-                  <img src={logo} alt="uLostiFound Logo" className="w-full h-full object-contain" />
-                </div>
-              </div>
-              <span className="hidden sm:block font-bold text-lg text-black tracking-tight">
-                <span className="hover:text-blue-600 transition-colors duration-200">uLost</span>
-                <span className="hover:text-orange-500 transition-colors duration-200">iFound</span>
+                />
+              ) : null}
+              <span
+                className="text-white font-bold text-xs"
+                style={{ display: user?.avatar ? 'none' : 'flex' }}
+              >
+                {(user?.name || user?.username || 'U').charAt(0).toUpperCase()}
               </span>
             </div>
-
-            {/* DESKTOP NAVIGATION (Centered logic via justify-between) */}
-            <div className="hidden md:flex items-center gap-2">
-              <button 
-                onClick={() => navigate('/report-lost')} 
-                className="px-4 py-2 rounded-full text-cyan-600 bg-cyan-50 font-medium text-sm transition-all duration-200"
-              >
-                Report Lost
-              </button>
-              <button 
-                onClick={() => navigate('/report-found')} 
-                className="px-4 py-2 rounded-full text-gray-600 hover:text-orange-600 hover:bg-orange-50 font-medium text-sm transition-all duration-200"
-              >
-                Report Found
-              </button>
-            </div>
-
-            {/* RIGHT ACTIONS */}
-            <div className="flex items-center gap-3">
-              <button className="p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-all">
-                <Bell className="w-5 h-5" />
-              </button>
-              <button className="p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-all">
-                <Menu className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
+            <span className="text-xs font-semibold text-gray-900">My Profile</span>
+          </button>
         </div>
-      </header>
 
-      {/* --- MAIN CONTENT --- */}
-      <main className="max-w-md mx-auto md:max-w-2xl px-6 py-10">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Report Lost Item</h1>
         <p className="text-gray-500 text-sm mb-6">Fill in the details about the item you lost</p>
-
-        <div className="bg-[#fdf4d8] border border-[#faeebf] rounded-lg p-4 mb-6 flex items-start gap-3">
+        
+        <div className="bg-[#fdf4d8] bg-opacity-60 border border-[#faeebf] rounded-lg p-4 mb-6 flex items-start gap-3">
            <Info className="w-5 h-5 text-gray-400 mt-0.5" />
-           <p className="text-xs text-[#9c865a] leading-relaxed">
-             Your report will be reviewed by admin before being published. You'll be notified once it's approved.
+           <p className="text-xs text-[#9c865a] leading-relaxed ml-1">
+             Your report will be viewed by admin before being published. You'll be notified once it's approved.
            </p>
         </div>
-        
-        {error && <p className="text-sm text-red-500 bg-red-100 p-3 rounded-lg mb-4">{error}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-1">
@@ -238,38 +294,21 @@ export default function ReportLost() {
           </div>
 
           <div className="pt-8 flex gap-4 justify-end">
-            <button 
-              type="button" 
-              onClick={() => navigate('/home')} 
-              className="px-8 py-2.5 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-8 py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-bold shadow-md transition-all active:scale-95 disabled:bg-gray-300"
-            >
-              {loading ? 'Submitting...' : 'Submit Lost Item'}
-            </button>
+            <button type="button" onClick={() => navigate('/home')} className="px-8 py-2.5 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">Cancel</button>
+            <button type="submit" disabled={loading} className="px-8 py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-bold shadow-md transition-all disabled:bg-gray-300">{loading ? 'Submitting...' : 'Submit Lost Item'}</button>
           </div>
         </form>
       </main>
 
       {/* --- FLOATING CHATBOT --- */}
       <div className="fixed bottom-6 right-6 z-50">
-        <button 
-          onClick={() => setIsChatbotOpen(true)}
-          className="bg-transparent hover:scale-110 active:scale-95 transition-transform p-0 border-0 focus:outline-none"
-        >
+        <button onClick={() => setIsChatbotOpen(true)} className="bg-transparent p-0 border-0">
           <div className="w-16 h-16 relative">
-            <img src={chatbotIcon} alt="Chatbot" className="w-full h-full object-contain drop-shadow-xl" />
+            <img src={chatbotIcon} alt="Chatbot" className="w-full h-full object-contain" />
             <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
           </div>
         </button>
       </div>
-
-      {/* Chatbot Component */}
       <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
     </div>
   );

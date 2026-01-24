@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom'; // Added for the profile button
 import { 
   Search, 
   Filter, 
@@ -13,11 +13,11 @@ import ClaimModal from '../../components/ClaimModal';
 import UserHeader from '../../components/UserHeader';
 import Chatbot from '../../components/Chatbot';
 import { useAuth } from '../../contexts/AuthContext';
-import chatbotIcon from '../../assets/chatbot.png'; // Chatbot Logo
+import chatbotIcon from '../../assets/chatbot.png';
 
 export default function UserHome() {
-  const navigate = useNavigate(); 
-  const { user } = useAuth(); // Get current user to check ownership
+  const navigate = useNavigate(); // Hook for navigation
+  const { user } = useAuth();
   
   // State: Loading, Error, and Live Reports
   const [reports, setReports] = useState<Report[]>([]);
@@ -106,19 +106,48 @@ export default function UserHome() {
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 relative">
       
-      {/* --- NEW HEADER IMPLEMENTATION --- */}
       <UserHeader />
 
       {/* --- MAIN CONTENT --- */}
       <main className="max-w-md mx-auto md:max-w-5xl px-4 py-6 pb-24">
         
+        {/* Profile Button Duplicate from Header */}
+        <div className="flex justify-end mb-4 md:hidden">
+          <button
+            onClick={() => navigate('/profile')}
+            className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-gray-50 border border-gray-100 shadow-sm transition-all duration-200 hover:bg-gray-100 text-gray-600"
+          >
+            <div className="w-8 h-8 rounded-full bg-[#29b6f6] flex items-center justify-center overflow-hidden shrink-0 border border-white">
+              {user?.avatar ? (
+                <img
+                  src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const fb = e.currentTarget.nextElementSibling;
+                    if (fb) (fb as HTMLElement).style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <span
+                className="text-white font-bold text-xs"
+                style={{ display: user?.avatar ? 'none' : 'flex' }}
+              >
+                {(user?.name || user?.username || 'U').charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <span className="text-xs font-semibold text-gray-900">My Profile</span>
+          </button>
+        </div>
+
         <div className="text-center mb-8">
           <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">
             San Isidro National High School <br />
             <span className="text-gray-900">Verified Lost & Found Items</span> 
           </h1>
           <p className="text-gray-500 text-sm mt-3">
-            Browse through verified reports from the community
+            Welcome, <span className="text-blue-600 font-semibold">{user?.name || 'User'}</span>! Browse through verified reports.
           </p>
         </div>
 
@@ -249,19 +278,17 @@ export default function UserHome() {
           className="bg-transparent hover:scale-110 active:scale-95 transition-transform duration-200 shadow-none border-0 p-0 cursor-pointer focus:outline-none"
           aria-label="Open Support Chat"
         >
-           <div className="w-16 h-16 relative">
-             <img 
-               src={chatbotIcon} // Swapped the URL for the imported local asset
-               alt="Chatbot" 
-               className="w-full h-full object-contain drop-shadow-xl"
-             />
-             {/* Notification Dot */}
-             <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
-           </div>
+            <div className="w-16 h-16 relative">
+              <img 
+                src={chatbotIcon} 
+                alt="Chatbot" 
+                className="w-full h-full object-contain drop-shadow-xl"
+              />
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+            </div>
         </button>
       </div>
 
-      {/* Chatbot Component */}
       <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
 
       {selectedReport && (

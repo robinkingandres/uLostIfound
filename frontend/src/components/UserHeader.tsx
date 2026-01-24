@@ -162,8 +162,8 @@ export default function UserHeader() {
 </span>
 </div>
 
-          {/* DESKTOP NAVIGATION */}
-          <div className="hidden md:flex items-center gap-2">
+          {/* CENTER: Desktop Navigation */}
+          <div className="hidden md:flex items-center gap-2 flex-1 justify-center">
             <button 
               onClick={() => navigate('/report-lost')} 
               className="px-4 py-2 rounded-full text-gray-600 hover:text-cyan-600 hover:bg-cyan-50 font-medium text-sm transition-all duration-200"
@@ -178,7 +178,7 @@ export default function UserHeader() {
             </button>
           </div>
 
-          {/* RIGHT ACTIONS */}
+          {/* RIGHT SIDE: Notification → Menu → Profile */}
           <div className="flex items-center gap-3">
             
             {/* NOTIFICATION BELL */}
@@ -247,7 +247,7 @@ export default function UserHeader() {
               )}
             </div>
             
-            {/* MOBILE MENU TOGGLE */}
+            {/* MENU TOGGLE BUTTON (separate from profile) */}
             <div className="relative" ref={menuRef}>
               <button 
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -256,22 +256,36 @@ export default function UserHeader() {
                 {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>
 
-              {/* MOBILE MENU DROPDOWN */}
+              {/* MENU DROPDOWN */}
               {isMenuOpen && (
                 <div className="absolute right-0 top-full mt-4 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100/50 py-2 origin-top-right z-50 ring-1 ring-black/5">
                   
-                  {/* User Profile Snippet */}
-                  <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-br from-gray-50 to-white">
+                  {/* User Profile Snippet (clickable to profile) */}
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      navigate('/profile');
+                    }}
+                    className="w-full px-6 py-4 border-b border-gray-100 bg-gradient-to-br from-gray-50 to-white hover:bg-gray-100 transition-colors text-left"
+                  >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center font-bold text-lg">
-                        {user?.name?.charAt(0) || 'U'}
+                      <div className="w-10 h-10 rounded-full bg-[#29b6f6] flex items-center justify-center overflow-hidden shrink-0">
+                        {user?.avatar ? (
+                          <img
+                            src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-white font-bold text-lg">{user?.name?.charAt(0) || 'U'}</span>
+                        )}
                       </div>
                       <div className="overflow-hidden">
                         <p className="text-sm font-bold text-gray-900 truncate">{user?.name || 'Guest'}</p>
                         <p className="text-xs text-gray-500 truncate font-medium bg-gray-200/50 inline-block px-1.5 rounded mt-0.5">{user?.role || 'User'}</p>
                       </div>
                     </div>
-                  </div>
+                  </button>
 
                   <div className="py-2 px-2 space-y-1">
                     {menuItems.map((item) => (
@@ -341,6 +355,36 @@ export default function UserHeader() {
                 </div>
               )}
             </div>
+            
+            {/* PROFILE BUTTON (separate from menu) */}
+            <button
+              onClick={() => navigate('/profile')}
+              className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full transition-all duration-200 hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+            >
+              <div className="w-9 h-9 rounded-full bg-[#29b6f6] flex items-center justify-center overflow-hidden shrink-0 border-2 border-white shadow-sm">
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const fb = e.currentTarget.nextElementSibling;
+                      if (fb) (fb as HTMLElement).style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <span
+                  className="text-white font-bold text-sm"
+                  style={{ display: user?.avatar ? 'none' : 'flex' }}
+                >
+                  {(user?.name || user?.username || 'U').charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <span className="hidden sm:block text-sm font-semibold text-gray-900 truncate max-w-[120px]">
+                {user?.name || user?.username || 'User'}
+              </span>
+            </button>
           </div>
         </div>
       </div>
