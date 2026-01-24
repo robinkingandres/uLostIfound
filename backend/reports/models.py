@@ -52,6 +52,7 @@ class Claim(models.Model):
     report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='claims')
     claimant = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='claims')
     proof_description = models.TextField(help_text="Describe why this item belongs to you (e.g., specific marks, contents).")
+    proof_image = models.ImageField(upload_to='claim_proofs/', null=True, blank=True, help_text="Upload an image as proof of ownership.")
     status = models.CharField(max_length=10, choices=CLAIM_STATUS_CHOICES, default='Pending')
     date_created = models.DateTimeField(auto_now_add=True)
 
@@ -74,3 +75,47 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"Notification for {self.recipient.username}: {self.message[:20]}..."
+
+
+# --- AI MATCH MODEL ---
+class AIMatch(models.Model):
+    MATCH_STATUS_CHOICES = (
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    )
+
+    lost_report = models.ForeignKey(
+        Report, 
+        on_delete=models.CASCADE, 
+        related_name='lost_matches',
+        limit_choices_to={'type': 'Lost'}
+    )
+    found_report = models.ForeignKey(
+        Report, 
+        on_delete=models.CASCADE, 
+        related_name='found_matches',
+        limit_choices_to={'type': 'Found'}
+    )
+    
+    # Match scores (0-100)
+    visual_score = models.FloatField(default=0, help_text="Image similarity score from CLIP (0-100)")
+    text_score = models.FloatField(default=0, help_text="Text/description similarity score (0-100)")
+    match_score = models.FloatField(default=0, help_text="Combined overall match score (0-100)")
+    
+    status = models.CharField(max_length=10, choices=MATCH_STATUS_CHOICES, default='Pending')
+    date_created = models.DateTimeField(auto_now_add=True)
+    date_updated = models.DateTimeField(auto_now=True)
+    
+    # Store whether users have been notified
+    lost_reporter_notified = models.BooleanField(default=False)
+    found_reporter_notified = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-match_score', '-date_created']
+        unique_together = ['lost_report', 'found_report']
+        verbose_name = 'AI Match'
+        verbose_name_plural = 'AI Matches'
+
+    def __str__(self):
+        return f"Match: {self.lost_report.item_name} <-> {self.found_report.item_name} ({self.match_score}%)"

@@ -231,14 +231,14 @@ export default function UserHome() {
                   </div>
                   <div className="flex items-center gap-2">
                     <UserIcon className="w-4 h-4 text-gray-400" />
-                    <span className="font-medium text-gray-700">{report.reporter || report.reporter}</span>
+                    <span className="font-medium text-gray-700">{report.reporterName || report.reporterUsername || 'Unknown'}</span>
                   </div>
                 </div>
 
                 <div className="mt-auto pt-3 border-t border-gray-100">
                   {report.type === 'Found' ? (
                     // Prevent claiming own reports
-                    (user && Number(report.reporter) === user.id) ? (
+                    (user && report.reporter === user.id) ? (
                         <button 
                           disabled
                           className="w-full py-2.5 bg-gray-100 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed flex items-center justify-center gap-2"

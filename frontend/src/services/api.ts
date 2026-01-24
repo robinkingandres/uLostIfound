@@ -87,23 +87,27 @@ export const fetchDashboardStats = async (): Promise<DashboardStats> => {
 // =================================================================
 
 // --- Create a new claim (User) ---
-export const createClaim = async (reportId: number, proofDescription: string) => {
+export const createClaim = async (reportId: number, proofDescription: string, proofImage: File | null) => {
   const csrfToken = await fetchCsrfToken();
   
   if (!csrfToken) {
     throw new Error('CSRF token not found. Please ensure you are logged in.');
   }
 
+  const formData = new FormData();
+  formData.append('reportId', reportId.toString());
+  formData.append('proofDescription', proofDescription);
+  
+  if (proofImage) {
+    formData.append('proofImage', proofImage);
+  }
+
   const response = await fetch(CLAIM_URL, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       'X-CSRFToken': csrfToken,
     },
-    body: JSON.stringify({ 
-      reportId: reportId, 
-      proofDescription: proofDescription 
-    }),
+    body: formData,
     credentials: 'include',
   });
 
@@ -460,6 +464,132 @@ export const fetchActivityFeed = async (): Promise<Activity[]> => {
 
   if (!response.ok) {
     throw new Error('Failed to fetch activity feed');
+  }
+  return response.json();
+};
+
+// =================================================================
+//                      AI MATCH API FUNCTIONS
+// =================================================================
+
+const AI_MATCH_URL = `${API_URL}/ai-matches/`;
+
+export interface AIMatchItem {
+  id: number;
+  itemName: string;
+  description: string;
+  category: string;
+  location: string;
+  image: string;
+  reporterId: number;
+  reporterName: string;
+}
+
+export interface AIMatch {
+  id: number;
+  lostItem: AIMatchItem;
+  foundItem: AIMatchItem;
+  visualScore: number;
+  textScore: number;
+  matchScore: number;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  date: string;
+  lost_reporter_notified: boolean;
+  found_reporter_notified: boolean;
+}
+
+export interface AIMatchStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
+/**
+ * Fetch all AI matches (Admin only for all, users see their approved matches)
+ */
+export const fetchAIMatches = async (status?: string): Promise<AIMatch[]> => {
+  let url = AI_MATCH_URL;
+  if (status) {
+    url += `?status=${status}`;
+  }
+  
+  const response = await fetch(url, { credentials: 'include' });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch AI matches');
+  }
+  return response.json();
+};
+
+/**
+ * Get AI match statistics (Admin only)
+ */
+export const fetchAIMatchStats = async (): Promise<AIMatchStats> => {
+  const response = await fetch(`${AI_MATCH_URL}stats/`, { credentials: 'include' });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch AI match stats');
+  }
+  return response.json();
+};
+
+/**
+ * Update AI match status (Approve/Reject)
+ */
+export const updateAIMatchStatus = async (id: number, status: 'Approved' | 'Rejected'): Promise<AIMatch> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
+
+  const response = await fetch(`${AI_MATCH_URL}${id}/`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify({ status }),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+  return response.json();
+};
+
+/**
+ * Trigger AI scan for all potential matches (Admin only)
+ */
+export const triggerAIScan = async (minScore: number = 50): Promise<{ status: string; message: string; matches_created: number }> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
+
+  const response = await fetch(`${AI_MATCH_URL}scan_all/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify({ min_score: minScore }),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+  return response.json();
+};
+
+/**
+ * Get matches for the current user's reports
+ */
+export const fetchMyAIMatches = async (): Promise<AIMatch[]> => {
+  const response = await fetch(`${AI_MATCH_URL}my_matches/`, { credentials: 'include' });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch your AI matches');
   }
   return response.json();
 };

@@ -1,29 +1,33 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, CheckCircle, PackageCheck, TrendingUp, MapPin, Calendar } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle, PackageCheck, TrendingUp, MapPin, Calendar, Sparkles, X } from 'lucide-react';
 import UserHeader from '../../components/UserHeader';
 import Chatbot from '../../components/Chatbot';
-import { fetchMyReports, fetchClaims } from '../../services/api';
+import { fetchMyReports, fetchClaims, fetchMyAIMatches } from '../../services/api';
 import type { Report } from '../../types/report';
 import type { Claim } from '../../types/claim';
+import type { AIMatch } from '../../services/api';
 import chatbotIcon from '../../assets/chatbot.png';
 import { useAuth } from '../../contexts/AuthContext';
 
-type MatchCategory = 'All' | 'Pending' | 'Verified' | 'Complete';
+type MatchCategory = 'All' | 'AI Matches' | 'Pending' | 'Verified' | 'Complete';
+
+const API_BASE = 'http://localhost:8000';
 
 interface MatchItem {
   id: number;
-  type: 'report' | 'claim';
+  type: 'report' | 'claim' | 'ai-match';
   itemName: string;
   description: string;
   image: string;
   location: string;
   date: string;
-  status: 'Pending' | 'Verified' | 'Complete';
+  status: 'Pending' | 'Verified' | 'Complete' | 'AI Match';
   matchPercentage?: number;
   reportId?: number;
   claimId?: number;
   category: string;
+  aiMatch?: AIMatch;
 }
 
 export default function Matches() {
@@ -32,6 +36,7 @@ export default function Matches() {
   const [activeCategory, setActiveCategory] = useState<MatchCategory>('All');
   const [reports, setReports] = useState<Report[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
+  const [aiMatches, setAIMatches] = useState<AIMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedMatch, setSelectedMatch] = useState<MatchItem | null>(null);
@@ -39,21 +44,45 @@ export default function Matches() {
 
   // Calculate match percentage (mock calculation based on similarity)
   const calculateMatchPercentage = (report: Report, claim?: Claim): number => {
-    // If there's a claim, calculate based on description similarity
     if (claim) {
       const reportWords = report.description.toLowerCase().split(/\s+/);
       const claimWords = claim.proofDescription.toLowerCase().split(/\s+/);
       const commonWords = reportWords.filter(word => claimWords.includes(word));
       const similarity = (commonWords.length / Math.max(reportWords.length, claimWords.length)) * 100;
-      return Math.min(100, Math.max(70, Math.round(similarity + 20))); // Ensure at least 70%, max 100%
+      return Math.min(100, Math.max(70, Math.round(similarity + 20)));
     }
-    // For reports without claims, return a base percentage
     return 75;
   };
 
-  // Convert reports and claims to match items
+  const getImageUrl = (imagePath: string | null | undefined) => {
+    if (!imagePath) return 'https://via.placeholder.com/150?text=No+Image';
+    if (imagePath.startsWith('http')) return imagePath;
+    return `${API_BASE}${imagePath.startsWith('/') ? '' : '/media/'}${imagePath}`;
+  };
+
+  // Convert reports, claims, and AI matches to match items
   const getMatchItems = useCallback((): MatchItem[] => {
     const matchItems: MatchItem[] = [];
+
+    // Add AI matches first (they're the most important)
+    aiMatches.forEach((aiMatch) => {
+      const isLostReporter = user?.id === aiMatch.lostItem.reporterId;
+      const item = isLostReporter ? aiMatch.foundItem : aiMatch.lostItem;
+      
+      matchItems.push({
+        id: aiMatch.id + 100000, // Offset to avoid ID conflicts
+        type: 'ai-match',
+        itemName: item.itemName,
+        description: item.description,
+        image: getImageUrl(item.image),
+        location: item.location || 'N/A',
+        date: aiMatch.date,
+        status: 'AI Match',
+        matchPercentage: aiMatch.matchScore,
+        category: item.category,
+        aiMatch: aiMatch,
+      });
+    });
 
     // Add reports
     reports.forEach((report) => {
@@ -73,7 +102,7 @@ export default function Matches() {
         type: 'report',
         itemName: report.itemName,
         description: report.description,
-        image: report.image,
+        image: getImageUrl(report.image),
         location: report.location,
         date: report.date,
         status,
@@ -84,7 +113,7 @@ export default function Matches() {
       });
     });
 
-    // Add claims that don't have a corresponding report (user claimed someone else's found item)
+    // Add claims that don't have a corresponding report
     claims.forEach((claim) => {
       const hasReport = reports.some(r => r.itemName === claim.itemName);
       if (!hasReport) {
@@ -96,15 +125,15 @@ export default function Matches() {
         }
 
         matchItems.push({
-          id: claim.id + 10000, // Offset to avoid ID conflicts
+          id: claim.id + 10000,
           type: 'claim',
           itemName: claim.itemName,
           description: claim.proofDescription,
-          image: 'https://via.placeholder.com/150', // Default image for claims
+          image: 'https://via.placeholder.com/150',
           location: 'N/A',
           date: claim.date,
           status,
-          matchPercentage: 85, // Default match percentage for claims
+          matchPercentage: 85,
           claimId: claim.id,
           category: 'Unknown',
         });
@@ -112,12 +141,13 @@ export default function Matches() {
     });
 
     return matchItems;
-  }, [reports, claims]);
+  }, [reports, claims, aiMatches, user]);
 
   // Filter match items by category
   const getFilteredItems = (): MatchItem[] => {
     const items = getMatchItems();
     if (activeCategory === 'All') return items;
+    if (activeCategory === 'AI Matches') return items.filter(item => item.type === 'ai-match');
     return items.filter(item => item.status === activeCategory);
   };
 
@@ -125,12 +155,14 @@ export default function Matches() {
     setLoading(true);
     setError('');
     try {
-      const [myReports, myClaims] = await Promise.all([
+      const [myReports, myClaims, myAIMatches] = await Promise.all([
         fetchMyReports(),
         fetchClaims(),
+        fetchMyAIMatches().catch(() => []), // Gracefully handle if no AI matches
       ]);
       setReports(myReports);
       setClaims(myClaims);
+      setAIMatches(myAIMatches);
     } catch (err) {
       console.error('Failed to load matches:', err);
       setError('Failed to load matches. Please try again.');
@@ -168,12 +200,19 @@ export default function Matches() {
             Complete
           </div>
         );
+      case 'AI Match':
+        return (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
+            <Sparkles className="w-3 h-3" />
+            AI Match Found
+          </div>
+        );
       default:
         return null;
     }
   };
 
-  const categories: MatchCategory[] = ['All', 'Pending', 'Verified', 'Complete'];
+  const categories: MatchCategory[] = ['All', 'AI Matches', 'Pending', 'Verified', 'Complete'];
 
   if (loading) {
     return (
@@ -203,6 +242,21 @@ export default function Matches() {
           <h1 className="text-2xl font-bold text-gray-900">Matches</h1>
         </div>
 
+        {/* AI Matches Banner */}
+        {aiMatches.length > 0 && (
+          <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl p-4 mb-6 text-white">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Sparkles className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold">AI Found {aiMatches.length} Potential Match{aiMatches.length > 1 ? 'es' : ''}!</h3>
+                <p className="text-sm text-white/80">Our AI has found items that may match your lost/found reports.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Category Filters */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
           {categories.map((category) => (
@@ -217,11 +271,18 @@ export default function Matches() {
                     ? 'bg-green-500 text-white'
                     : category === 'Complete'
                     ? 'bg-blue-500 text-white'
+                    : category === 'AI Matches'
+                    ? 'bg-purple-500 text-white'
                     : 'bg-gray-900 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               {category}
+              {category === 'AI Matches' && aiMatches.length > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.5 bg-white/20 rounded-full text-xs">
+                  {aiMatches.length}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -255,7 +316,9 @@ export default function Matches() {
             {filteredItems.map((item) => (
               <div
                 key={`${item.type}-${item.id}`}
-                className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow"
+                className={`bg-white rounded-xl border shadow-sm p-4 hover:shadow-md transition-shadow ${
+                  item.type === 'ai-match' ? 'border-purple-200 bg-purple-50/30' : 'border-gray-200'
+                }`}
               >
                 <div className="flex gap-4">
                   {/* Item Image */}
@@ -275,8 +338,14 @@ export default function Matches() {
                         <p className="text-sm text-gray-600 line-clamp-2 mb-2">{item.description}</p>
                       </div>
                       {item.matchPercentage !== undefined && (
-                        <div className="flex items-center gap-1 text-green-600 flex-shrink-0">
-                          <TrendingUp className="w-4 h-4" />
+                        <div className={`flex items-center gap-1 flex-shrink-0 ${
+                          item.type === 'ai-match' ? 'text-purple-600' : 'text-green-600'
+                        }`}>
+                          {item.type === 'ai-match' ? (
+                            <Sparkles className="w-4 h-4" />
+                          ) : (
+                            <TrendingUp className="w-4 h-4" />
+                          )}
                           <span className="text-sm font-semibold">{item.matchPercentage}% match</span>
                         </div>
                       )}
@@ -293,14 +362,18 @@ export default function Matches() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        <span>{new Date(item.date).toLocaleDateString()}</span>
+                        <span>{item.date}</span>
                       </div>
                     </div>
 
                     {/* View Details Button */}
                     <button
                       onClick={() => setSelectedMatch(item)}
-                      className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                      className={`text-sm font-medium flex items-center gap-1 ${
+                        item.type === 'ai-match' 
+                          ? 'text-purple-600 hover:text-purple-700' 
+                          : 'text-blue-600 hover:text-blue-700'
+                      }`}
                     >
                       View Details →
                     </button>
@@ -339,6 +412,7 @@ export default function Matches() {
           onClose={() => setSelectedMatch(null)}
           report={reports.find(r => r.id === selectedMatch.reportId)}
           claim={claims.find(c => c.id === selectedMatch.claimId)}
+          getImageUrl={getImageUrl}
         />
       )}
     </div>
@@ -351,10 +425,19 @@ interface MatchDetailsModalProps {
   onClose: () => void;
   report?: Report;
   claim?: Claim;
+  getImageUrl: (path: string | null | undefined) => string;
 }
 
-function MatchDetailsModal({ match, onClose, report, claim }: MatchDetailsModalProps) {
+function MatchDetailsModal({ match, onClose, report, claim, getImageUrl }: MatchDetailsModalProps) {
   const getStatusMessage = () => {
+    if (match.type === 'ai-match') {
+      return {
+        title: 'AI Match Found!',
+        message: 'Our AI has found a potential match for your item. Please visit the guidance office to verify and claim your item.',
+        color: 'purple',
+      };
+    }
+    
     switch (match.status) {
       case 'Pending':
         return {
@@ -394,21 +477,92 @@ function MatchDetailsModal({ match, onClose, report, claim }: MatchDetailsModalP
       <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">Match Details</h2>
+          <div className={`sticky top-0 border-b px-6 py-4 flex items-center justify-between ${
+            match.type === 'ai-match' ? 'bg-purple-50 border-purple-200' : 'bg-white border-gray-200'
+          }`}>
+            <div className="flex items-center gap-3">
+              {match.type === 'ai-match' && <Sparkles className="w-5 h-5 text-purple-600" />}
+              <h2 className="text-xl font-bold text-gray-900">
+                {match.type === 'ai-match' ? 'AI Match Details' : 'Match Details'}
+              </h2>
+            </div>
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               aria-label="Close"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
+              <X className="w-5 h-5 text-gray-600" />
             </button>
           </div>
 
           {/* Content */}
           <div className="p-6 space-y-6">
-            {/* Match Score */}
-            {match.matchPercentage !== undefined && (
+            {/* AI Match Comparison */}
+            {match.type === 'ai-match' && match.aiMatch && (
+              <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+                <h3 className="font-semibold text-purple-900 mb-4 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  AI Match Comparison
+                </h3>
+                
+                <div className="grid md:grid-cols-2 gap-4">
+                  {/* Lost Item */}
+                  <div className="bg-white rounded-lg p-4 border border-red-100">
+                    <p className="text-xs font-semibold text-red-600 mb-2 uppercase">Lost Item</p>
+                    <div className="flex gap-3">
+                      <img 
+                        src={getImageUrl(match.aiMatch.lostItem.image)} 
+                        alt={match.aiMatch.lostItem.itemName}
+                        className="w-16 h-16 object-cover rounded-lg"
+                      />
+                      <div>
+                        <h4 className="font-bold text-gray-900">{match.aiMatch.lostItem.itemName}</h4>
+                        <p className="text-xs text-gray-500">{match.aiMatch.lostItem.category}</p>
+                        <p className="text-xs text-gray-500 mt-1">By: {match.aiMatch.lostItem.reporterName}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Found Item */}
+                  <div className="bg-white rounded-lg p-4 border border-green-100">
+                    <p className="text-xs font-semibold text-green-600 mb-2 uppercase">Found Item</p>
+                    <div className="flex gap-3">
+                      <img 
+                        src={getImageUrl(match.aiMatch.foundItem.image)} 
+                        alt={match.aiMatch.foundItem.itemName}
+                        className="w-16 h-16 object-cover rounded-lg"
+                      />
+                      <div>
+                        <h4 className="font-bold text-gray-900">{match.aiMatch.foundItem.itemName}</h4>
+                        <p className="text-xs text-gray-500">{match.aiMatch.foundItem.category}</p>
+                        <p className="text-xs text-gray-500 mt-1">By: {match.aiMatch.foundItem.reporterName}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Match Scores */}
+                <div className="mt-4 pt-4 border-t border-purple-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-purple-900">Match Confidence</span>
+                    <span className="text-lg font-bold text-purple-600">{match.aiMatch.matchScore}%</span>
+                  </div>
+                  <div className="flex gap-4 text-xs text-purple-700">
+                    <span>Visual: {match.aiMatch.visualScore}%</span>
+                    <span>Text: {match.aiMatch.textScore}%</span>
+                  </div>
+                  <div className="mt-2 bg-purple-200 rounded-full h-2">
+                    <div 
+                      className="bg-purple-600 h-2 rounded-full transition-all"
+                      style={{ width: `${match.aiMatch.matchScore}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Match Score (for non-AI matches) */}
+            {match.matchPercentage !== undefined && match.type !== 'ai-match' && (
               <div className="bg-gray-50 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-900">Match Score</h3>
@@ -435,47 +589,55 @@ function MatchDetailsModal({ match, onClose, report, claim }: MatchDetailsModalP
               </div>
             )}
 
-            {/* Item Details */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <PackageCheck className="w-4 h-4" />
-                Item Details
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Your {match.type === 'report' ? 'Reported' : 'Claimed'} Item</p>
-                  <p className="font-bold text-gray-900">{match.itemName}</p>
-                </div>
-                <p className="text-sm text-gray-600">{match.description}</p>
-                <div className="flex items-center gap-4 text-xs text-gray-500">
-                  <div className="flex items-center gap-1">
-                    <MapPin className="w-3 h-3" />
-                    <span>{match.location}</span>
+            {/* Item Details (for non-AI matches) */}
+            {match.type !== 'ai-match' && (
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <PackageCheck className="w-4 h-4" />
+                  Item Details
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Your {match.type === 'report' ? 'Reported' : 'Claimed'} Item</p>
+                    <p className="font-bold text-gray-900">{match.itemName}</p>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    <span>{new Date(match.date).toLocaleDateString()}</span>
+                  <p className="text-sm text-gray-600">{match.description}</p>
+                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <div className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      <span>{match.location}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      <span>{match.date}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Status Message */}
             <div className={`rounded-xl p-4 border-2 ${
               statusInfo.color === 'green' ? 'bg-green-50 border-green-200' :
               statusInfo.color === 'blue' ? 'bg-blue-50 border-blue-200' :
+              statusInfo.color === 'purple' ? 'bg-purple-50 border-purple-200' :
               'bg-orange-50 border-orange-200'
             }`}>
               <div className="flex items-center gap-3">
-                <CheckCircle className={`w-6 h-6 ${
-                  statusInfo.color === 'green' ? 'text-green-600' :
-                  statusInfo.color === 'blue' ? 'text-blue-600' :
-                  'text-orange-600'
-                }`} />
+                {statusInfo.color === 'purple' ? (
+                  <Sparkles className="w-6 h-6 text-purple-600" />
+                ) : (
+                  <CheckCircle className={`w-6 h-6 ${
+                    statusInfo.color === 'green' ? 'text-green-600' :
+                    statusInfo.color === 'blue' ? 'text-blue-600' :
+                    'text-orange-600'
+                  }`} />
+                )}
                 <div>
                   <h4 className={`font-bold text-lg ${
                     statusInfo.color === 'green' ? 'text-green-800' :
                     statusInfo.color === 'blue' ? 'text-blue-800' :
+                    statusInfo.color === 'purple' ? 'text-purple-800' :
                     'text-orange-800'
                   }`}>
                     {statusInfo.title}
@@ -483,6 +645,7 @@ function MatchDetailsModal({ match, onClose, report, claim }: MatchDetailsModalP
                   <p className={`text-sm mt-1 ${
                     statusInfo.color === 'green' ? 'text-green-700' :
                     statusInfo.color === 'blue' ? 'text-blue-700' :
+                    statusInfo.color === 'purple' ? 'text-purple-700' :
                     'text-orange-700'
                   }`}>
                     {statusInfo.message}

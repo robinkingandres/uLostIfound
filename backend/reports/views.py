@@ -11,9 +11,9 @@ from itertools import chain # Add this import if not present, though we can do l
 from operator import itemgetter
 
 # Import models
-from .models import Report, Claim, Notification 
+from .models import Report, Claim, Notification, AIMatch
 # Import serializers
-from .serializers import ReportSerializer, ClaimSerializer, NotificationSerializer
+from .serializers import ReportSerializer, ClaimSerializer, NotificationSerializer, AIMatchSerializer
 
 # Import the new shared permission
 from core.permissions import IsAdmin, IsGuidance
@@ -83,7 +83,15 @@ class ReportViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         # Automatically set the reporter to the logged-in user
-        serializer.save(reporter=self.request.user)
+        report = serializer.save(reporter=self.request.user)
+        
+        # Trigger AI matching for the new report (run in background)
+        try:
+            from .ai_matching import process_new_report
+            process_new_report(report)
+        except Exception as e:
+            # Don't fail the report creation if AI matching fails
+            print(f"AI matching failed for report {report.id}: {e}")
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -300,3 +308,136 @@ class ActivityFeedView(APIView):
 
         # 6. Return top 10 most recent
         return Response(activities[:10], status=status.HTTP_200_OK)
+
+
+# --- AI MATCH VIEWSET ---
+class AIMatchViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing AI-generated matches between Lost and Found reports.
+    Admin can view all matches, approve/reject them.
+    Users can view their own approved matches.
+    """
+    queryset = AIMatch.objects.all()
+    serializer_class = AIMatchSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        status_filter = self.request.query_params.get('status')
+        
+        # Admins see all matches
+        if user.role in ['Admin', 'Guidance'] or user.is_superuser:
+            queryset = AIMatch.objects.all()
+        else:
+            # Regular users only see approved matches related to their reports
+            queryset = AIMatch.objects.filter(
+                Q(lost_report__reporter=user) | Q(found_report__reporter=user),
+                status='Approved'
+            )
+        
+        # Filter by status if provided
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        return queryset.order_by('-match_score', '-date_created')
+
+    def update(self, request, *args, **kwargs):
+        user = request.user
+        
+        # Only Admin/Guidance can update match status
+        if user.role not in ['Admin', 'Guidance'] and not user.is_superuser:
+            return Response(
+                {"detail": "You do not have permission to update matches."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().update(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_status = instance.status
+        
+        updated_match = serializer.save()
+        new_status = updated_match.status
+        
+        # Send notifications when match is approved
+        if old_status != new_status and new_status == 'Approved':
+            # Notify lost item reporter
+            if not updated_match.lost_reporter_notified:
+                Notification.objects.create(
+                    recipient=updated_match.lost_report.reporter,
+                    message=f"Great news! A potential match has been found for your lost item '{updated_match.lost_report.item_name}'. "
+                            f"Match confidence: {updated_match.match_score}%. Please check your Matches page for details.",
+                    report=updated_match.lost_report
+                )
+                updated_match.lost_reporter_notified = True
+            
+            # Notify found item reporter
+            if not updated_match.found_reporter_notified:
+                Notification.objects.create(
+                    recipient=updated_match.found_report.reporter,
+                    message=f"Great news! The item you found '{updated_match.found_report.item_name}' may belong to someone. "
+                            f"Match confidence: {updated_match.match_score}%. An admin will coordinate the return process.",
+                    report=updated_match.found_report
+                )
+                updated_match.found_reporter_notified = True
+            
+            updated_match.save()
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAdmin])
+    def scan_all(self, request):
+        """
+        Trigger a full scan to find all potential matches.
+        Admin only.
+        """
+        try:
+            from .ai_matching import find_potential_matches
+            min_score = float(request.data.get('min_score', 50.0))
+            new_matches = find_potential_matches(min_score=min_score)
+            return Response({
+                'status': 'success',
+                'message': f'Found {len(new_matches)} new potential matches.',
+                'matches_created': len(new_matches)
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get match statistics for the dashboard."""
+        user = request.user
+        
+        if user.role not in ['Admin', 'Guidance'] and not user.is_superuser:
+            return Response(
+                {"detail": "You do not have permission to view stats."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        total = AIMatch.objects.count()
+        pending = AIMatch.objects.filter(status='Pending').count()
+        approved = AIMatch.objects.filter(status='Approved').count()
+        rejected = AIMatch.objects.filter(status='Rejected').count()
+        
+        return Response({
+            'total': total,
+            'pending': pending,
+            'approved': approved,
+            'rejected': rejected
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def my_matches(self, request):
+        """Get matches for the current user's reports."""
+        user = request.user
+        
+        # Get matches where user is either the lost or found reporter
+        matches = AIMatch.objects.filter(
+            Q(lost_report__reporter=user) | Q(found_report__reporter=user),
+            status='Approved'
+        ).order_by('-match_score', '-date_created')
+        
+        serializer = self.get_serializer(matches, many=True)
+        return Response(serializer.data)

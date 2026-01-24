@@ -1,26 +1,101 @@
-import { useState } from 'react';
-import { Sparkles, ClipboardList, CheckCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Sparkles, ClipboardList, CheckCircle, RefreshCw, Search } from 'lucide-react';
 import DashboardHeader from '../../components/admin/DashboardHeader';
 import StatCard from '../../components/admin/StatCard';
-import { mockMatches } from '../../data/mockMatches';
-import type { AIMatch, MatchStatus } from '../../types/aiMatch';
+import { fetchAIMatches, fetchAIMatchStats, updateAIMatchStatus, triggerAIScan } from '../../services/api';
+import type { AIMatch, AIMatchStats } from '../../services/api';
+
+type TabStatus = 'Verified' | 'Pending' | 'Rejected';
+
+const API_BASE = 'http://localhost:8000';
 
 export default function AIMatchNotification() {
-  const [matches, setMatches] = useState<AIMatch[]>(mockMatches);
-  const [activeTab, setActiveTab] = useState<MatchStatus | 'Verified'>('Pending');
+  const [matches, setMatches] = useState<AIMatch[]>([]);
+  const [stats, setStats] = useState<AIMatchStats>({ total: 0, pending: 0, approved: 0, rejected: 0 });
+  const [activeTab, setActiveTab] = useState<TabStatus>('Pending');
+  const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [matchesData, statsData] = await Promise.all([
+        fetchAIMatches(),
+        fetchAIMatchStats()
+      ]);
+      setMatches(matchesData);
+      setStats(statsData);
+    } catch (err) {
+      console.error('Failed to load AI matches:', err);
+      setError('Failed to load AI matches. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Filter matches based on the active tab
-  // If tab is 'Verified', show 'Approved' matches
   const filteredMatches = matches.filter(m => {
     if (activeTab === 'Verified') return m.status === 'Approved';
     return m.status === activeTab;
   });
 
-  const handleAction = (id: number, newStatus: MatchStatus) => {
-    setMatches(prev => prev.map(m => 
-      m.id === id ? { ...m, status: newStatus } : m
-    ));
+  const handleAction = async (id: number, newStatus: 'Approved' | 'Rejected') => {
+    try {
+      await updateAIMatchStatus(id, newStatus);
+      // Update local state
+      setMatches(prev => prev.map(m => 
+        m.id === id ? { ...m, status: newStatus } : m
+      ));
+      // Update stats
+      setStats(prev => ({
+        ...prev,
+        pending: prev.pending - 1,
+        approved: newStatus === 'Approved' ? prev.approved + 1 : prev.approved,
+        rejected: newStatus === 'Rejected' ? prev.rejected + 1 : prev.rejected,
+      }));
+    } catch (err) {
+      console.error('Failed to update match status:', err);
+      alert('Failed to update match status. Please try again.');
+    }
   };
+
+  const handleScanAll = async () => {
+    setScanning(true);
+    try {
+      const result = await triggerAIScan(50);
+      alert(`${result.message}`);
+      // Reload data after scan
+      await loadData();
+    } catch (err) {
+      console.error('Failed to scan for matches:', err);
+      alert('Failed to scan for matches. Please try again.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const getImageUrl = (imagePath: string | null) => {
+    if (!imagePath) return 'https://via.placeholder.com/150?text=No+Image';
+    if (imagePath.startsWith('http')) return imagePath;
+    return `${API_BASE}${imagePath.startsWith('/') ? '' : '/media/'}${imagePath}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 bg-gray-50 overflow-auto">
+        <DashboardHeader />
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-t-4 border-blue-500 border-opacity-50"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 bg-gray-50 overflow-auto">
@@ -28,30 +103,50 @@ export default function AIMatchNotification() {
 
       <div className="p-8">
         {/* Header Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">AI Match Notification</h1>
-          <p className="text-gray-600 mt-1">AI-Powered Matching between lost and found items</p>
+        <div className="flex justify-between items-start mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">AI Match Notification</h1>
+            <p className="text-gray-600 mt-1">AI-Powered Matching between lost and found items using CLIP</p>
+          </div>
+          <button
+            onClick={handleScanAll}
+            disabled={scanning}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+          >
+            {scanning ? (
+              <RefreshCw className="w-5 h-5 animate-spin" />
+            ) : (
+              <Search className="w-5 h-5" />
+            )}
+            {scanning ? 'Scanning...' : 'Scan for Matches'}
+          </button>
         </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
 
         {/* Stats Cards Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <StatCard
             title="Total Matches"
-            value={matches.length}
+            value={stats.total}
             icon={Sparkles}
             bgColor="bg-gray-100"
             iconBg="bg-blue-600"
           />
           <StatCard
             title="Pending Review"
-            value={matches.filter(m => m.status === 'Pending').length}
+            value={stats.pending}
             icon={ClipboardList}
             bgColor="bg-gray-100"
             iconBg="bg-yellow-400"
           />
           <StatCard
             title="Approved Matches"
-            value={matches.filter(m => m.status === 'Approved').length}
+            value={stats.approved}
             icon={CheckCircle}
             bgColor="bg-gray-100"
             iconBg="bg-green-500"
@@ -96,16 +191,17 @@ export default function AIMatchNotification() {
                     <div className="flex gap-4">
                       <div className="w-32 h-32 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
                         <img 
-                          src={match.lostItem.image} 
-                          alt={match.lostItem.name}
+                          src={getImageUrl(match.lostItem.image)} 
+                          alt={match.lostItem.itemName}
                           className="w-full h-full object-cover"
                         />
                       </div>
                       <div className="space-y-1">
-                        <h4 className="font-bold text-gray-900 text-lg">{match.lostItem.name}</h4>
-                        <p className="text-xs text-gray-500">{match.lostItem.id}</p>
+                        <h4 className="font-bold text-gray-900 text-lg">{match.lostItem.itemName}</h4>
+                        <p className="text-xs text-gray-500">ID: {match.lostItem.id}</p>
                         <p className="text-xs text-gray-500"><span className="font-semibold">Category:</span> {match.lostItem.category}</p>
-                        <p className="text-xs text-gray-500 mt-2 leading-relaxed">{match.lostItem.description}</p>
+                        <p className="text-xs text-gray-500"><span className="font-semibold">Reporter:</span> {match.lostItem.reporterName}</p>
+                        <p className="text-xs text-gray-500 mt-2 leading-relaxed line-clamp-2">{match.lostItem.description}</p>
                       </div>
                     </div>
                   </div>
@@ -126,16 +222,17 @@ export default function AIMatchNotification() {
                     <div className="flex gap-4">
                       <div className="w-32 h-32 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
                         <img 
-                          src={match.foundItem.image} 
-                          alt={match.foundItem.name}
+                          src={getImageUrl(match.foundItem.image)} 
+                          alt={match.foundItem.itemName}
                           className="w-full h-full object-cover"
                         />
                       </div>
                       <div className="space-y-1">
-                        <h4 className="font-bold text-gray-900 text-lg">{match.foundItem.name}</h4>
-                        <p className="text-xs text-gray-500">{match.foundItem.id}</p>
+                        <h4 className="font-bold text-gray-900 text-lg">{match.foundItem.itemName}</h4>
+                        <p className="text-xs text-gray-500">ID: {match.foundItem.id}</p>
                         <p className="text-xs text-gray-500"><span className="font-semibold">Category:</span> {match.foundItem.category}</p>
-                        <p className="text-xs text-gray-500 mt-2 leading-relaxed">{match.foundItem.description}</p>
+                        <p className="text-xs text-gray-500"><span className="font-semibold">Reporter:</span> {match.foundItem.reporterName}</p>
+                        <p className="text-xs text-gray-500 mt-2 leading-relaxed line-clamp-2">{match.foundItem.description}</p>
                       </div>
                     </div>
                   </div>
@@ -150,11 +247,19 @@ export default function AIMatchNotification() {
                     <div className="flex items-center gap-4">
                       <div className="flex-1 bg-gray-200 rounded-full h-2.5">
                         <div 
-                          className="bg-green-500 h-2.5 rounded-full transition-all duration-500 ease-out" 
+                          className={`h-2.5 rounded-full transition-all duration-500 ease-out ${
+                            match.matchScore >= 80 ? 'bg-green-500' :
+                            match.matchScore >= 60 ? 'bg-yellow-500' :
+                            'bg-orange-500'
+                          }`}
                           style={{ width: `${match.matchScore}%` }}
                         ></div>
                       </div>
-                      <span className="text-xl font-medium text-gray-600">{match.matchScore}%</span>
+                      <span className={`text-xl font-medium ${
+                        match.matchScore >= 80 ? 'text-green-600' :
+                        match.matchScore >= 60 ? 'text-yellow-600' :
+                        'text-orange-600'
+                      }`}>{match.matchScore}%</span>
                     </div>
                 </div>
 
@@ -165,7 +270,7 @@ export default function AIMatchNotification() {
                       onClick={() => handleAction(match.id, 'Approved')}
                       className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
                     >
-                      Approved Match
+                      Approve Match
                     </button>
                     <button 
                       onClick={() => handleAction(match.id, 'Rejected')}
@@ -186,7 +291,11 @@ export default function AIMatchNotification() {
 
             {filteredMatches.length === 0 && (
               <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-                <p className="text-gray-500">No matches found in {activeTab} tab.</p>
+                <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-2">No matches found in {activeTab} tab.</p>
+                {activeTab === 'Pending' && (
+                  <p className="text-sm text-gray-400">Click "Scan for Matches" to find potential matches.</p>
+                )}
               </div>
             )}
           </div>
