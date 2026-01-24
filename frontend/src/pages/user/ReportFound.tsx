@@ -1,27 +1,77 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Bell, 
-  Menu, 
   Upload, 
-  Calendar, 
   MapPin, 
   Info,
-  ChevronDown
+  ChevronDown,
+  Home,
+  FileText,
+  Search,
+  Zap,
+  User
 } from 'lucide-react';
 
 // Assets
-import logo from '../../assets/logo.png';
 import chatbotIcon from '../../assets/chatbot.png';
 
 // Components
 import Chatbot from '../../components/Chatbot';
+import UserHeader from '../../components/UserHeader';
 
-// API Service
-import { createReport, type ReportPayload } from '../../services/api';
+// API & Auth
+import { 
+  createReport, 
+  type ReportPayload, 
+  fetchNotifications, 
+  type Notification 
+} from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ReportFound() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  // --- NOTIFICATION & MENU STATE (Synced with ReportLost) ---
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isReportsOpen, setIsReportsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // --- NOTIFICATION & MENU LOGIC ---
+  const loadNotifications = async () => {
+    try {
+      const data = await fetchNotifications();
+      setNotifications(data);
+    } catch (error) {
+      console.error("Error loading notifications", error);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      loadNotifications(); 
+      const interval = setInterval(loadNotifications, 30000); 
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setIsNotifOpen(false);
+      }
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+        setIsReportsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // --- FORM LOGIC ---
   const [formData, setFormData] = useState({
@@ -71,64 +121,42 @@ export default function ReportFound() {
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 relative pb-20">
       
-      {/* --- EXACT USERHEADER IMPLEMENTATION --- */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200/50 shadow-sm transition-all duration-300">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            
-            {/* LOGO AREA */}
-            <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/home')}>
-              <div className="relative w-12 h-12 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-                <div
-                  className="absolute inset-0 rounded-full animate-spin-slow"
-                  style={{
-                    padding: "3px",
-                    background: "conic-gradient(#0059ff95, #f6a51f, #0059ff95)",
-                    WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-                    WebkitMaskComposite: "xor",
-                    maskComposite: "exclude",
-                  }}
-                ></div>
-                <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center bg-white shadow-sm">
-                  <img src={logo} alt="uLostiFound Logo" className="w-full h-full object-contain" />
-                </div>
-              </div>
-              <span className="hidden sm:block font-bold text-lg text-black tracking-tight">
-                <span className="hover:text-blue-600 transition-colors duration-200">uLost</span>
-                <span className="hover:text-orange-500 transition-colors duration-200">iFound</span>
-              </span>
-            </div>
-
-            {/* DESKTOP NAVIGATION */}
-            <div className="hidden md:flex items-center gap-2">
-              <button 
-                onClick={() => navigate('/report-lost')} 
-                className="px-4 py-2 rounded-full text-gray-600 hover:text-cyan-600 hover:bg-cyan-50 font-medium text-sm transition-all duration-200"
-              >
-                Report Lost
-              </button>
-              <button 
-                className="px-4 py-2 rounded-full text-orange-600 bg-orange-50 font-medium text-sm transition-all duration-200"
-              >
-                Report Found
-              </button>
-            </div>
-
-            {/* RIGHT ACTIONS */}
-            <div className="flex items-center gap-3">
-              <button className="p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-all">
-                <Bell className="w-5 h-5" />
-              </button>
-              <button className="p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-all">
-                <Menu className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* SHARED HEADER COMPONENT */}
+      <UserHeader />
 
       {/* --- MAIN CONTENT --- */}
       <main className="max-w-md mx-auto md:max-w-2xl px-6 py-10">
+        
+        {/* DUPLICATED PROFILE BUTTON (Mobile view consistency) */}
+        <div className="flex justify-end mb-4 md:hidden">
+          <button
+            onClick={() => navigate('/profile')}
+            className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-gray-50 border border-gray-100 shadow-sm transition-all duration-200 hover:bg-gray-100 text-gray-600"
+          >
+            <div className="w-8 h-8 rounded-full bg-[#29b6f6] flex items-center justify-center overflow-hidden shrink-0 border border-white">
+              {user?.avatar ? (
+                <img
+                  src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const fb = e.currentTarget.nextElementSibling;
+                    if (fb) (fb as HTMLElement).style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <span
+                className="text-white font-bold text-xs"
+                style={{ display: user?.avatar ? 'none' : 'flex' }}
+              >
+                {(user?.name || user?.username || 'U').charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <span className="text-xs font-semibold text-gray-900">My Profile</span>
+          </button>
+        </div>
+
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Report Found Item</h1>
         <p className="text-gray-500 text-sm mb-6">Fill in the details about the item you found</p>
 
@@ -263,7 +291,6 @@ export default function ReportFound() {
         </button>
       </div>
 
-      {/* Chatbot Component */}
       <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
     </div>
   );

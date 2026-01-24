@@ -330,6 +330,78 @@ export const fetchMyReports = async (): Promise<Report[]> => {
   return [];
 };
 
+// --- PROFILE API FUNCTIONS ---
+/**
+ * Updates user profile information (name, email, etc.)
+ */
+export const updateProfile = async (userId: number, data: { first_name?: string; last_name?: string; email?: string }): Promise<any> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) {
+    throw new Error('CSRF token not found. Please ensure you are logged in.');
+  }
+
+  const response = await fetch(`${USER_URL}${userId}/`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+
+  return response.json();
+};
+
+/**
+ * Fetches current user data
+ */
+export const fetchCurrentUser = async (userId: number): Promise<any> => {
+  const response = await fetch(`${USER_URL}${userId}/`, {
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch user data');
+  }
+
+  return response.json();
+};
+
+/**
+ * Uploads/updates user avatar
+ */
+export const uploadAvatar = async (userId: number, imageFile: File): Promise<any> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) {
+    throw new Error('CSRF token not found. Please ensure you are logged in.');
+  }
+
+  const formData = new FormData();
+  formData.append('avatar', imageFile);
+
+  const response = await fetch(`${USER_URL}${userId}/`, {
+    method: 'PATCH',
+    headers: {
+      'X-CSRFToken': csrfToken,
+    },
+    body: formData,
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+
+  return response.json();
+};
+
 
 export interface Notification {
   id: number;
