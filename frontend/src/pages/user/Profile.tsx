@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { User as UserIcon } from 'lucide-react';
 import UserHeader from '../../components/UserHeader'; 
+import Chatbot from '../../components/Chatbot';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchMyReports, fetchClaims } from '../../services/api';
+import chatbotIcon from '../../assets/chatbot.png';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -13,6 +15,7 @@ export default function Profile() {
     claimed: 0
   });
   const [loading, setLoading] = useState(true);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
   useEffect(() => {
     const loadStats = async () => {
@@ -133,18 +136,26 @@ export default function Profile() {
       </main>
 
       {/* 5. Floating Chatbot Icon */}
-      <div className="fixed bottom-6 right-4 z-50 pointer-events-none">
-         <div className="w-24 h-24 relative">
-             <img 
-               src="https://cdn-icons-png.flaticon.com/512/4712/4712139.png" 
-               alt="Chatbot" 
-               className="w-full h-full object-contain drop-shadow-xl"
-             />
-             <div className="absolute bottom-2 right-0 w-8 h-10 bg-blue-900 rounded-md -z-10 rotate-12 flex items-center justify-center">
-                <div className="w-6 h-8 bg-blue-400 rounded-sm"></div>
-             </div>
-         </div>
+      <div className="fixed bottom-6 right-4 z-50">
+        <button 
+          onClick={() => setIsChatbotOpen(true)}
+          className="bg-transparent hover:scale-110 active:scale-95 transition-transform duration-200 shadow-none border-0 p-0 cursor-pointer focus:outline-none"
+          aria-label="Open Support Chat"
+        >
+          <div className="w-16 h-16 relative">
+            <img 
+              src={chatbotIcon} 
+              alt="Chatbot" 
+              className="w-full h-full object-contain drop-shadow-xl"
+            />
+            {/* Notification Dot */}
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+          </div>
+        </button>
       </div>
+
+      {/* Chatbot Component */}
+      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
 
     </div>
   );

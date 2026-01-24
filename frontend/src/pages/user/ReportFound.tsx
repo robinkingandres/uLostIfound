@@ -14,6 +14,9 @@ import {
 import logo from '../../assets/logo.png';
 import chatbotIcon from '../../assets/chatbot.png';
 
+// Components
+import Chatbot from '../../components/Chatbot';
+
 // API Service
 import { createReport, type ReportPayload } from '../../services/api';
 
@@ -31,6 +34,7 @@ export default function ReportFound() {
   const [image, setImage] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -248,13 +252,19 @@ export default function ReportFound() {
 
       {/* --- FLOATING CHATBOT --- */}
       <div className="fixed bottom-6 right-6 z-50">
-        <button className="bg-transparent hover:scale-110 active:scale-95 transition-transform p-0 border-0 focus:outline-none">
+        <button 
+          onClick={() => setIsChatbotOpen(true)}
+          className="bg-transparent hover:scale-110 active:scale-95 transition-transform p-0 border-0 focus:outline-none"
+        >
           <div className="w-16 h-16 relative">
             <img src={chatbotIcon} alt="Chatbot" className="w-full h-full object-contain drop-shadow-xl" />
             <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
           </div>
         </button>
       </div>
+
+      {/* Chatbot Component */}
+      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
     </div>
   );
 }
