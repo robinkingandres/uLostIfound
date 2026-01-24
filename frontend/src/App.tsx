@@ -25,6 +25,7 @@ import ReportFound from './pages/user/ReportFound';
 import ReportSuccess from './pages/user/ReportLostSuccess';
 import ReportFoundSuccess from './pages/user/ReportFoundSuccess';
 import UserProfile from './pages/user/Profile';
+import Matches from './pages/user/Matches';
 import ForgotPassword from './pages/user/ForgotPassword';
 
 function App() {
@@ -86,6 +87,12 @@ function App() {
           <Route path="/profile" element={
             <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
               <UserProfile />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/matches" element={
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+              <Matches />
             </ProtectedRoute>
           } />
 

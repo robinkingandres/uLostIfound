@@ -11,6 +11,7 @@ import { fetchReports } from '../../services/api';
 import type { Report } from '../../types/report';
 import ClaimModal from '../../components/ClaimModal'; 
 import UserHeader from '../../components/UserHeader';
+import Chatbot from '../../components/Chatbot';
 import { useAuth } from '../../contexts/AuthContext';
 import chatbotIcon from '../../assets/chatbot.png'; // Chatbot Logo
 
@@ -31,6 +32,9 @@ export default function UserHome() {
   // State: Claim Modal
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+
+  // State: Chatbot
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
   // Fetch logic
   const loadReports = useCallback(async () => {
@@ -241,6 +245,7 @@ export default function UserHome() {
 
       <div className="fixed bottom-6 right-6 z-50">
         <button 
+          onClick={() => setIsChatbotOpen(true)}
           className="bg-transparent hover:scale-110 active:scale-95 transition-transform duration-200 shadow-none border-0 p-0 cursor-pointer focus:outline-none"
           aria-label="Open Support Chat"
         >
@@ -255,6 +260,9 @@ export default function UserHome() {
            </div>
         </button>
       </div>
+
+      {/* Chatbot Component */}
+      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
 
       {selectedReport && (
         <ClaimModal 
