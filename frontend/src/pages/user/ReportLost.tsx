@@ -1,19 +1,31 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; 
+import { useNavigate } from 'react-router-dom';
 import { 
-  Bell, 
-  Menu, 
   Upload, 
-  Calendar, 
   MapPin, 
-  Info,
+  Info, 
   ChevronDown
 } from 'lucide-react';
-// Import the new API function and payload type
-import { createReport, type ReportPayload } from '../../services/api';
+
+// Assets
+import chatbotIcon from '../../assets/chatbot.png';
+
+// Components
+import Chatbot from '../../components/Chatbot';
+import UserHeader from '../../components/UserHeader'; // Added import
+
+// API & Auth
+import { 
+  createReport, 
+  type ReportPayload
+} from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ReportLost() {
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // --- FORM LOGIC ---
   const [formData, setFormData] = useState({
     itemTitle: '',
     category: 'Phone',
@@ -21,15 +33,16 @@ export default function ReportLost() {
     location: '',
     description: '',
   });
-  const [image, setImage] = useState<File | null>(null); // State for the image file
+  const [image, setImage] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
-  
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setImage(e.target.files?.[0] || null);
   };
@@ -39,7 +52,6 @@ export default function ReportLost() {
     setLoading(true);
     setError('');
 
-    // Form validation (minimal example)
     if (!formData.itemTitle || !formData.dateLost || !formData.location || !formData.description) {
       setError('Please fill out all required fields.');
       setLoading(false);
@@ -47,36 +59,18 @@ export default function ReportLost() {
     }
 
     try {
-      // Prepare the payload to match the backend serializer's expectations
       const payload: ReportPayload = {
         itemName: formData.itemTitle,
         category: formData.category,
-        date: formData.dateLost, // Maps to 'date_lost_or_found'
+        date: formData.dateLost,
         location: formData.location,
         description: formData.description,
-        type: 'Lost', // Hardcoded as 'Lost'
+        type: 'Lost',
       };
-      
-      // Send the request
       await createReport(payload, image);
-      
-      // Redirect to the success page
       navigate('/report-success');
     } catch (err) {
-      console.error('Report submission failed:', err);
-      // Attempt to parse a better error message if it's a JSON string
-      let message = 'Failed to submit report. Please try again.';
-      try {
-        const errorObject = JSON.parse((err as Error).message);
-        if (errorObject.non_field_errors) {
-            message = errorObject.non_field_errors[0];
-        } else if (errorObject.detail) {
-            message = errorObject.detail;
-        }
-      } catch {
-        // Fallback to generic message
-      }
-      setError(message);
+      setError('Failed to submit report. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -85,98 +79,81 @@ export default function ReportLost() {
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 relative pb-20">
       
-      {/* --- HEADER --- (omitted for brevity) */}
-      <header className="sticky top-0 z-20 bg-white border-b border-gray-100 shadow-sm px-4 py-3">
-        <div className="max-w-md mx-auto md:max-w-5xl flex items-center justify-between">
-          
-          {/* Logo Area - Now Clickable */}
-          <div 
-            className="flex items-center gap-2 cursor-pointer" 
-            onClick={() => navigate('/home')}
-          >
-            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center overflow-hidden border-2 border-orange-400 relative">
-               <div className="flex w-full h-full">
-                   <div className="w-1/2 bg-blue-400 h-full"></div>
-                   <div className="w-1/2 bg-orange-400 h-full"></div>
-               </div>
-               <span className="absolute text-[8px] font-bold text-white drop-shadow-md">uLostFound</span>
-            </div>
-          </div>
+      {/* REPLACED HEADER WITH COMPONENT AS REQUESTED */}
+      <UserHeader />
 
-          {/* Nav Links */}
-          <div className="flex items-center gap-6">
-            <button className="text-blue-500 font-bold text-sm">
-              Report Lost
-            </button>
-            
-            {/* "Report Found" Button - Now Functional */}
-            <button 
-              onClick={() => navigate('/report-found')} 
-              className="text-gray-600 hover:text-blue-600 font-medium text-sm transition-colors"
-            >
-              Report Found
-            </button>
-          </div>
-
-          {/* Icons */}
-          <div className="flex items-center gap-4">
-            <button className="text-gray-600 hover:text-blue-600 transition-colors">
-              <Bell className="w-6 h-6" />
-            </button>
-            <button className="text-gray-600 hover:text-blue-600 transition-colors">
-              <Menu className="w-7 h-7" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* --- MAIN CONTENT --- */}
-      <main className="max-w-md mx-auto md:max-w-2xl px-6 py-6">
+      {/* --- FORM CONTENT --- */}
+      <main className="max-w-md mx-auto md:max-w-2xl px-6 py-10">
         
+        {/* DUPLICATED PROFILE BUTTON ADDED HERE */}
+        <div className="flex justify-end mb-4 md:hidden">
+          <button
+            onClick={() => navigate('/profile')}
+            className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-gray-50 border border-gray-100 shadow-sm transition-all duration-200 hover:bg-gray-100 text-gray-600"
+          >
+            <div className="w-8 h-8 rounded-full bg-[#29b6f6] flex items-center justify-center overflow-hidden shrink-0 border border-white">
+              {user?.avatar ? (
+                <img
+                  src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const fb = e.currentTarget.nextElementSibling;
+                    if (fb) (fb as HTMLElement).style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <span
+                className="text-white font-bold text-xs"
+                style={{ display: user?.avatar ? 'none' : 'flex' }}
+              >
+                {(user?.name || user?.username || 'U').charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <span className="text-xs font-semibold text-gray-900">My Profile</span>
+          </button>
+        </div>
+
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Report Lost Item</h1>
         <p className="text-gray-500 text-sm mb-6">Fill in the details about the item you lost</p>
-
-        {/* Warning Banner */}
-        <div className="bg-[#fdf4d8] border border-[#faeebf] rounded-lg p-4 mb-6 flex items-start gap-3">
-           <div className="min-w-[20px] pt-0.5">
-             <Info className="w-5 h-5 text-gray-500" />
-           </div>
+        
+        <div className="bg-[#fdf4d8] bg-opacity-60 border border-[#faeebf] rounded-lg p-4 mb-6 flex items-start gap-3">
+           <Info className="w-5 h-5 text-gray-400 mt-0.5" />
            <p className="text-xs text-[#9c865a] leading-relaxed ml-1">
-             Your report will be reviewed by admin before being published. You'll be notified once it's approved.
+             Your report will be viewed by admin before being published. You'll be notified once it's approved.
            </p>
         </div>
-        
-        {error && <p className="text-sm text-red-500 bg-red-100 p-3 rounded-lg mb-4">{error}</p>}
+
+        {error ? (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-6 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          
-          {/* Item Title */}
           <div className="space-y-1">
-            <label className="text-sm font-semibold text-gray-700">
-              Item Title <span className="text-red-500">*</span>
-            </label>
+            <label className="text-sm font-semibold text-gray-700">Item Title *</label>
             <input
               type="text"
               name="itemTitle"
-              placeholder="e.g., Laptop"
+              required
               value={formData.itemTitle}
               onChange={handleInputChange}
-              className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none"
+              placeholder="e.g., Blue Wallet"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* Category */}
             <div className="space-y-1 relative">
-              <label className="text-sm font-semibold text-gray-700">
-                Category <span className="text-red-500">*</span>
-              </label>
+              <label className="text-sm font-semibold text-gray-700">Category *</label>
               <div className="relative">
                 <select
                   name="category"
                   value={formData.category}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 appearance-none focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm appearance-none bg-white cursor-pointer"
                 >
                   <option value="Phone">Phone</option>
                   <option value="Wallet">Wallet</option>
@@ -188,115 +165,78 @@ export default function ReportLost() {
               </div>
             </div>
 
-            {/* Date Lost */}
             <div className="space-y-1">
-              <label className="text-sm font-semibold text-gray-700">
-                When did you lose it? <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="date"
-                  name="dateLost"
-                  value={formData.dateLost}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-500 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
-                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              </div>
+              <label className="text-sm font-semibold text-gray-700">Date Lost *</label>
+              <input
+                type="date"
+                name="dateLost"
+                required
+                value={formData.dateLost}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm"
+              />
             </div>
           </div>
 
-          {/* Location */}
           <div className="space-y-1">
             <label className="text-sm font-semibold text-gray-700 flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-gray-500" />
-              Where did you lose it? <span className="text-red-500">*</span>
+              Where did you lose it? *
             </label>
             <input
               type="text"
               name="location"
-              placeholder="e.g., Room 303"
+              required
               value={formData.location}
               onChange={handleInputChange}
-              className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm"
+              placeholder="e.g., Room 303"
             />
           </div>
 
-          {/* Description */}
           <div className="space-y-1">
-            <label className="text-sm font-semibold text-gray-700">
-              Description <span className="text-red-500">*</span>
-            </label>
+            <label className="text-sm font-semibold text-gray-700">Description *</label>
             <textarea
               name="description"
+              required
               rows={4}
-              placeholder="Provide detailed description of the item..."
               value={formData.description}
               onChange={handleInputChange}
-              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm resize-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none"
+              placeholder="Provide detailed description..."
             />
           </div>
 
-          {/* Image Upload */}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-gray-600 rounded-sm flex items-center justify-center">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-              </div>
-              Upload Image here (Optional)
-            </label>
-            
+            <label className="text-sm font-semibold text-gray-700">Upload Image (Optional)</label>
             <button
               type="button"
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-blue-200 rounded-lg text-blue-500 text-sm font-semibold hover:bg-blue-50 transition-colors shadow-sm"
               onClick={() => document.getElementById('imageUploadLost')?.click()}
+              className="flex items-center gap-2 px-4 py-2.5 border border-cyan-200 rounded-lg text-cyan-600 text-sm font-semibold hover:bg-cyan-50 transition-colors shadow-sm"
             >
               <Upload className="w-4 h-4" />
               {image ? image.name : 'Add file'}
             </button>
-            <input 
-              id="imageUploadLost" 
-              type="file" 
-              className="hidden" 
-              accept="image/*"
-              onChange={handleImageChange} // Use the new handler
-            />
+            <input id="imageUploadLost" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
           </div>
 
-          {/* Footer Actions */}
-          <div className="pt-8 flex gap-4 justify-end items-center">
-            <button
-              type="button"
-              // Add Cancel functionality to go back home
-              onClick={() => navigate('/home')}
-              className="px-8 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-8 py-2.5 bg-[#29b6f6] hover:bg-[#0288d1] text-white rounded-lg text-sm font-bold shadow-md transition-colors flex items-center justify-center"
-              disabled={loading}
-            >
-              {loading ? 'Submitting...' : 'Submit Lost Item'}
-            </button>
+          <div className="pt-8 flex gap-4 justify-end">
+            <button type="button" onClick={() => navigate('/home')} className="px-8 py-2.5 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">Cancel</button>
+            <button type="submit" disabled={loading} className="px-8 py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-bold shadow-md transition-all disabled:bg-gray-300">{loading ? 'Submitting...' : 'Submit Lost Item'}</button>
           </div>
         </form>
       </main>
 
-      {/* --- FLOATING ROBOT ICON --- */}
-      <div className="fixed bottom-6 right-4 z-50 pointer-events-none">
-         <div className="w-20 h-20 relative">
-             <img 
-               src="https://cdn-icons-png.flaticon.com/512/4712/4712139.png" 
-               alt="Chatbot" 
-               className="w-full h-full object-contain drop-shadow-xl"
-             />
-             <div className="absolute top-4 right-0 w-8 h-12 bg-blue-900 rounded-md -z-10 rotate-12"></div>
-         </div>
+      {/* --- FLOATING CHATBOT --- */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <button onClick={() => setIsChatbotOpen(true)} className="bg-transparent p-0 border-0">
+          <div className="w-16 h-16 relative">
+            <img src={chatbotIcon} alt="Chatbot" className="w-full h-full object-contain" />
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+          </div>
+        </button>
       </div>
-
+      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
     </div>
   );
 }
