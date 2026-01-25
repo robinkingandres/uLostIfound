@@ -8,6 +8,7 @@ import type { Report } from '../../types/report';
 import type { Claim } from '../../types/claim';
 import type { AIMatch } from '../../services/api';
 import chatbotIcon from '../../assets/chatbot.png';
+import matchesImage from '../../assets/Matches.png';
 import { useAuth } from '../../contexts/AuthContext';
 
 type MatchCategory = 'All' | 'AI Matches' | 'Pending' | 'Verified' | 'Complete';
@@ -297,15 +298,14 @@ export default function Matches() {
         {/* Match Items List */}
         {filteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4">
-            <div className="w-48 h-48 mb-6 relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
-                <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-lg">
-                  <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center">
-                    <TrendingUp className="w-12 h-12 text-gray-400" />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <div className="mb-6">
+  <img
+    src={matchesImage}
+    alt="No matches found"
+    className="w-48 h-48 object-contain mx-auto"
+  />
+</div>
+
             <h2 className="text-2xl font-bold text-gray-900 mb-2">No matches found</h2>
             <p className="text-gray-500 text-center">
               No {activeCategory === 'All' ? '' : activeCategory.toLowerCase()} matches at the moment.

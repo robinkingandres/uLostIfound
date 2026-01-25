@@ -258,6 +258,74 @@ export const updateReportStatus = async (id: number, newStatus: ReportStatus): P
   return response.json();
 };
 
+/**
+ * Updates an existing report (Used by report owner).
+ * Allows editing itemName, description, category, location, date, and image.
+ * Note: 'type' should not be changed after creation.
+ */
+export const updateReport = async (id: number, data: Partial<Omit<ReportPayload, 'type'>>, imageFile?: File | null): Promise<Report> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) {
+    throw new Error('CSRF token not found. Please ensure you are logged in.');
+  }
+
+  const formData = new FormData();
+  
+  // Append only provided fields (exclude type as it shouldn't be changed)
+  Object.entries(data).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && key !== 'type') {
+      formData.append(key, value.toString());
+    }
+  });
+
+  // Append new image if provided
+  if (imageFile) {
+    formData.append('image', imageFile);
+  }
+
+  const response = await fetch(`${REPORT_URL}${id}/`, {
+    method: 'PATCH',
+    headers: {
+      'X-CSRFToken': csrfToken,
+    },
+    body: formData,
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+
+  return response.json();
+};
+
+/**
+ * Deletes a report (Used by report owner or admin).
+ */
+export const deleteReport = async (id: number): Promise<void> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) {
+    throw new Error('CSRF token not found. Please ensure you are logged in.');
+  }
+
+  const response = await fetch(`${REPORT_URL}${id}/`, {
+    method: 'DELETE',
+    headers: {
+      'X-CSRFToken': csrfToken,
+    },
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    // Handle non-204 responses
+    if (response.status !== 204) {
+      const errorData = await response.json().catch(() => ({ detail: 'Failed to delete report' }));
+      throw new Error(JSON.stringify(errorData));
+    }
+  }
+};
+
 
 // =================================================================
 //                      USER API FUNCTIONS (Existing)
