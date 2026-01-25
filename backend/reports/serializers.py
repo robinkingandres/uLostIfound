@@ -33,8 +33,8 @@ class ReportSerializer(serializers.ModelSerializer):
         return obj.reporter.role
         
     def create(self, validated_data):
-        validated_data['item_name'] = validated_data.pop('item_name')
-        validated_data['date_lost_or_found'] = validated_data.pop('date_lost_or_found')
+        # The serializer already maps itemName -> item_name via source parameter
+        # So we don't need to manually pop/rename here
         return super().create(validated_data)
 
 # --- NEW CLAIM SERIALIZER ---
