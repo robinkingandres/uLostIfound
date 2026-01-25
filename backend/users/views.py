@@ -54,73 +54,18 @@ class LogoutView(APIView):
 class UserViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows users to be viewed or edited.
-    Admins can manage all users, users can update their own profile.
     """
     # Use the User model instance loaded above
     queryset = User.objects.all() 
     serializer_class = UserSerializer
     
+    # RBAC: Restrict User Management to Admins only
+    permission_classes = [IsAdmin] 
+    
     # Add search capability (e.g. search by name or ID)
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['username', 'first_name', 'last_name', 'school_id', 'email']
     ordering_fields = ['date_joined', 'role']
-
-    def get_permissions(self):
-        """
-        Allow users to update their own profile, but restrict other actions to admins.
-        """
-        if self.action in ['update', 'partial_update', 'retrieve']:
-            # Allow authenticated users to update/retrieve their own profile
-            return [permissions.IsAuthenticated()]
-        # All other actions (list, create, destroy) require admin
-        return [IsAdmin()]
-
-    def get_serializer_context(self):
-        """
-        Pass request context to serializer for building absolute URLs.
-        """
-        context = super().get_serializer_context()
-        context['request'] = self.request
-        return context
-
-    def get_queryset(self):
-        """
-        Users can only see their own profile unless they're admin.
-        """
-        user = self.request.user
-        if user.role == 'Admin' or user.is_superuser:
-            return User.objects.all()
-        # Regular users can only see themselves
-        return User.objects.filter(id=user.id)
-
-    def update(self, request, *args, **kwargs):
-        """
-        Allow users to update their own profile, but restrict certain fields.
-        """
-        instance = self.get_object()
-        user = request.user
-        
-        # Check if user is updating themselves or is admin
-        if instance.id != user.id and not (user.role == 'Admin' or user.is_superuser):
-            return Response(
-                {"detail": "You can only update your own profile."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # Non-admins cannot change role or school_id
-        if user.role != 'Admin' and not user.is_superuser:
-            if 'role' in request.data:
-                return Response(
-                    {"detail": "You cannot change your role."},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-            if 'school_id' in request.data or 'userId' in request.data:
-                return Response(
-                    {"detail": "You cannot change your school ID."},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-        
-        return super().update(request, *args, **kwargs)
 
 class RequestPasswordResetView(APIView):
     permission_classes = () # Allow unauthenticated access

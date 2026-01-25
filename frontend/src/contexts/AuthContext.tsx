@@ -15,10 +15,9 @@ interface AuthUser {
 interface AuthContextType {
   isAuthenticated: boolean;
   user: AuthUser | null;
+  // CHANGED: login now returns the User object (or null) instead of boolean
   login: (username: string, password: string) => Promise<AuthUser | null>;
   logout: () => void;
-  /** Refresh user data from API and update context (e.g. after profile edit). */
-  refreshUser: (userData: AuthUser) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -80,13 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('user');
   };
 
-  const refreshUser = (userData: AuthUser) => {
-    setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
-  };
-
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

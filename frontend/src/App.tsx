@@ -13,10 +13,8 @@ import AdminDashboard from './pages/admin/Dashboard';
 import ManageReports from './pages/admin/Reports';
 import UserManagement from './pages/UserManagement';
 import ClaimManagement from './pages/ClaimManagement';
-import LostFoundAnalyticsDashboard from './pages/LostFoundAnalyticsDashboard';
+import Analytics from './pages/Analytics';
 import AIMatchNotification from './pages/admin/AIMatchNotification';
-import AccountSettings from "./pages/admin/AccountSettings";
-
 
 // User Imports
 // WE USE ONE UNIFIED LOGIN NOW
@@ -27,7 +25,6 @@ import ReportFound from './pages/user/ReportFound';
 import ReportSuccess from './pages/user/ReportLostSuccess';
 import ReportFoundSuccess from './pages/user/ReportFoundSuccess';
 import UserProfile from './pages/user/Profile';
-import Matches from './pages/user/Matches';
 import ForgotPassword from './pages/user/ForgotPassword';
 
 function App() {
@@ -92,12 +89,6 @@ function App() {
             </ProtectedRoute>
           } />
 
-          <Route path="/matches" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
-              <Matches />
-            </ProtectedRoute>
-          } />
-
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* --- PROTECTED ADMIN ROUTES (Access: Admin Only) --- */}
@@ -115,10 +106,7 @@ function App() {
             <Route path="users" element={<UserManagement />} />
             <Route path="claims" element={<ClaimManagement />} />
             <Route path="ai-matches" element={<AIMatchNotification />} />
-            <Route path="analytics" element={<LostFoundAnalyticsDashboard />} />
-            <Route path="lost-found-dashboard" element={<Navigate to="/admin/analytics" replace />} />
-            <Route path="account-settings" element={<AccountSettings />} />
-
+            <Route path="analytics" element={<Analytics />} />
           </Route>
 
           {/* Catch-all */}

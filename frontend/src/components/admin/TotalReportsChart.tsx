@@ -1,5 +1,3 @@
-import { ChevronDown } from 'lucide-react';
-
 interface ChartData {
   month: string;
   value: number;
@@ -7,80 +5,17 @@ interface ChartData {
 
 interface TotalReportsChartProps {
   data: ChartData[];
-  timePeriod: 'weekly' | 'monthly' | 'yearly';
-  statusFilter: 'all' | 'lost' | 'found' | 'claimed';
-  onTimePeriodChange: (period: 'weekly' | 'monthly' | 'yearly') => void;
-  onStatusFilterChange: (filter: 'all' | 'lost' | 'found' | 'claimed') => void;
 }
 
-export default function TotalReportsChart({ 
-  data, 
-  timePeriod, 
-  statusFilter,
-  onTimePeriodChange,
-  onStatusFilterChange 
-}: TotalReportsChartProps) {
+export default function TotalReportsChart({ data }: TotalReportsChartProps) {
   // Calculate max value dynamically to scale the bars (default to 10 to avoid division by zero)
   const maxValue = Math.max(...data.map((d) => d.value), 10);
   const currentYear = new Date().getFullYear();
 
-  const getPeriodLabel = () => {
-    switch (timePeriod) {
-      case 'weekly':
-        return 'Weekly Overview';
-      case 'monthly':
-        return 'Monthly Overview';
-      case 'yearly':
-        return 'Yearly Overview';
-      default:
-        return 'Yearly Overview';
-    }
-  };
-
   return (
     <div className="bg-gray-100 rounded-2xl p-6 shadow-md">
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h3 className="text-xl font-bold text-gray-900 mb-1">Total Reports</h3>
-          <p className="text-gray-600 text-sm">{getPeriodLabel()}</p>
-        </div>
-
-        {/* Filters - Top Right */}
-        <div className="flex gap-2 items-end">
-          {/* Time Period Dropdown */}
-          <div className="relative">
-            <div className="relative">
-              <select
-                value={timePeriod}
-                onChange={(e) => onTimePeriodChange(e.target.value as 'weekly' | 'monthly' | 'yearly')}
-                className="w-28 px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs text-gray-700 appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer"
-              >
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="yearly">Yearly</option>
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Status Filter Dropdown */}
-          <div className="relative">
-            <div className="relative">
-              <select
-                value={statusFilter}
-                onChange={(e) => onStatusFilterChange(e.target.value as 'all' | 'lost' | 'found' | 'claimed')}
-                className="w-28 px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs text-gray-700 appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer"
-              >
-                <option value="all">All</option>
-                <option value="lost">Lost</option>
-                <option value="found">Found</option>
-                <option value="claimed">Claimed</option>
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none" />
-            </div>
-          </div>
-        </div>
-      </div>
+      <h3 className="text-xl font-bold text-gray-900 mb-1">Total Reports</h3>
+      <p className="text-gray-600 text-sm mb-6">Yearly Overview</p>
 
       {/* Bar Graph Container */}
       <div className="flex items-end justify-between h-48 gap-2">

@@ -1,6 +1,5 @@
-	import { LayoutDashboard, FileText, Users, ShoppingCart, Sparkles, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, ShoppingCart, Sparkles, BarChart3, Home } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
-import logo from '../../assets/logo.png';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
@@ -8,18 +7,16 @@ const navItems = [
   { icon: Users, label: 'User Management', path: '/admin/users' },
   { icon: ShoppingCart, label: 'Claim management', path: '/admin/claims' },
   { icon: Sparkles, label: 'Ai Matches', path: '/admin/ai-matches' },
-  { icon: BarChart3, label: 'Lost & Found Analytics', path: '/admin/analytics' },
+  { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
 ];
 
 export default function Sidebar() {
   return (
-    <div className="w-60 bg-indigo-900 h-screen sticky top-0 text-white flex flex-col overflow-y-auto">
+    <div className="w-60 bg-indigo-900 min-h-screen text-white flex flex-col">
       <div className="p-6 flex flex-col items-center border-b border-indigo-800">
-        <img 
-          src={logo} 
-          alt="San Isidro National High School Logo"
-          className="w-24 h-24 rounded-lg mb-3 object-cover"
-        />    
+        <div className="w-24 h-24 bg-white rounded-lg flex items-center justify-center mb-3">
+          <Home className="w-12 h-12 text-indigo-900" />
+        </div>
         <h2 className="text-sm font-medium text-center">San Isidro National High School</h2>
       </div>
 

@@ -1,15 +1,11 @@
 export type MatchStatus = 'Pending' | 'Approved' | 'Rejected';
 
 export interface ItemDetails {
-  id: number;
-  itemName: string;
-  name?: string; // For backward compatibility
+  id: string;
+  name: string;
   category: string;
   description: string;
   image: string;
-  location?: string;
-  reporterId?: number;
-  reporterName?: string;
 }
 
 export interface AIMatch {
@@ -21,6 +17,4 @@ export interface AIMatch {
   textScore: number;
   lostItem: ItemDetails;
   foundItem: ItemDetails;
-  lost_reporter_notified?: boolean;
-  found_reporter_notified?: boolean;
 }

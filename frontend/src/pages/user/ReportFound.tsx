@@ -1,42 +1,29 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
+  Bell, 
+  Menu, 
   Upload, 
+  Calendar, 
   MapPin, 
   Info,
   ChevronDown
 } from 'lucide-react';
-
-// Assets
-import chatbotIcon from '../../assets/chatbot.png';
-
-// Components
-import Chatbot from '../../components/Chatbot';
-import UserHeader from '../../components/UserHeader';
-
-// API & Auth
-import { 
-  createReport, 
-  type ReportPayload
-} from '../../services/api';
-import { useAuth } from '../../contexts/AuthContext';
+// Import the new API function and payload type
+import { createReport, type ReportPayload } from '../../services/api';
 
 export default function ReportFound() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-
-  // --- FORM LOGIC ---
   const [formData, setFormData] = useState({
     itemTitle: '',
     category: 'Phone',
-    dateFound: '',
+    dateFound: '', // Will be mapped to 'date' in the payload
     location: '',
     description: '',
   });
-  const [image, setImage] = useState<File | null>(null);
+  const [image, setImage] = useState<File | null>(null); // State for the image file
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -52,19 +39,44 @@ export default function ReportFound() {
     setLoading(true);
     setError('');
     
+    // Form validation (minimal example)
+    if (!formData.itemTitle || !formData.dateFound || !formData.location || !formData.description) {
+      setError('Please fill out all required fields.');
+      setLoading(false);
+      return;
+    }
+
     try {
+      // Prepare the payload to match the backend serializer's expectations
       const payload: ReportPayload = {
         itemName: formData.itemTitle,
         category: formData.category,
-        date: formData.dateFound, 
+        date: formData.dateFound, // Maps to 'date_lost_or_found'
         location: formData.location,
         description: formData.description,
-        type: 'Found', 
+        type: 'Found', // Hardcoded as 'Found'
       };
+      
+      // Send the request
       await createReport(payload, image);
+      
+      // Redirect to the success page
       navigate('/report-found-success');
     } catch (err) {
-      setError('Failed to submit report. Please try again.');
+      console.error('Report submission failed:', err);
+      // Attempt to parse a better error message if it's a JSON string
+      let message = 'Failed to submit report. Please try again.';
+      try {
+        const errorObject = JSON.parse((err as Error).message);
+        if (errorObject.non_field_errors) {
+            message = errorObject.non_field_errors[0];
+        } else if (errorObject.detail) {
+            message = errorObject.detail;
+        }
+      } catch {
+        // Fallback to generic message
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -73,47 +85,53 @@ export default function ReportFound() {
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 relative pb-20">
       
-      {/* SHARED HEADER COMPONENT */}
-      <UserHeader />
+      {/* --- HEADER --- (omitted for brevity) */}
+      <header className="sticky top-0 z-20 bg-white border-b border-gray-100 shadow-sm px-4 py-3">
+        <div className="max-w-md mx-auto md:max-w-5xl flex items-center justify-between">
+          
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/home')}>
+            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center overflow-hidden border-2 border-orange-400 relative">
+               <div className="flex w-full h-full">
+                   <div className="w-1/2 bg-blue-400 h-full"></div>
+                   <div className="w-1/2 bg-orange-400 h-full"></div>
+               </div>
+               <span className="absolute text-[8px] font-bold text-white drop-shadow-md">uLostFound</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <button 
+              onClick={() => navigate('/report-lost')}
+              className="text-gray-600 hover:text-blue-600 font-medium text-sm transition-colors"
+            >
+              Report Lost
+            </button>
+            <button className="text-[#29b6f6] font-bold text-sm">
+              Report Found
+            </button>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button className="text-gray-600 hover:text-blue-600 transition-colors">
+              <Bell className="w-6 h-6" />
+            </button>
+            <button className="text-gray-600 hover:text-blue-600 transition-colors">
+              <Menu className="w-7 h-7" />
+            </button>
+          </div>
+        </div>
+      </header>
 
       {/* --- MAIN CONTENT --- */}
-      <main className="max-w-md mx-auto md:max-w-2xl px-6 py-10">
+      <main className="max-w-md mx-auto md:max-w-2xl px-6 py-6">
         
-        {/* DUPLICATED PROFILE BUTTON (Mobile view consistency) */}
-        <div className="flex justify-end mb-4 md:hidden">
-          <button
-            onClick={() => navigate('/profile')}
-            className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-gray-50 border border-gray-100 shadow-sm transition-all duration-200 hover:bg-gray-100 text-gray-600"
-          >
-            <div className="w-8 h-8 rounded-full bg-[#29b6f6] flex items-center justify-center overflow-hidden shrink-0 border border-white">
-              {user?.avatar ? (
-                <img
-                  src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`}
-                  alt=""
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    const fb = e.currentTarget.nextElementSibling;
-                    if (fb) (fb as HTMLElement).style.display = 'flex';
-                  }}
-                />
-              ) : null}
-              <span
-                className="text-white font-bold text-xs"
-                style={{ display: user?.avatar ? 'none' : 'flex' }}
-              >
-                {(user?.name || user?.username || 'U').charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <span className="text-xs font-semibold text-gray-900">My Profile</span>
-          </button>
-        </div>
-
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Report Found Item</h1>
         <p className="text-gray-500 text-sm mb-6">Fill in the details about the item you found</p>
 
         <div className="bg-[#a3d9c2] bg-opacity-60 border border-[#8fcbad] rounded-lg p-4 mb-6 flex items-start gap-3">
-           <Info className="w-5 h-5 text-[#3d6852] mt-0.5" />
+           <div className="min-w-[20px] pt-0.5">
+             <Info className="w-5 h-5 text-[#3d6852]" />
+           </div>
            <p className="text-xs text-[#2c5340] leading-relaxed ml-1">
              Your report will be viewed by admin before being published. We'll check for potential matches with lost items!
            </p>
@@ -122,28 +140,32 @@ export default function ReportFound() {
         {error && <p className="text-sm text-red-500 bg-red-100 p-3 rounded-lg mb-4">{error}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          
           <div className="space-y-1">
-            <label className="text-sm font-semibold text-gray-700">Item Title *</label>
+            <label className="text-sm font-semibold text-gray-700">
+              Item Title <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               name="itemTitle"
-              required
               placeholder="e.g., Laptop"
               value={formData.itemTitle}
               onChange={handleInputChange}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none"
+              className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:border-[#29b6f6] focus:ring-1 focus:ring-[#29b6f6]"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1 relative">
-              <label className="text-sm font-semibold text-gray-700">Category *</label>
+              <label className="text-sm font-semibold text-gray-700">
+                Category <span className="text-red-500">*</span>
+              </label>
               <div className="relative">
                 <select
                   name="category"
                   value={formData.category}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm appearance-none bg-white cursor-pointer"
+                  className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 appearance-none focus:outline-none focus:border-[#29b6f6] focus:ring-1 focus:ring-[#29b6f6] cursor-pointer"
                 >
                   <option value="Phone">Phone</option>
                   <option value="Wallet">Wallet</option>
@@ -156,73 +178,89 @@ export default function ReportFound() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-semibold text-gray-700">When did you find it? *</label>
-              <input
-                type="date"
-                name="dateFound"
-                required
-                value={formData.dateFound}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-500"
-              />
+              <label className="text-sm font-semibold text-gray-700">
+                When did you find it? <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  name="dateFound"
+                  value={formData.dateFound}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-500 placeholder-gray-400 focus:outline-none focus:border-[#29b6f6] focus:ring-1 focus:ring-[#29b6f6]"
+                />
+                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
             </div>
           </div>
 
           <div className="space-y-1">
             <label className="text-sm font-semibold text-gray-700 flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-gray-500" />
-              Where did you find it? *
+              Where did you find it? <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               name="location"
-              required
               placeholder="e.g., Room 303"
               value={formData.location}
               onChange={handleInputChange}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none"
+              className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:border-[#29b6f6] focus:ring-1 focus:ring-[#29b6f6]"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-semibold text-gray-700">Description *</label>
+            <label className="text-sm font-semibold text-gray-700">
+              Description <span className="text-red-500">*</span>
+            </label>
             <textarea
               name="description"
-              required
               rows={4}
-              placeholder="Provide detailed description..."
+              placeholder="Provide detailed description of the item..."
               value={formData.description}
               onChange={handleInputChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm resize-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none"
+              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:border-[#29b6f6] focus:ring-1 focus:ring-[#29b6f6] resize-none"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-gray-700">Upload Image (Optional)</label>
+            <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-gray-600 rounded-sm flex items-center justify-center">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+              </div>
+              Upload Image here (Optional)
+            </label>
+            
             <button
               type="button"
-              className="flex items-center gap-2 px-4 py-2.5 border border-orange-200 rounded-lg text-orange-500 text-sm font-semibold hover:bg-orange-50 transition-colors shadow-sm"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-blue-200 rounded-lg text-[#29b6f6] text-sm font-semibold hover:bg-blue-50 transition-colors shadow-sm"
               onClick={() => document.getElementById('imageUploadFound')?.click()}
             >
               <Upload className="w-4 h-4" />
               {image ? image.name : 'Add file'}
             </button>
-            <input id="imageUploadFound" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+            <input 
+              id="imageUploadFound" 
+              type="file" 
+              className="hidden" 
+              accept="image/*"
+              onChange={handleImageChange} // Use the new handler
+            />
           </div>
 
           <div className="pt-8 flex gap-4 justify-end items-center">
             <button
               type="button"
               onClick={() => navigate('/home')}
-              className="px-8 py-2.5 border border-gray-300 rounded-lg text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+              className="px-8 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
+              className="px-8 py-2.5 bg-[#29b6f6] hover:bg-[#0288d1] text-white rounded-lg text-sm font-bold shadow-md transition-colors flex items-center justify-center"
               disabled={loading}
-              className="px-8 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-bold shadow-md transition-all active:scale-95 disabled:bg-gray-300"
             >
               {loading ? 'Submitting...' : 'Submit Found Item'}
             </button>
@@ -230,20 +268,17 @@ export default function ReportFound() {
         </form>
       </main>
 
-      {/* --- FLOATING CHATBOT --- */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <button 
-          onClick={() => setIsChatbotOpen(true)}
-          className="bg-transparent hover:scale-110 active:scale-95 transition-transform p-0 border-0 focus:outline-none"
-        >
-          <div className="w-16 h-16 relative">
-            <img src={chatbotIcon} alt="Chatbot" className="w-full h-full object-contain drop-shadow-xl" />
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
-          </div>
-        </button>
+      <div className="fixed bottom-6 right-4 z-50 pointer-events-none">
+         <div className="w-20 h-20 relative">
+             <img 
+               src="https://cdn-icons-png.flaticon.com/512/4712/4712139.png" 
+               alt="Chatbot" 
+               className="w-full h-full object-contain drop-shadow-xl"
+             />
+             <div className="absolute top-4 right-0 w-8 h-12 bg-blue-900 rounded-md -z-10 rotate-12"></div>
+         </div>
       </div>
 
-      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
     </div>
   );
 }

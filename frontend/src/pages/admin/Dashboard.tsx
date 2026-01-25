@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Package, PackageCheck, CheckCircle } from 'lucide-react';
+import DashboardHeader from '../../components/admin/DashboardHeader';
 import StatCard from '../../components/admin/StatCard';
 import TotalReportsChart from '../../components/admin/TotalReportsChart';
 import ClaimedUnclaimedChart from '../../components/admin/ClaimedUnclaimedChart';
@@ -24,9 +25,6 @@ interface DashboardData {
     reportsByMonth: ChartData[];
 }
 
-type TimePeriod = 'weekly' | 'monthly' | 'yearly';
-type StatusFilter = 'all' | 'lost' | 'found' | 'claimed';
-
 export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardData>({
     totalLostItems: 0,
@@ -39,13 +37,11 @@ export default function AdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>('yearly');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const data = await fetchDashboardStats(timePeriod, statusFilter);
+        const data = await fetchDashboardStats();
         // @ts-ignore - Ignoring potential type mismatch during dev if API types aren't fully sync'd yet
         setStats({
           totalLostItems: data.totalLostItems,
@@ -64,13 +60,16 @@ export default function AdminDashboard() {
       }
     };
     loadStats();
-  }, [timePeriod, statusFilter]);
+  }, []);
   
   if (loading) return <div className="p-8 text-center text-gray-500">Loading Dashboard...</div>;
   if (error) return <div className="p-8 text-center text-red-500 font-semibold">{error}</div>;
 
   return (
-    <div className="p-8">
+    <div className="flex-1 bg-gray-50 overflow-auto">
+      <DashboardHeader />
+
+      <div className="p-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <StatCard
             title="Total Lost Items"
@@ -97,14 +96,8 @@ export default function AdminDashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2">
-            {/* Pass the real data to the chart with filters */}
-            <TotalReportsChart 
-              data={stats.reportsByMonth} 
-              timePeriod={timePeriod}
-              statusFilter={statusFilter}
-              onTimePeriodChange={setTimePeriod}
-              onStatusFilterChange={setStatusFilter}
-            />
+            {/* Pass the real data to the chart */}
+            <TotalReportsChart data={stats.reportsByMonth} />
           </div>
           <div>
             {/* Pass claimed and unclaimed counts as props */}
@@ -121,5 +114,6 @@ export default function AdminDashboard() {
           <ActivityFeed />
         </div>
       </div>
+    </div>
   );
 }

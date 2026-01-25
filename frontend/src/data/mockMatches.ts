@@ -9,16 +9,14 @@ export const mockMatches: AIMatch[] = [
     visualScore: 88,
     textScore: 43,
     lostItem: {
-      id: 1,
-      itemName: 'Blue Aquaflask 18oz',
+      id: 'ID: 1',
       name: 'Blue Aquaflask 18oz',
       category: 'Water Bottle',
       description: 'Blue insulated water bottle with nozzle',
       image: 'https://images.pexels.com/photos/3962286/pexels-photo-3962286.jpeg' // Placeholder
     },
     foundItem: {
-      id: 15,
-      itemName: 'Blue Insulated Tumbler',
+      id: 'ID: 15',
       name: 'Blue Insulated Tumbler',
       category: 'Water Bottle',
       description: 'Blue insulated water bottle',
@@ -33,16 +31,14 @@ export const mockMatches: AIMatch[] = [
     visualScore: 98,
     textScore: 92,
     lostItem: {
-      id: 4,
-      itemName: 'Black Leather Wallet',
+      id: 'ID: 4',
       name: 'Black Leather Wallet',
       category: 'Wallet',
       description: 'Black bi-fold leather wallet',
       image: 'https://images.pexels.com/photos/298863/pexels-photo-298863.jpeg'
     },
     foundItem: {
-      id: 22,
-      itemName: 'Black Wallet',
+      id: 'ID: 22',
       name: 'Black Wallet',
       category: 'Wallet',
       description: 'Found near gym, black leather',

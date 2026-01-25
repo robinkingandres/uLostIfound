@@ -3,18 +3,17 @@ from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model 
-from django.db.models import Q, Count, Avg, F, Sum
-from django.db.models.functions import TruncMonth, TruncDay, TruncWeek, TruncYear, TruncHour
+from django.db.models import Q, Count
+from django.db.models.functions import TruncMonth
 from django.utils import timezone
-from datetime import timedelta, datetime
 import calendar
 from itertools import chain # Add this import if not present, though we can do list concatenation easily
 from operator import itemgetter
 
 # Import models
-from .models import Report, Claim, Notification, AIMatch
+from .models import Report, Claim, Notification 
 # Import serializers
-from .serializers import ReportSerializer, ClaimSerializer, NotificationSerializer, AIMatchSerializer
+from .serializers import ReportSerializer, ClaimSerializer, NotificationSerializer
 
 # Import the new shared permission
 from core.permissions import IsAdmin, IsGuidance
@@ -27,131 +26,49 @@ class DashboardStatsView(APIView):
     permission_classes = [IsAdmin]
 
     def get(self, request, format=None):
-        # Get filter parameters
-        time_period = request.query_params.get('time_period', 'yearly').lower()  # weekly, monthly, yearly
-        status_filter = request.query_params.get('status', 'all').lower()  # all, lost, found, claimed
-        
-        # Build base queryset with status filter
-        base_queryset = Report.objects.all()
-        if status_filter == 'lost':
-            base_queryset = base_queryset.filter(type='Lost')
-        elif status_filter == 'found':
-            base_queryset = base_queryset.filter(type='Found')
-        elif status_filter == 'claimed':
-            base_queryset = base_queryset.filter(status='Claimed')
-        # 'all' means no type/status filter
-        
-        # 1. Basic Counts (always use all reports, not filtered)
+        # 1. Basic Counts
         total_reports = Report.objects.count()
+        
+        # 'Found' items are those reported as found
         found_items_count = Report.objects.filter(type='Found').count()
+        
+        # 'Claimed' items are any report (usually Found) marked as Claimed
         claimed_items_count = Report.objects.filter(status='Claimed').count()
+        
+        # 'Unclaimed' are Found items that are NOT yet Claimed (Pending, Verified, etc.)
         unclaimed_items_count = Report.objects.filter(type='Found').exclude(status='Claimed').count()
+        
         lost_items_count = Report.objects.filter(type='Lost').count()
         pending_reports = Report.objects.filter(status='Pending').count()
         total_users = User.objects.count()
         
-        # 2. Time-based Report Stats (for the main bar chart)
-        now = timezone.now()
+        # 2. Monthly Report Stats (for the main bar chart)
+        current_year = timezone.now().year
+        monthly_data = (
+            Report.objects.filter(date_reported__year=current_year)
+            .annotate(month=TruncMonth('date_reported'))
+            .values('month')
+            .annotate(count=Count('id'))
+            .order_by('month')
+        )
         
-        if time_period == 'weekly':
-            # Last 4 weeks
-            start_date = now - timedelta(weeks=4)
-            trunc_func = TruncDay
-            date_format = '%m/%d'
-            
-            time_data = (
-                base_queryset.filter(date_reported__gte=start_date)
-                .annotate(period=trunc_func('date_reported'))
-                .values('period')
-                .annotate(count=Count('id'))
-                .order_by('period')
-            )
-            
-            # Generate labels for last 4 weeks
-            reports_by_period = []
-            for i in range(4):
-                week_start = now - timedelta(weeks=3-i)
-                week_label = week_start.strftime('%m/%d')
-                period_count = 0
-                for item in time_data:
-                    if item['period'] and hasattr(item['period'], 'date'):
-                        item_date = item['period'].date()
-                        week_start_date = (now - timedelta(weeks=3-i)).date()
-                        week_end_date = (now - timedelta(weeks=2-i)).date()
-                        if week_start_date <= item_date < week_end_date:
-                            period_count += item['count']
-                reports_by_period.append({
-                    'month': week_label,
-                    'value': period_count
-                })
-                
-        elif time_period == 'monthly':
-            # Last 12 months
-            start_date = now - timedelta(days=365)
-            trunc_func = TruncMonth
-            date_format = '%b'
-            
-            time_data = (
-                base_queryset.filter(date_reported__gte=start_date)
-                .annotate(period=trunc_func('date_reported'))
-                .values('period')
-                .annotate(count=Count('id'))
-                .order_by('period')
-            )
-            
-            # Create a dictionary for quick lookup
-            stats_dict = {}
-            for item in time_data:
-                if item['period']:
-                    month_key = item['period'].month if hasattr(item['period'], 'month') else item['period'].strftime('%m')
-                    stats_dict[month_key] = item['count']
-            
-            # Generate last 12 months
-            reports_by_period = []
-            for i in range(11, -1, -1):  # Last 12 months
-                month_date = now - timedelta(days=30*i)
-                month_num = month_date.month
-                month_label = calendar.month_abbr[month_num]
-                reports_by_period.append({
-                    'month': month_label,
-                    'value': stats_dict.get(month_num, 0)
-                })
-                
-        else:  # yearly (default)
-            # Current year, by month
-            current_year = now.year
-            trunc_func = TruncMonth
-            
-            time_data = (
-                base_queryset.filter(date_reported__year=current_year)
-                .annotate(period=trunc_func('date_reported'))
-                .values('period')
-                .annotate(count=Count('id'))
-                .order_by('period')
-            )
-            
-            stats_dict = {}
-            for item in time_data:
-                if item['period']:
-                    month_num = item['period'].month if hasattr(item['period'], 'month') else int(str(item['period']).split('-')[1])
-                    stats_dict[month_num] = item['count']
-            
-            reports_by_period = []
-            for i in range(1, 13):
-                reports_by_period.append({
-                    'month': calendar.month_abbr[i],
-                    'value': stats_dict.get(i, 0)
-                })
+        stats_dict = {item['month'].month: item['count'] for item in monthly_data}
+        reports_by_month = []
+        for i in range(1, 13):
+            reports_by_month.append({
+                'month': calendar.month_abbr[i],
+                'value': stats_dict.get(i, 0)
+            })
 
         data = {
             'totalReports': total_reports,
             'totalLostItems': lost_items_count,
             'totalFoundItems': found_items_count,
             'totalClaimedItems': claimed_items_count,
-            'totalUnclaimedItems': unclaimed_items_count,
+            'totalUnclaimedItems': unclaimed_items_count, # <-- NEW FIELD
             'pendingReports': pending_reports,
             'totalUsers': total_users,
-            'reportsByMonth': reports_by_period,
+            'reportsByMonth': reports_by_month,
         }
         return Response(data, status=status.HTTP_200_OK)
 # --- REPORT VIEWSET ---
@@ -166,15 +83,7 @@ class ReportViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         # Automatically set the reporter to the logged-in user
-        report = serializer.save(reporter=self.request.user)
-        
-        # Trigger AI matching for the new report (run in background)
-        try:
-            from .ai_matching import process_new_report
-            process_new_report(report)
-        except Exception as e:
-            # Don't fail the report creation if AI matching fails
-            print(f"AI matching failed for report {report.id}: {e}")
+        serializer.save(reporter=self.request.user)
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -391,596 +300,3 @@ class ActivityFeedView(APIView):
 
         # 6. Return top 10 most recent
         return Response(activities[:10], status=status.HTTP_200_OK)
-
-
-# --- AI MATCH VIEWSET ---
-class AIMatchViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet for managing AI-generated matches between Lost and Found reports.
-    Admin can view all matches, approve/reject them.
-    Users can view their own approved matches.
-    """
-    queryset = AIMatch.objects.all()
-    serializer_class = AIMatchSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        status_filter = self.request.query_params.get('status')
-        report_id = self.request.query_params.get('report_id')
-        
-        # Admins see all matches
-        if user.role in ['Admin', 'Guidance'] or user.is_superuser:
-            queryset = AIMatch.objects.all()
-        else:
-            # Regular users only see approved matches related to their reports
-            queryset = AIMatch.objects.filter(
-                Q(lost_report__reporter=user) | Q(found_report__reporter=user),
-                status='Approved'
-            )
-        
-        # Filter by report_id if provided (for View AI Matches button)
-        if report_id:
-            try:
-                report_id_int = int(report_id)
-                queryset = queryset.filter(
-                    Q(lost_report_id=report_id_int) | Q(found_report_id=report_id_int)
-                )
-            except (ValueError, TypeError):
-                pass  # Invalid report_id, ignore filter
-        
-        # Filter by status if provided
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-        
-        return queryset.order_by('-match_score', '-date_created')
-
-    def update(self, request, *args, **kwargs):
-        user = request.user
-        
-        # Only Admin/Guidance can update match status
-        if user.role not in ['Admin', 'Guidance'] and not user.is_superuser:
-            return Response(
-                {"detail": "You do not have permission to update matches."}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        return super().update(request, *args, **kwargs)
-
-    def perform_update(self, serializer):
-        instance = self.get_object()
-        old_status = instance.status
-        
-        updated_match = serializer.save()
-        new_status = updated_match.status
-        
-        # Send notifications when match is approved
-        if old_status != new_status and new_status == 'Approved':
-            # Notify lost item reporter
-            if not updated_match.lost_reporter_notified:
-                Notification.objects.create(
-                    recipient=updated_match.lost_report.reporter,
-                    message=f"Great news! A potential match has been found for your lost item '{updated_match.lost_report.item_name}'. "
-                            f"Match confidence: {updated_match.match_score}%. Please check your Matches page for details.",
-                    report=updated_match.lost_report
-                )
-                updated_match.lost_reporter_notified = True
-            
-            # Notify found item reporter
-            if not updated_match.found_reporter_notified:
-                Notification.objects.create(
-                    recipient=updated_match.found_report.reporter,
-                    message=f"Great news! The item you found '{updated_match.found_report.item_name}' may belong to someone. "
-                            f"Match confidence: {updated_match.match_score}%. An admin will coordinate the return process.",
-                    report=updated_match.found_report
-                )
-                updated_match.found_reporter_notified = True
-            
-            updated_match.save()
-
-    @action(detail=False, methods=['post'], permission_classes=[IsAdmin])
-    def scan_all(self, request):
-        """
-        Trigger a full scan to find all potential matches.
-        Admin only.
-        """
-        try:
-            from .ai_matching import find_potential_matches
-            min_score = float(request.data.get('min_score', 50.0))
-            new_matches = find_potential_matches(min_score=min_score)
-            return Response({
-                'status': 'success',
-                'message': f'Found {len(new_matches)} new potential matches.',
-                'matches_created': len(new_matches)
-            }, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({
-                'status': 'error',
-                'message': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    @action(detail=False, methods=['get'])
-    def stats(self, request):
-        """Get match statistics for the dashboard."""
-        user = request.user
-        
-        if user.role not in ['Admin', 'Guidance'] and not user.is_superuser:
-            return Response(
-                {"detail": "You do not have permission to view stats."}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        total = AIMatch.objects.count()
-        pending = AIMatch.objects.filter(status='Pending').count()
-        approved = AIMatch.objects.filter(status='Approved').count()
-        rejected = AIMatch.objects.filter(status='Rejected').count()
-        
-        return Response({
-            'total': total,
-            'pending': pending,
-            'approved': approved,
-            'rejected': rejected
-        }, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=['get'])
-    def my_matches(self, request):
-        """Get matches for the current user's reports."""
-        user = request.user
-        
-        # Get matches where user is either the lost or found reporter
-        matches = AIMatch.objects.filter(
-            Q(lost_report__reporter=user) | Q(found_report__reporter=user),
-            status='Approved'
-        ).order_by('-match_score', '-date_created')
-        
-        serializer = self.get_serializer(matches, many=True)
-        return Response(serializer.data)
-
-
-# --- ANALYTICS API ---
-class AnalyticsView(APIView):
-    permission_classes = [IsAdmin]
-
-    def get(self, request, format=None):
-        # Get time frame from query parameter (default to 'monthly')
-        time_frame = request.query_params.get('time_frame', 'monthly').lower()
-        
-        # Calculate date range based on time frame
-        now = timezone.now()
-        if time_frame == 'daily':
-            start_date = now - timedelta(days=1)
-            trunc_func = TruncHour
-            date_format = '%H:00'
-        elif time_frame == 'weekly':
-            start_date = now - timedelta(weeks=4)
-            trunc_func = TruncDay
-            date_format = '%m/%d'
-        elif time_frame == 'yearly':
-            start_date = now - timedelta(days=365)
-            trunc_func = TruncMonth
-            date_format = '%b %Y'
-        else:  # monthly (default)
-            start_date = now - timedelta(days=30)
-            trunc_func = TruncDay
-            date_format = '%m/%d'
-        
-        current_year = now.year
-        
-        # 1. Average Resolution Time (days from report to claimed)
-        # Use claims that have been approved/claimed to get actual resolution time
-        claimed_claims = Claim.objects.filter(status='Claimed')
-        resolution_times = []
-        for claim in claimed_claims:
-            if claim.report.date_reported and claim.date_created:
-                # Time from report creation to claim approval
-                days = (claim.date_created.date() - claim.report.date_reported.date()).days
-                if days >= 0:
-                    resolution_times.append(days)
-        
-        # Fallback: if no claimed claims, use reports marked as Claimed
-        if not resolution_times:
-            claimed_reports = Report.objects.filter(status='Claimed', date_reported__isnull=False)
-            for report in claimed_reports:
-                # Approximate: use date_reported to now
-                days = (timezone.now().date() - report.date_reported.date()).days
-                if days >= 0:
-                    resolution_times.append(days)
-        
-        avg_resolution_time = sum(resolution_times) / len(resolution_times) if resolution_times else 0
-        
-        # 2. AI Match Accuracy (approved / total)
-        total_matches = AIMatch.objects.count()
-        approved_matches = AIMatch.objects.filter(status='Approved').count()
-        ai_match_accuracy = (approved_matches / total_matches * 100) if total_matches > 0 else 0
-        
-        # 3. Success Rate (claimed items / found items)
-        total_found = Report.objects.filter(type='Found').count()
-        total_claimed = Report.objects.filter(status='Claimed').count()
-        success_rate = (total_claimed / total_found * 100) if total_found > 0 else 0
-        
-        # 4. Lost vs Found Pattern (dual-series) with time frame support
-        lost_items = (
-            Report.objects.filter(type='Lost', date_reported__gte=start_date)
-            .annotate(period=trunc_func('date_reported'))
-            .values('period')
-            .annotate(count=Count('id'))
-            .order_by('period')
-        )
-        
-        found_items = (
-            Report.objects.filter(type='Found', date_reported__gte=start_date)
-            .annotate(period=trunc_func('date_reported'))
-            .values('period')
-            .annotate(count=Count('id'))
-            .order_by('period')
-        )
-        
-        # Build dictionaries
-        lost_dict = {}
-        found_dict = {}
-        
-        for item in lost_items:
-            period_key = item['period']
-            if period_key is None:
-                continue
-            # Format datetime object
-            try:
-                if hasattr(period_key, 'strftime'):
-                    period_key = period_key.strftime(date_format)
-                else:
-                    period_key = str(period_key)
-            except (AttributeError, ValueError):
-                period_key = str(period_key)
-            lost_dict[period_key] = item['count']
-        
-        for item in found_items:
-            period_key = item['period']
-            if period_key is None:
-                continue
-            # Format datetime object
-            try:
-                if hasattr(period_key, 'strftime'):
-                    period_key = period_key.strftime(date_format)
-                else:
-                    period_key = str(period_key)
-            except (AttributeError, ValueError):
-                period_key = str(period_key)
-            found_dict[period_key] = item['count']
-        
-        # Get all unique periods and sort them
-        all_periods = sorted(set(list(lost_dict.keys()) + list(found_dict.keys())))
-        
-        lost_found_pattern = []
-        for period in all_periods:
-            lost_found_pattern.append({
-                'period': period,
-                'lost': lost_dict.get(period, 0),
-                'found': found_dict.get(period, 0)
-            })
-        
-        # 5. Claim Processing Efficiency with time frame support
-        claimed_items = (
-            Claim.objects.filter(status='Claimed', date_created__gte=start_date)
-            .annotate(period=trunc_func('date_created'))
-            .values('period')
-            .annotate(count=Count('id'))
-            .order_by('period')
-        )
-        
-        found_items_eff = (
-            Report.objects.filter(type='Found', date_reported__gte=start_date)
-            .annotate(period=trunc_func('date_reported'))
-            .values('period')
-            .annotate(count=Count('id'))
-            .order_by('period')
-        )
-        
-        verified_items = (
-            Report.objects.filter(status='Verified', date_reported__gte=start_date)
-            .annotate(period=trunc_func('date_reported'))
-            .values('period')
-            .annotate(count=Count('id'))
-            .order_by('period')
-        )
-        
-        # Build dictionaries
-        claimed_dict = {}
-        found_dict_eff = {}
-        verified_dict = {}
-        
-        for item in claimed_items:
-            period_key = item['period']
-            if period_key is None:
-                continue
-            # Format datetime object
-            try:
-                if hasattr(period_key, 'strftime'):
-                    period_key = period_key.strftime(date_format)
-                else:
-                    period_key = str(period_key)
-            except (AttributeError, ValueError):
-                period_key = str(period_key)
-            claimed_dict[period_key] = item['count']
-        
-        for item in found_items_eff:
-            period_key = item['period']
-            if period_key is None:
-                continue
-            # Format datetime object
-            try:
-                if hasattr(period_key, 'strftime'):
-                    period_key = period_key.strftime(date_format)
-                else:
-                    period_key = str(period_key)
-            except (AttributeError, ValueError):
-                period_key = str(period_key)
-            found_dict_eff[period_key] = item['count']
-        
-        for item in verified_items:
-            period_key = item['period']
-            if period_key is None:
-                continue
-            # Format datetime object
-            try:
-                if hasattr(period_key, 'strftime'):
-                    period_key = period_key.strftime(date_format)
-                else:
-                    period_key = str(period_key)
-            except (AttributeError, ValueError):
-                period_key = str(period_key)
-            verified_dict[period_key] = item['count']
-        
-        # Get all unique periods and sort them
-        all_periods_eff = sorted(set(list(claimed_dict.keys()) + list(found_dict_eff.keys()) + list(verified_dict.keys())))
-        
-        claim_efficiency = []
-        for period in all_periods_eff:
-            claim_efficiency.append({
-                'period': period,
-                'claimed': claimed_dict.get(period, 0),
-                'found': found_dict_eff.get(period, 0),
-                'verified': verified_dict.get(period, 0)
-            })
-        
-        # 6. Status Distribution
-        status_counts = Report.objects.values('status').annotate(count=Count('id'))
-        status_distribution = {item['status']: item['count'] for item in status_counts}
-        
-        # 7. Category Distribution
-        category_counts = Report.objects.values('category').annotate(count=Count('id')).order_by('-count')
-        total_category_items = sum(item['count'] for item in category_counts)
-        category_distribution = []
-        for item in category_counts:
-            percentage = (item['count'] / total_category_items * 100) if total_category_items > 0 else 0
-            category_distribution.append({
-                'category': item['category'],
-                'count': item['count'],
-                'percentage': round(percentage, 2)
-            })
-        
-        data = {
-            'averageResolutionTime': round(avg_resolution_time, 1),
-            'aiMatchAccuracy': round(ai_match_accuracy, 1),
-            'successRate': round(success_rate, 1),
-            'lostFoundPattern': lost_found_pattern,
-            'claimProcessingEfficiency': claim_efficiency,
-            'statusDistribution': status_distribution,
-            'categoryDistribution': category_distribution,
-            'timeFrame': time_frame,
-            'dateFormat': date_format,
-        }
-        
-        return Response(data, status=status.HTTP_200_OK)
-
-
-# --- COMPREHENSIVE LOST & FOUND DASHBOARD API ---
-class LostFoundDashboardView(APIView):
-    permission_classes = [IsAdmin]
-
-    def get(self, request, format=None):
-        # 1. Overall Summary Metrics
-        total_lost = Report.objects.filter(type='Lost').count()
-        total_found = Report.objects.filter(type='Found').count()
-        total_returned = Report.objects.filter(status='Claimed').count()
-        unclaimed = Report.objects.filter(type='Found').exclude(status='Claimed').count()
-        
-        # Average time to return (from report to claim approval)
-        returned_claims = Claim.objects.filter(status='Claimed')
-        return_times = []
-        for claim in returned_claims:
-            if claim.report.date_reported and claim.date_created:
-                days = (claim.date_created.date() - claim.report.date_reported.date()).days
-                if days >= 0:
-                    return_times.append(days)
-        avg_return_time = sum(return_times) / len(return_times) if return_times else 0
-        
-        # 2. Category Analytics
-        category_counts = Report.objects.values('category').annotate(
-            lost_count=Count('id', filter=Q(type='Lost')),
-            found_count=Count('id', filter=Q(type='Found'))
-        ).order_by('-lost_count', '-found_count')
-        
-        # Top lost/found items
-        top_lost_items = Report.objects.filter(type='Lost').values('item_name').annotate(
-            count=Count('id')
-        ).order_by('-count')[:10]
-        
-        top_found_items = Report.objects.filter(type='Found').values('item_name').annotate(
-            count=Count('id')
-        ).order_by('-count')[:10]
-        
-        # Category trends over time (last 30 days)
-        thirty_days_ago = timezone.now() - timedelta(days=30)
-        category_trends = (
-            Report.objects.filter(date_reported__gte=thirty_days_ago)
-            .annotate(day=TruncDay('date_reported'))
-            .values('day', 'category', 'type')
-            .annotate(count=Count('id'))
-            .order_by('day')
-        )
-        
-        # 3. Location Analytics
-        location_lost = Report.objects.filter(type='Lost').values('location').annotate(
-            count=Count('id')
-        ).order_by('-count')[:20]
-        
-        location_found = Report.objects.filter(type='Found').values('location').annotate(
-            count=Count('id')
-        ).order_by('-count')[:20]
-        
-        # 4. User/Reporter Analytics
-        users_reporting_lost = Report.objects.filter(type='Lost').values('reporter').distinct().count()
-        users_reporting_found = Report.objects.filter(type='Found').values('reporter').distinct().count()
-        
-        # Repeat users (users with 3+ reports)
-        repeat_users_data = (
-            Report.objects.values('reporter')
-            .annotate(report_count=Count('id'))
-            .filter(report_count__gte=3)
-            .order_by('-report_count')[:20]
-        )
-        repeat_users = []
-        for item in repeat_users_data:
-            try:
-                user = User.objects.get(id=item['reporter'])
-                repeat_users.append({
-                    'reporter': item['reporter'],
-                    'reporter__username': user.username,
-                    'report_count': item['report_count']
-                })
-            except User.DoesNotExist:
-                continue
-        
-        # Average response time per user (time from report to first action)
-        user_response_times = []
-        for user in User.objects.all():
-            user_reports = Report.objects.filter(reporter=user)
-            if user_reports.exists():
-                first_report = user_reports.order_by('date_reported').first()
-                if first_report.date_reported:
-                    # Calculate time to first status change or claim
-                    first_action = None
-                    claims = Claim.objects.filter(report__reporter=user)
-                    if claims.exists():
-                        first_action = claims.order_by('date_created').first().date_created
-                    if first_action:
-                        hours = (first_action - first_report.date_reported).total_seconds() / 3600
-                        user_response_times.append({
-                            'user_id': user.id,
-                            'username': user.username,
-                            'response_hours': round(hours, 1)
-                        })
-        
-        avg_response_time = sum(u['response_hours'] for u in user_response_times) / len(user_response_times) if user_response_times else 0
-        
-        # 5. Time-Based Insights
-        # Daily trends (last 30 days)
-        daily_trends = (
-            Report.objects.filter(date_reported__gte=thirty_days_ago)
-            .annotate(day=TruncDay('date_reported'))
-            .values('day', 'type')
-            .annotate(count=Count('id'))
-            .order_by('day')
-        )
-        
-        # Peak times (by hour of day)
-        peak_times = (
-            Report.objects.annotate(hour=TruncHour('date_reported'))
-            .values('hour', 'type')
-            .annotate(count=Count('id'))
-            .order_by('hour')
-        )
-        
-        # 6. Recovery Rate & Efficiency
-        recovery_rate = (total_returned / total_lost * 100) if total_lost > 0 else 0
-        
-        # Items stuck in system (pending for more than 7 days)
-        seven_days_ago = timezone.now() - timedelta(days=7)
-        stuck_items = Report.objects.filter(
-            status='Pending',
-            date_reported__lt=seven_days_ago
-        ).count()
-        
-        # 7. Alerts/Anomalies
-        # Unusually high number of items lost (more than 2x average in last 7 days)
-        last_7_days = timezone.now() - timedelta(days=7)
-        recent_lost = Report.objects.filter(type='Lost', date_reported__gte=last_7_days).count()
-        avg_daily_lost = total_lost / 365 if total_lost > 0 else 0
-        high_loss_alert = recent_lost > (avg_daily_lost * 2 * 7)
-        
-        # Items found but not claimed for 14+ days
-        fourteen_days_ago = timezone.now() - timedelta(days=14)
-        unclaimed_old = Report.objects.filter(
-            type='Found',
-            status__in=['Pending', 'Verified'],
-            date_reported__lt=fourteen_days_ago
-        ).count()
-        
-        # Format data for frontend
-        formatted_category_trends = {}
-        for trend in category_trends:
-            day_str = trend['day'].strftime('%Y-%m-%d') if hasattr(trend['day'], 'strftime') else str(trend['day'])
-            key = f"{day_str}_{trend['category']}"
-            if key not in formatted_category_trends:
-                formatted_category_trends[key] = {
-                    'day': day_str,
-                    'category': trend['category'],
-                    'lost': 0,
-                    'found': 0
-                }
-            if trend['type'] == 'Lost':
-                formatted_category_trends[key]['lost'] = trend['count']
-            else:
-                formatted_category_trends[key]['found'] = trend['count']
-        
-        formatted_daily_trends = {}
-        for trend in daily_trends:
-            day_str = trend['day'].strftime('%Y-%m-%d') if hasattr(trend['day'], 'strftime') else str(trend['day'])
-            if day_str not in formatted_daily_trends:
-                formatted_daily_trends[day_str] = {'day': day_str, 'lost': 0, 'found': 0}
-            formatted_daily_trends[day_str][trend['type'].lower()] = trend['count']
-        
-        formatted_peak_times = {}
-        for peak in peak_times:
-            hour = peak['hour'].hour if hasattr(peak['hour'], 'hour') else int(str(peak['hour']).split(':')[0])
-            if hour not in formatted_peak_times:
-                formatted_peak_times[hour] = {'hour': hour, 'lost': 0, 'found': 0}
-            formatted_peak_times[hour][peak['type'].lower()] = peak['count']
-        
-        data = {
-            # Summary Metrics
-            'summary': {
-                'totalLost': total_lost,
-                'totalFound': total_found,
-                'totalReturned': total_returned,
-                'unclaimed': unclaimed,
-                'avgReturnTime': round(avg_return_time, 1),
-            },
-            # Category Analytics
-            'categories': list(category_counts),
-            'topLostItems': list(top_lost_items),
-            'topFoundItems': list(top_found_items),
-            'categoryTrends': list(formatted_category_trends.values()),
-            # Location Analytics
-            'locationLost': list(location_lost),
-            'locationFound': list(location_found),
-            # User Analytics
-            'usersReportingLost': users_reporting_lost,
-            'usersReportingFound': users_reporting_found,
-            'repeatUsers': list(repeat_users),
-            'avgResponseTime': round(avg_response_time, 1),
-            # Time-Based Insights
-            'dailyTrends': list(formatted_daily_trends.values()),
-            'peakTimes': list(formatted_peak_times.values()),
-            # Recovery Metrics
-            'recoveryRate': round(recovery_rate, 1),
-            'stuckItems': stuck_items,
-            # Alerts
-            'alerts': {
-                'highLossAlert': high_loss_alert,
-                'recentLostCount': recent_lost,
-                'unclaimedOld': unclaimed_old,
-            }
-        }
-        
-        return Response(data, status=status.HTTP_200_OK)

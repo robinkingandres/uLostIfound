@@ -1,11 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle } from 'lucide-react';
+import { Mail, Key, Lock, ArrowLeft, CheckCircle } from 'lucide-react';
 import { requestPasswordReset, confirmPasswordReset } from '../../services/authApi';
-import emailIcon from '../../assets/email.png'; // Email Icon
-import keyIcon from '../../assets/key.png'; // Key Icon
-import lockIcon from '../../assets/lock.png'; // Lock Icon
-
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -98,59 +94,41 @@ export default function ForgotPassword() {
 
         {/* STEP 1: Email Input */}
         {step === 1 && (
-        <form onSubmit={handleRequestCode} className="space-y-6 animate-fade-in">
-            <div className="text-center mb-6">
-
-        {/* Custom Email Icon inside Blue Circle */}
-        <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
-        <img 
-            src={emailIcon} 
-            alt="Email Icon" 
-            className="w-20 h-20 object-contain"    // Size of Email Icon
-        />
-        </div>
-      
-      <p className="text-gray-500 text-sm leading-relaxed px-4">
-        Enter your email address to receive a <span className="font-semibold text-[#1e40af]">6-digit verification code</span>.
-      </p>
-    </div>
-
-    <div className="space-y-2 text-left">
-      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
-        Email Address
-      </label>
-      <input 
-        type="email" 
-        required
-        className="w-full px-4 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-400 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300 text-gray-700"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="e.g. student@school.edu.ph"
-      />
-    </div>
-
-    <button 
-      type="submit" 
-      disabled={loading}
-      className="w-full bg-[#1e40af] hover:bg-[#1d3557] text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
-    >
-      {loading ? 'Sending...' : 'Send Code'}
-    </button>
-  </form>
-)}
+            <form onSubmit={handleRequestCode} className="space-y-5 animate-fade-in">
+                <div className="text-center mb-4">
+                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Mail className="w-8 h-8 text-blue-500" />
+                    </div>
+                    <p className="text-gray-600 text-sm">Enter your email address to receive a verification code.</p>
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Email Address</label>
+                    <input 
+                        type="email" 
+                        required
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="student@school.edu.ph"
+                    />
+                </div>
+                <button 
+                    type="submit" 
+                    disabled={loading}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors shadow-lg shadow-blue-200"
+                >
+                    {loading ? 'Sending...' : 'Send Code'}
+                </button>
+            </form>
+        )}
 
         {/* STEP 2: Code Input */}
         {step === 2 && (
             <form onSubmit={handleVerifyCodeStep} className="space-y-5 animate-fade-in">
                 <div className="text-center mb-4">
-                    {/* Custom Key Image inside a Circle Container */}
-                <div className="w-24 h-24 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <img 
-                        src={keyIcon} 
-                        alt="Key Icon" 
-                        className="w-full h-full object-contain" // Size of Key Icon
-                    />
-                </div>
+                    <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Key className="w-8 h-8 text-yellow-600" />
+                    </div>
                     <p className="text-gray-600 text-sm">Enter the 6-digit code sent to <span className="font-semibold text-gray-800">{email}</span></p>
                 </div>
                 <div>
@@ -181,14 +159,9 @@ export default function ForgotPassword() {
         {step === 3 && (
             <form onSubmit={handleResetPassword} className="space-y-5 animate-fade-in">
                 <div className="text-center mb-4">
-                    {/* Custom Lock Icon inside Green Circle */}
-                <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <img 
-                        src={lockIcon} 
-                        alt="Lock Icon" 
-                        className="w-full h-full object-contain" 
-                    />
-                </div>
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Lock className="w-8 h-8 text-green-600" />
+                    </div>
                     <p className="text-gray-600 text-sm">Create a new password.</p>
                 </div>
                 
