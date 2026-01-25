@@ -1,18 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Upload, 
   MapPin, 
   Info, 
-<<<<<<< HEAD
-  ChevronDown
-=======
   ChevronDown,
   X,
   Camera,
   Eye,
   Loader2 
->>>>>>> origin/kenth
 } from 'lucide-react';
 
 // Assets
@@ -25,13 +21,9 @@ import UserHeader from '../../components/UserHeader';
 // API & Auth
 import { 
   createReport, 
-<<<<<<< HEAD
-  type ReportPayload
-=======
   type ReportPayload, 
   fetchNotifications, 
   type Notification 
->>>>>>> origin/kenth
 } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -39,11 +31,7 @@ export default function ReportLost() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-<<<<<<< HEAD
-  // --- FORM LOGIC ---
-=======
   // --- STATE ---
->>>>>>> origin/kenth
   const [formData, setFormData] = useState({
     itemTitle: '',
     category: 'Phone',
@@ -169,50 +157,10 @@ export default function ReportLost() {
                 <p className="text-gray-500 text-xs sm:text-sm">Fill in the details about the item you lost</p>
             </div>
 
-<<<<<<< HEAD
-        {error ? (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-6 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-1">
-            <label className="text-sm font-semibold text-gray-700">Item Title *</label>
-            <input
-              type="text"
-              name="itemTitle"
-              required
-              value={formData.itemTitle}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none"
-              placeholder="e.g., Blue Wallet"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1 relative">
-              <label className="text-sm font-semibold text-gray-700">Category *</label>
-              <div className="relative">
-                <select
-                  name="category"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm appearance-none bg-white cursor-pointer"
-                >
-                  <option value="Phone">Phone</option>
-                  <option value="Wallet">Wallet</option>
-                  <option value="ID">ID</option>
-                  <option value="Electronics">Electronics</option>
-                  <option value="Others">Others</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-=======
             {error && (
               <div className="w-full mb-6 p-4 bg-red-50 border border-red-100 text-red-600 text-sm rounded-lg flex items-center gap-3">
                 <Info className="w-4 h-4 shrink-0" />
                 <span className="leading-tight">{error}</span>
->>>>>>> origin/kenth
               </div>
             )}
 

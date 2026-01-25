@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-import { useState, useRef, useEffect } from 'react';
-import { X, Send, Bot } from 'lucide-react';
-=======
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Send, Bot, ChevronDown, ChevronUp, Sparkles, RotateCcw, BarChart3, Search, Info, MapPin, ShieldCheck } from 'lucide-react';
->>>>>>> origin/kenth
 
 interface Message {
   text: string;

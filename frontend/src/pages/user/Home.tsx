@@ -177,54 +177,6 @@ export default function UserHome() {
           {filteredReports.map((report) => {
             const isOwner = isReportOwner(report);
 
-<<<<<<< HEAD
-              <div className="p-5 flex-1 flex flex-col">
-                <h3 className="text-lg font-bold text-gray-900 mb-1">{report.itemName}</h3>
-                <p className="text-xs text-gray-400 mb-3">{report.date}</p>
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                  {report.description}
-                </p>
-
-                <div className="space-y-2 text-sm text-gray-500 mb-4">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-gray-400" />
-                    <span>{report.location}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Tag className="w-4 h-4 text-gray-400" />
-                    <span>{report.category}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <UserIcon className="w-4 h-4 text-gray-400" />
-                    <span className="font-medium text-gray-700">{report.reporterName || report.reporterUsername || 'Unknown'}</span>
-                  </div>
-                </div>
-
-                <div className="mt-auto pt-3 border-t border-gray-100">
-                  {report.type === 'Found' ? (
-                    // Prevent claiming own reports
-                    (user && report.reporter === user.id) ? (
-                        <button 
-                          disabled
-                          className="w-full py-2.5 bg-gray-100 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                          Reported by You
-                        </button>
-                    ) : (
-                        <button 
-                          onClick={() => handleClaimClick(report)}
-                          className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
-                        >
-                          <img src="https://cdn-icons-png.flaticon.com/512/10697/10697240.png" className="w-4 h-4 invert brightness-0" alt="" />
-                          Claim This Item
-                        </button>
-                    )
-                  ) : (
-                    <button className="w-full py-2.5 bg-gray-100 text-gray-400 rounded-lg text-sm font-medium cursor-default">
-                      Reported as Lost
-                    </button>
-                  )}
-=======
             return (
               <div 
                 key={report.id} 
@@ -288,7 +240,6 @@ export default function UserHome() {
     </span>
   )}
 </div>
->>>>>>> origin/kenth
                 </div>
               </div>
             );
