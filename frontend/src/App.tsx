@@ -13,8 +13,10 @@ import AdminDashboard from './pages/admin/Dashboard';
 import ManageReports from './pages/admin/Reports';
 import UserManagement from './pages/UserManagement';
 import ClaimManagement from './pages/ClaimManagement';
-import Analytics from './pages/Analytics';
+import LostFoundAnalyticsDashboard from './pages/LostFoundAnalyticsDashboard';
 import AIMatchNotification from './pages/admin/AIMatchNotification';
+import AccountSettings from "./pages/admin/AccountSettings";
+
 
 // User Imports
 // WE USE ONE UNIFIED LOGIN NOW
@@ -113,7 +115,10 @@ function App() {
             <Route path="users" element={<UserManagement />} />
             <Route path="claims" element={<ClaimManagement />} />
             <Route path="ai-matches" element={<AIMatchNotification />} />
-            <Route path="analytics" element={<Analytics />} />
+            <Route path="analytics" element={<LostFoundAnalyticsDashboard />} />
+            <Route path="lost-found-dashboard" element={<Navigate to="/admin/analytics" replace />} />
+            <Route path="account-settings" element={<AccountSettings />} />
+
           </Route>
 
           {/* Catch-all */}

@@ -5,7 +5,7 @@ import Chatbot from '../../components/Chatbot';
 import EditProfileModal from '../../components/EditProfileModal';
 import ItemsListModal from '../../components/ItemsListModal';
 import { useAuth } from '../../contexts/AuthContext';
-import { fetchMyReports, fetchClaims, uploadAvatar, updateProfile, fetchCurrentUser } from '../../services/api';
+import { fetchMyReports, fetchClaims, uploadAvatar, fetchCurrentUser } from '../../services/api';
 import type { Report } from '../../types/report';
 import type { Claim } from '../../types/claim';
 import chatbotIcon from '../../assets/chatbot.png';

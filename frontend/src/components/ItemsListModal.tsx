@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { X, Download, FileText } from 'lucide-react';
 import type { Report } from '../types/report';
 import type { Claim } from '../types/claim';

@@ -1,25 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Bell, 
-  Menu, 
   Upload, 
   MapPin, 
   Info, 
-  ChevronDown,
-  Check,
-  Home,
-  FileText,
-  Search,
-  Zap,
-  User,
-  LogOut,
-  X,
-  ChevronUp
+  ChevronDown
 } from 'lucide-react';
 
 // Assets
-import logo from '../../assets/logo.png'; 
 import chatbotIcon from '../../assets/chatbot.png';
 
 // Components
@@ -29,80 +17,13 @@ import UserHeader from '../../components/UserHeader'; // Added import
 // API & Auth
 import { 
   createReport, 
-  type ReportPayload, 
-  fetchNotifications, 
-  markNotificationRead, 
-  markAllNotificationsRead, 
-  type Notification 
+  type ReportPayload
 } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function ReportLost() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
-
-  // --- NOTIFICATION STATE (KEEPING AS REQUESTED) ---
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const notifRef = useRef<HTMLDivElement>(null);
-
-  // --- MENU STATE (KEEPING AS REQUESTED) ---
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isReportsOpen, setIsReportsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // --- NOTIFICATION & MENU LOGIC (KEEPING AS REQUESTED) ---
-  const loadNotifications = async () => {
-    try {
-      const data = await fetchNotifications();
-      setNotifications(data);
-    } catch (error) {
-      console.error("Error loading notifications", error);
-    }
-  };
-
-  useEffect(() => {
-    if (user) {
-      loadNotifications(); 
-      const interval = setInterval(loadNotifications, 30000); 
-      return () => clearInterval(interval);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
-        setIsNotifOpen(false);
-      }
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
-        setIsReportsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const unreadCount = notifications.filter(n => !n.is_read).length;
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  const menuItems = [
-    { label: 'Home', icon: Home, path: '/home' },
-    { 
-      label: 'Reports', 
-      icon: FileText, 
-      children: [
-        { label: 'Report Lost', icon: FileText, path: '/report-lost' },
-        { label: 'Report Found', icon: Search, path: '/report-found' }
-      ]
-    },
-    { label: 'Matches', icon: Zap, path: '/matches' },
-    { label: 'Profile', icon: User, path: '/profile' },
-  ];
+  const { user } = useAuth();
 
   // --- FORM LOGIC ---
   const [formData, setFormData] = useState({
@@ -203,6 +124,12 @@ export default function ReportLost() {
              Your report will be viewed by admin before being published. You'll be notified once it's approved.
            </p>
         </div>
+
+        {error ? (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-6 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-1">

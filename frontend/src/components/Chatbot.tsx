@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, Send, Bot } from 'lucide-react';
-import chatbotIcon from '../assets/chatbot.png';
 
 interface Message {
   text: string;

@@ -1,15 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Upload, 
   MapPin, 
   Info,
-  ChevronDown,
-  Home,
-  FileText,
-  Search,
-  Zap,
-  User
+  ChevronDown
 } from 'lucide-react';
 
 // Assets
@@ -22,56 +17,13 @@ import UserHeader from '../../components/UserHeader';
 // API & Auth
 import { 
   createReport, 
-  type ReportPayload, 
-  fetchNotifications, 
-  type Notification 
+  type ReportPayload
 } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function ReportFound() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
-
-  // --- NOTIFICATION & MENU STATE (Synced with ReportLost) ---
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const notifRef = useRef<HTMLDivElement>(null);
-
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isReportsOpen, setIsReportsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // --- NOTIFICATION & MENU LOGIC ---
-  const loadNotifications = async () => {
-    try {
-      const data = await fetchNotifications();
-      setNotifications(data);
-    } catch (error) {
-      console.error("Error loading notifications", error);
-    }
-  };
-
-  useEffect(() => {
-    if (user) {
-      loadNotifications(); 
-      const interval = setInterval(loadNotifications, 30000); 
-      return () => clearInterval(interval);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
-        setIsNotifOpen(false);
-      }
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
-        setIsReportsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  const { user } = useAuth();
 
   // --- FORM LOGIC ---
   const [formData, setFormData] = useState({

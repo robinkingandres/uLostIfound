@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, Check, X, PackageCheck } from 'lucide-react';
+import { Eye, X, PackageCheck } from 'lucide-react';
 import DashboardHeader from '../../components/admin/DashboardHeader';
 import { fetchClaims, updateClaimStatus, fetchReports } from '../../services/api';
 import type { Claim } from '../../types/claim';

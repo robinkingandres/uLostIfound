@@ -53,8 +53,10 @@ interface DashboardStats {
 }
 /**
  * Fetches core statistics for the Admin Dashboard.
+ * @param timePeriod - 'weekly', 'monthly', or 'yearly' (default)
+ * @param statusFilter - 'all', 'lost', 'found', or 'claimed' (default: 'all')
  */
-export const fetchDashboardStats = async (): Promise<DashboardStats> => {
+export const fetchDashboardStats = async (timePeriod: string = 'yearly', statusFilter: string = 'all'): Promise<DashboardStats> => {
     // CRITICAL FIX: Explicitly call fetchCsrfToken() to ensure the session cookie 
     // is present and active before hitting the protected API endpoint.
     const csrfToken = await fetchCsrfToken(); 
@@ -64,8 +66,13 @@ export const fetchDashboardStats = async (): Promise<DashboardStats> => {
       throw new Error('Authentication required for dashboard access.');
     }
     
+    // Build URL with query parameters
+    const url = new URL(DASHBOARD_STATS_URL, window.location.origin);
+    url.searchParams.append('time_period', timePeriod);
+    url.searchParams.append('status', statusFilter);
+    
     // Authentication is required, so we must include credentials.
-    const response = await fetch(DASHBOARD_STATS_URL, { 
+    const response = await fetch(url.toString(), { 
       credentials: 'include', 
       headers: {
         // Including the token even in the header for a GET can help satisfy Django's check
@@ -261,6 +268,26 @@ export const fetchUsers = async () => {
   const response = await fetch(USER_URL, { credentials: 'include' });
   if (!response.ok) {
     throw new Error('Failed to fetch users');
+  }
+  return response.json();
+};
+
+// create user (Admin only)
+export const createUser = async (data: { username: string; email: string; school_id: string; role: string; password: string }) => {
+  const csrfToken = getCsrfToken();
+  if (!csrfToken) throw new Error('CSRF token not found.');
+  const response = await fetch(USER_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
   }
   return response.json();
 };
@@ -590,6 +617,112 @@ export const fetchMyAIMatches = async (): Promise<AIMatch[]> => {
   
   if (!response.ok) {
     throw new Error('Failed to fetch your AI matches');
+  }
+  return response.json();
+};
+
+/**
+ * Get AI matches for a specific report
+ */
+export const fetchReportAIMatches = async (reportId: number): Promise<AIMatch[]> => {
+  const response = await fetch(`${AI_MATCH_URL}?report_id=${reportId}`, { credentials: 'include' });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch AI matches for this report');
+  }
+  return response.json();
+};
+
+// =================================================================
+//                      ANALYTICS API FUNCTIONS
+// =================================================================
+
+const ANALYTICS_URL = `${API_URL}/analytics/`;
+
+export interface AnalyticsData {
+  averageResolutionTime: number;
+  aiMatchAccuracy: number;
+  successRate: number;
+  lostFoundPattern: { period: string; lost: number; found: number }[];
+  claimProcessingEfficiency: { period: string; claimed: number; found: number; verified: number }[];
+  statusDistribution: Record<string, number>;
+  categoryDistribution: { category: string; count: number; percentage: number }[];
+  timeFrame: string;
+  dateFormat: string;
+}
+
+/**
+ * Fetches comprehensive analytics data for the Analytics page
+ * @param timeFrame - 'daily', 'weekly', 'monthly', or 'yearly'
+ */
+export const fetchAnalytics = async (timeFrame: string = 'monthly'): Promise<AnalyticsData> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('Authentication required');
+
+  const response = await fetch(`${ANALYTICS_URL}?time_frame=${timeFrame}`, {
+    credentials: 'include',
+    headers: {
+      'X-CSRFToken': csrfToken,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch analytics data');
+  }
+  return response.json();
+};
+
+// =================================================================
+//                      LOST & FOUND DASHBOARD API
+// =================================================================
+
+const LOST_FOUND_DASHBOARD_URL = `${API_URL}/lost-found-dashboard/`;
+
+export interface LostFoundDashboardData {
+  summary: {
+    totalLost: number;
+    totalFound: number;
+    totalReturned: number;
+    unclaimed: number;
+    avgReturnTime: number;
+  };
+  categories: Array<{ category: string; lost_count: number; found_count: number }>;
+  topLostItems: Array<{ item_name: string; count: number }>;
+  topFoundItems: Array<{ item_name: string; count: number }>;
+  categoryTrends: Array<{ day: string; category: string; lost: number; found: number }>;
+  locationLost: Array<{ location: string; count: number }>;
+  locationFound: Array<{ location: string; count: number }>;
+  usersReportingLost: number;
+  usersReportingFound: number;
+  repeatUsers: Array<{ reporter: number; reporter__username: string; report_count: number }>;
+  avgResponseTime: number;
+  dailyTrends: Array<{ day: string; lost: number; found: number }>;
+  peakTimes: Array<{ hour: number; lost: number; found: number }>;
+  recoveryRate: number;
+  stuckItems: number;
+  alerts: {
+    highLossAlert: boolean;
+    recentLostCount: number;
+    unclaimedOld: number;
+  };
+}
+
+/**
+ * Fetches comprehensive Lost & Found dashboard data
+ */
+export const fetchLostFoundDashboard = async (): Promise<LostFoundDashboardData> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('Authentication required');
+
+  const response = await fetch(LOST_FOUND_DASHBOARD_URL, {
+    credentials: 'include',
+    headers: {
+      'X-CSRFToken': csrfToken,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch lost & found dashboard data');
   }
   return response.json();
 };

@@ -7,13 +7,14 @@ class UserSerializer(serializers.ModelSerializer):
     userId = serializers.CharField(source='school_id', read_only=True)
     name = serializers.SerializerMethodField()
     avatar_url = serializers.SerializerMethodField()
+    school_id = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = User
         fields = [
             'id', 'name', 'userId', 'email', 'role', 'username',
             'first_name', 'last_name',  # writable for profile edit
-            'avatar', 'avatar_url', 'password'
+            'avatar', 'avatar_url', 'password', 'school_id'
         ]
         extra_kwargs = {
             'password': {'write_only': True, 'required': False},
