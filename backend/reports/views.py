@@ -88,16 +88,27 @@ class ReportViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         user = self.request.user
         is_admin = (user.role == 'Admin' or user.is_superuser)
+        instance = self.get_object()
+
+        # Ownership check: Non-admins can only edit their own reports
+        if not is_admin and instance.reporter != user:
+            raise exceptions.PermissionDenied("You can only edit your own reports.")
+
+        # Status restriction: Non-admins can only edit Pending reports
+        # This prevents bypassing admin verification by editing after approval
+        if not is_admin and instance.status != 'Pending':
+            raise exceptions.PermissionDenied(
+                "You can only edit reports that are still pending review. "
+                "Once a report has been verified, rejected, or claimed, it cannot be edited."
+            )
 
         # RBAC Check: Prevent non-admins from changing the status
         if 'status' in serializer.validated_data:
             new_status_req = serializer.validated_data['status']
-            instance = self.get_object()
             
             if instance.status != new_status_req and not is_admin:
                 raise exceptions.PermissionDenied("Only Admins can change the report status.")
 
-        instance = self.get_object()
         old_status = instance.status
         
         updated_report = serializer.save()
@@ -119,6 +130,23 @@ class ReportViewSet(viewsets.ModelViewSet):
                     message=message,
                     report=updated_report
                 )
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Override destroy to add ownership verification.
+        Only the report owner or an admin can delete a report.
+        """
+        user = request.user
+        instance = self.get_object()
+        is_admin = (user.role == 'Admin' or user.is_superuser)
+
+        # Ownership check: Only owner or admin can delete
+        if not is_admin and instance.reporter != user:
+            raise exceptions.PermissionDenied("You can only delete your own reports.")
+
+        # Perform the deletion
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get_queryset(self):
         queryset = self.queryset
