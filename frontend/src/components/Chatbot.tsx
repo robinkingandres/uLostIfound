@@ -27,8 +27,7 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
     const hour = new Date().getHours();
     const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
     setMessages([{
-      text: `👋 **${greeting}!** I'm your **uLost AI Assistant**.\n\nI can scan our school's live database in seconds. Simply type what you are looking for (e.g., **"Wallet"** or **"ID"**) to get started.`,
-      sender: 'bot',
+text: `👋 **${greeting}!** I'm your **uLost AI Assistant**.\n\nLooking for something? Just type it below (like **"Keys"** or **"Phone"**) and I'll check our lost and found records for you immediately.`,      sender: 'bot',
       timestamp: new Date()
     }]);
   }, []);

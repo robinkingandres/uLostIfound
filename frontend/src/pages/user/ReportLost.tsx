@@ -42,13 +42,29 @@ export default function ReportLost() {
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false); // Success state
+  const [isSuccess, setIsSuccess] = useState(false); 
   const [error, setError] = useState('');
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
-  const [hasChatNotification, setHasChatNotification] = useState(true); // NEW: Notification state
+  const [hasChatNotification, setHasChatNotification] = useState(true); 
   const [isZoomOpen, setIsZoomOpen] = useState(false);
+  // NEW State for Location Toggle
+  const [isOtherLocation, setIsOtherLocation] = useState(false);
 
   // --- LOGIC ---
+
+  // NEW: Handler for the Location Dropdown
+  const handleLocationSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedValue = e.target.value;
+
+    if (selectedValue === "Other") {
+      setIsOtherLocation(true);
+      setFormData(prev => ({ ...prev, location: "" }));
+    } else {
+      setIsOtherLocation(false);
+      setFormData(prev => ({ ...prev, location: selectedValue }));
+    }
+  };
+
   useEffect(() => {
     if (user) {
       const loadNotifications = async () => {
@@ -159,7 +175,7 @@ export default function ReportLost() {
 
             {error && (
               <div className="w-full mb-6 p-4 bg-red-50 border border-red-100 text-red-600 text-sm rounded-lg flex items-center gap-3">
-                <Info className="w-4 h-4 shrink-0" />
+                <span className="shrink-0"><Info className="w-4 h-4 shrink-0" /></span>
                 <span className="leading-tight">{error}</span>
               </div>
             )}
@@ -198,17 +214,58 @@ export default function ReportLost() {
                 </div>
               </div>
 
+              {/* Updated Location Section */}
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-gray-700 flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-gray-400" />
                   Where did you lose it? <span className="text-red-500">*</span>
                 </label>
-                <input type="text" name="location" required value={formData.location} onChange={handleInputChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:border-cyan-500 outline-none" placeholder="e.g., Room 101" />
+                
+                <div className="flex flex-col gap-3">
+                  <div className="relative">
+                    <select 
+                      required
+                      value={isOtherLocation ? "Other" : formData.location}
+                      onChange={handleLocationSelect}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm appearance-none bg-white cursor-pointer focus:border-cyan-500 outline-none transition-all"
+                    >
+                      <option value="" disabled>Select a location...</option>
+                      <option value="Room 101">Room 101</option>
+                      <option value="Room 102">Room 102</option>
+                      <option value="Library">Library</option>
+                      <option value="Cafeteria">Cafeteria</option>
+                      <option value="Gym">Gym</option>
+                      <option value="Other">Other (Specify below...)</option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+
+                  {isOtherLocation && (
+                    <input 
+                      type="text" 
+                      name="location" 
+                      required 
+                      value={formData.location} 
+                      onChange={handleInputChange} 
+                      className="w-full px-4 py-3 border border-cyan-500 rounded-lg text-sm outline-none animate-in slide-in-from-top-2 duration-300" 
+                      placeholder="Please specify (e.g., School Parking Lot)" 
+                      autoFocus
+                    />
+                  )}
+                </div>
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-gray-700">Description <span className="text-red-500">*</span></label>
-                <textarea name="description" required rows={4} value={formData.description} onChange={handleInputChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm resize-none focus:border-cyan-500 outline-none" placeholder="Provide detailed description..." />
+                <textarea 
+                  name="description" 
+                  required 
+                  rows={4} 
+                  value={formData.description} 
+                  onChange={handleInputChange} 
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm resize-none focus:border-cyan-500 outline-none" 
+                  placeholder="Brand/Model • Color/Material • Unique Marks • Where you last saw it" 
+                />
               </div>
 
               <div className="space-y-3 pt-2">
@@ -263,7 +320,7 @@ export default function ReportLost() {
         </div>
       </main>
 
-      {/* Floating Chatbot - Logo Only Version */}
+      {/* Floating Chatbot */}
       <div className="fixed bottom-6 right-6 z-50">
         <button 
           onClick={handleOpenChatbot} 
