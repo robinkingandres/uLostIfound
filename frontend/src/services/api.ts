@@ -140,7 +140,11 @@ export const fetchClaims = async (): Promise<Claim[]> => {
 };
 
 // --- NEW: Update claim status (Approve/Reject) ---
-export const updateClaimStatus = async (id: number, status: ClaimStatus): Promise<Claim> => {
+export const updateClaimStatus = async (
+  id: number, 
+  status: ClaimStatus, 
+  rejectionReason?: string
+): Promise<Claim> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
 
@@ -150,7 +154,11 @@ export const updateClaimStatus = async (id: number, status: ClaimStatus): Promis
       'Content-Type': 'application/json',
       'X-CSRFToken': csrfToken,
     },
-    body: JSON.stringify({ status }),
+    // Include rejection_reason in the body if it exists
+    body: JSON.stringify({ 
+      status,
+      rejection_reason: rejectionReason 
+    }),
     credentials: 'include',
   });
 
@@ -160,7 +168,6 @@ export const updateClaimStatus = async (id: number, status: ClaimStatus): Promis
   }
   return response.json();
 };
-
 // =================================================================
 //                      REPORT CRUD FUNCTIONS
 // =================================================================

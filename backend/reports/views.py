@@ -248,6 +248,11 @@ class ReportViewSet(viewsets.ModelViewSet):
 # --- CLAIM VIEWSET ---
 # backend/reports/views.py
 
+from rest_framework import viewsets, permissions, status
+from rest_framework.response import Response
+from .models import Claim, Notification
+from .serializers import ClaimSerializer
+
 class ClaimViewSet(viewsets.ModelViewSet):
     queryset = Claim.objects.all()
     serializer_class = ClaimSerializer
@@ -272,6 +277,7 @@ class ClaimViewSet(viewsets.ModelViewSet):
         
         # 2. Strict Workflow Check
         new_status = request.data.get('status')
+        
         if new_status:
             # ADMIN RESTRICTION: Can only Approve or Reject. Cannot Release (Claimed).
             if user.role == 'Admin' and not user.is_superuser:
@@ -296,6 +302,7 @@ class ClaimViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         old_status = instance.status
         
+        # Save changes (including rejection_reason if sent in request)
         updated_claim = serializer.save()
         new_status = updated_claim.status
 
@@ -306,9 +313,14 @@ class ClaimViewSet(viewsets.ModelViewSet):
             if new_status == 'Approved':
                 message = f"Your claim for '{updated_claim.report.item_name}' has been Verified by Admin. Please proceed to the Guidance Office for physical verification and release."
             
-            # Rejection (By either)
+            # Rejection (By either Admin or Guidance)
             elif new_status == 'Rejected':
-                message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected."
+                # Check if a specific reason was provided
+                reason = updated_claim.rejection_reason
+                if reason:
+                    message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected. Reason: {reason}"
+                else:
+                    message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected."
             
             # Guidance Release
             elif new_status == 'Claimed':
@@ -319,6 +331,7 @@ class ClaimViewSet(viewsets.ModelViewSet):
                 report.status = 'Claimed'
                 report.save()
 
+            # Create the notification object if a message was generated
             if message:
                 Notification.objects.create(
                     recipient=updated_claim.claimant,

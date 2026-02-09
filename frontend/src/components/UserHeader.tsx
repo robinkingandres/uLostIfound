@@ -12,16 +12,17 @@ import {
   X,
   Check,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  AlertCircle // Added for rejection icon
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   fetchNotifications, 
   markNotificationRead, 
   markAllNotificationsRead, 
-  type Notification // Kept type import for TS
+  type Notification
 } from '../services/api';
-import logoImg from '../assets/logo.png'; // Update this path to where your logo.png is stored
+import logoImg from '../assets/logo.png'; 
 
 export default function UserHeader() {
   const navigate = useNavigate();
@@ -30,11 +31,9 @@ export default function UserHeader() {
   // --- MENU STATE ---
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isReportsOpen, setIsReportsOpen] = useState(false);
-  // Added TypeScript type
   const menuRef = useRef<HTMLDivElement>(null);
 
   // --- NOTIFICATION STATE ---
-  // Added TypeScript type
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -59,7 +58,6 @@ export default function UserHeader() {
 
   // 2. Handle clicking outside
   useEffect(() => {
-    // Added MouseEvent type
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsMenuOpen(false);
@@ -102,7 +100,7 @@ export default function UserHeader() {
   const menuItems = [
     { label: 'Home', icon: Home, path: '/home' },
     { 
-      label: 'Reports', // Group the two report links under a single parent item
+      label: 'Reports',
       icon: FileText, 
       children: [
         { label: 'Report Lost', icon: FileText, path: '/report-lost' },
@@ -120,47 +118,44 @@ export default function UserHeader() {
         
           {/* LOGO AREA */}
           <div 
-          className="flex items-center gap-3 cursor-pointer group"
-          onClick={() => navigate('/home')}
-        >
-  {/* Circular Logo Container with Rotating Ring */}
-  <div className="relative w-12 h-12 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-    
-    {/* MODIFIED: Circular rotating ring*/}
-    <div
-      className="absolute inset-0 rounded-full animate-spin-slow"
-      style={{
-        padding: "3px", // Reduced from 8px to fit smaller header size
-        background: "conic-gradient(#0059ff95, #f6a51f, #0059ff95)",
-        WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-        WebkitMaskComposite: "xor",
-        maskComposite: "exclude",
-      }}
-    ></div>
+            className="flex items-center gap-3 cursor-pointer group"
+            onClick={() => navigate('/home')}
+          >
+            {/* Circular Logo Container with Rotating Ring */}
+            <div className="relative w-12 h-12 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
+              
+              {/* Circular rotating ring */}
+              <div
+                className="absolute inset-0 rounded-full animate-spin-slow"
+                style={{
+                  padding: "3px",
+                  background: "conic-gradient(#0059ff95, #f6a51f, #0059ff95)",
+                  WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                  WebkitMaskComposite: "xor",
+                  maskComposite: "exclude",
+                }}
+              ></div>
 
-    {/* MODIFIED: Actual Logo Image Container */}
-    <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center bg-white shadow-sm">
-      <img 
-        src={logoImg} 
-        alt="uLostiFound Logo" 
-        className="w-full h-full object-contain" 
-      />
-    </div>
-  </div>
+              {/* Actual Logo Image Container */}
+              <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center bg-white shadow-sm">
+                <img 
+                  src={logoImg} 
+                  alt="uLostiFound Logo" 
+                  className="w-full h-full object-contain" 
+                />
+              </div>
+            </div>
 
-  {/* Logo Text */}
-<span className="hidden sm:block font-bold text-lg text-black tracking-tight transition-colors">
-  {/* uLost - Turns Blue on hover */}
-  <span className="hover:text-blue-600 transition-colors duration-200 cursor-pointer">
-    uLost
-  </span>
-  
-  {/* iFound - Turns Orange on hover */}
-  <span className="hover:text-orange-500 transition-colors duration-200 cursor-pointer">
-    iFound
-  </span>
-</span>
-</div>
+            {/* Logo Text */}
+            <span className="hidden sm:block font-bold text-lg text-black tracking-tight transition-colors">
+              <span className="hover:text-blue-600 transition-colors duration-200 cursor-pointer">
+                uLost
+              </span>
+              <span className="hover:text-orange-500 transition-colors duration-200 cursor-pointer">
+                iFound
+              </span>
+            </span>
+          </div>
 
           {/* CENTER: Desktop Navigation */}
           <div className="hidden md:flex items-center gap-2 flex-1 justify-center">
@@ -219,25 +214,41 @@ export default function UserHeader() {
                                   <p className="text-xs">No notifications yet.</p>
                               </div>
                           ) : (
-                              notifications.map((notif) => (
+                              notifications.map((notif) => {
+                                // STEP 7 APPLICATION: Detect if it's a rejection notification to style it differently
+                                const isRejection = notif.message.toLowerCase().includes('rejected');
+                                
+                                return (
                                   <div 
                                       key={notif.id} 
                                       onClick={() => handleMarkAsRead(notif.id)} 
-                                      className={`px-5 py-4 border-b border-gray-50 hover:bg-cyan-50/30 cursor-pointer transition-colors group ${!notif.is_read ? 'bg-cyan-50/60' : ''}`}
+                                      className={`px-5 py-4 border-b border-gray-50 cursor-pointer transition-colors group
+                                        ${isRejection 
+                                          ? (!notif.is_read ? 'bg-red-50/80 hover:bg-red-100/50' : 'hover:bg-red-50/30') 
+                                          : (!notif.is_read ? 'bg-cyan-50/60 hover:bg-cyan-50/30' : 'hover:bg-gray-50')}
+                                      `}
                                   >
                                       <div className="flex gap-3">
-                                        <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${!notif.is_read ? 'bg-cyan-500' : 'bg-transparent'}`} />
+                                        <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 
+                                          ${!notif.is_read 
+                                            ? (isRejection ? 'bg-red-500' : 'bg-cyan-500') 
+                                            : 'bg-transparent'}`} 
+                                        />
                                         <div>
                                           <p className={`text-sm leading-snug ${!notif.is_read ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
+                                              {/* If Rejected, add an icon to draw attention */}
+                                              {isRejection && <AlertCircle className="inline w-3 h-3 text-red-500 mr-1 mb-0.5" />}
                                               {notif.message}
                                           </p>
+                                          {/* Explicitly show 'Reason' highlight if present in text (handled by backend string, but we style the container) */}
                                           <p className="text-[10px] text-gray-400 mt-1.5 font-medium group-hover:text-cyan-500 transition-colors">
                                               {new Date(notif.created_at).toLocaleDateString()} • {new Date(notif.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                           </p>
                                         </div>
                                       </div>
                                   </div>
-                              ))
+                                );
+                              })
                           )}
                       </div>
                       <div className="bg-gray-50 px-4 py-2 text-center border-t border-gray-100">
@@ -247,7 +258,7 @@ export default function UserHeader() {
               )}
             </div>
             
-            {/* MENU TOGGLE BUTTON (separate from profile) */}
+            {/* MENU TOGGLE BUTTON */}
             <div className="relative" ref={menuRef}>
               <button 
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -260,7 +271,7 @@ export default function UserHeader() {
               {isMenuOpen && (
                 <div className="absolute right-0 top-full mt-4 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100/50 py-2 origin-top-right z-50 ring-1 ring-black/5">
                   
-                  {/* User Profile Snippet (clickable to profile) */}
+                  {/* User Profile Snippet */}
                   <button
                     onClick={() => {
                       setIsMenuOpen(false);
@@ -356,7 +367,7 @@ export default function UserHeader() {
               )}
             </div>
             
-            {/* PROFILE BUTTON (separate from menu) */}
+            {/* PROFILE BUTTON */}
             <button
               onClick={() => navigate('/profile')}
               className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full transition-all duration-200 hover:bg-gray-100 text-gray-600 hover:text-gray-900"
