@@ -8,4 +8,5 @@ export interface Claim {
   proofDescription: string;
   date: string;
   status: ClaimStatus;
+  rejection_reason?: string; 
 }

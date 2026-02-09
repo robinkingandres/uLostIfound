@@ -56,7 +56,7 @@ class ClaimSerializer(serializers.ModelSerializer):
         model = Claim
         fields = [
             'id', 'reportId', 'itemName', 'claimantName', 
-            'claimantRole', 'proofDescription', 'proofImage', 'status', 'date'
+            'claimantRole', 'proofDescription', 'proofImage', 'status', 'date','rejection_reason'
         ]
         read_only_fields = ['id', 'itemName', 'claimantName', 'claimantRole', 'date']
 

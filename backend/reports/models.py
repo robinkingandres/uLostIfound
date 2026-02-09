@@ -55,6 +55,7 @@ class Claim(models.Model):
     proof_image = models.ImageField(upload_to='claim_proofs/', null=True, blank=True, help_text="Upload an image as proof of ownership.")
     status = models.CharField(max_length=10, choices=CLAIM_STATUS_CHOICES, default='Pending')
     date_created = models.DateTimeField(auto_now_add=True)
+    rejection_reason = models.TextField(blank=True, null=True)
 
     class Meta:
         ordering = ['-date_created']
