@@ -1,284 +1,236 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Bell, 
-  Menu, 
-  Upload, 
-  Calendar, 
-  MapPin, 
+import {
+  Upload,
+  MapPin,
   Info,
-  ChevronDown
+  ChevronDown,
+  Camera,
+  X,
+  Eye,
+  Loader2
 } from 'lucide-react';
-// Import the new API function and payload type
-import { createReport, type ReportPayload } from '../../services/api';
+
+// Assets
+import chatbotIcon from '../../assets/chatbot.png';
+
+// Components
+import Chatbot from '../../components/Chatbot';
+import UserHeader from '../../components/UserHeader';
+
+// API & Auth
+import {
+  createReport,
+  type ReportPayload
+} from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ReportFound() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
   const [formData, setFormData] = useState({
     itemTitle: '',
     category: 'Phone',
-    dateFound: '', // Will be mapped to 'date' in the payload
+    dateFound: '',
     location: '',
     description: '',
   });
-  const [image, setImage] = useState<File | null>(null); // State for the image file
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const [image, setImage] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState('');
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [hasChatNotification, setHasChatNotification] = useState(true);
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
-  
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setImage(e.target.files?.[0] || null);
+    const file = e.target.files?.[0];
+    if (file) {
+      setImage(file);
+      setPreviewUrl(URL.createObjectURL(file));
+      setError('');
+    }
+  };
+
+  const removeImage = () => {
+    setImage(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+  };
+
+  const handleOpenChatbot = () => {
+    setIsChatbotOpen(true);
+    setHasChatNotification(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setIsSuccess(false);
     setError('');
-    
-    // Form validation (minimal example)
-    if (!formData.itemTitle || !formData.dateFound || !formData.location || !formData.description) {
-      setError('Please fill out all required fields.');
+
+    if (!image) {
+      setError('An image of the found item is required for submission.');
       setLoading(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
     try {
-      // Prepare the payload to match the backend serializer's expectations
       const payload: ReportPayload = {
         itemName: formData.itemTitle,
         category: formData.category,
-        date: formData.dateFound, // Maps to 'date_lost_or_found'
+        date: formData.dateFound,
         location: formData.location,
         description: formData.description,
-        type: 'Found', // Hardcoded as 'Found'
+        type: 'Found',
       };
-      
-      // Send the request
+
       await createReport(payload, image);
-      
-      // Redirect to the success page
-      navigate('/report-found-success');
-    } catch (err) {
-      console.error('Report submission failed:', err);
-      // Attempt to parse a better error message if it's a JSON string
-      let message = 'Failed to submit report. Please try again.';
-      try {
-        const errorObject = JSON.parse((err as Error).message);
-        if (errorObject.non_field_errors) {
-            message = errorObject.non_field_errors[0];
-        } else if (errorObject.detail) {
-            message = errorObject.detail;
-        }
-      } catch {
-        // Fallback to generic message
-      }
-      setError(message);
-    } finally {
+
+      setIsSuccess(true);
+      setLoading(false);
+
+      setTimeout(() => {
+        navigate('/report-found-success');
+      }, 1000);
+    } catch {
+      setError('Failed to submit report. Please try again.');
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-800 relative pb-20">
-      
-      {/* --- HEADER --- (omitted for brevity) */}
-      <header className="sticky top-0 z-20 bg-white border-b border-gray-100 shadow-sm px-4 py-3">
-        <div className="max-w-md mx-auto md:max-w-5xl flex items-center justify-between">
-          
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/home')}>
-            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center overflow-hidden border-2 border-orange-400 relative">
-               <div className="flex w-full h-full">
-                   <div className="w-1/2 bg-blue-400 h-full"></div>
-                   <div className="w-1/2 bg-orange-400 h-full"></div>
-               </div>
-               <span className="absolute text-[8px] font-bold text-white drop-shadow-md">uLostFound</span>
+    <div className="min-h-screen bg-gray-50/30 text-gray-800 relative pb-20">
+      <UserHeader />
+
+      {isZoomOpen && previewUrl && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4"
+          onClick={() => setIsZoomOpen(false)}
+        >
+          <button className="absolute top-4 right-4 p-3 text-white bg-white/10 rounded-full">
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={previewUrl}
+            alt="Zoomed Preview"
+            className="max-w-full max-h-[80vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
+      <main className="max-w-2xl mx-auto px-4 py-10">
+        <div className="bg-white border rounded-xl shadow-sm p-8">
+          <h1 className="text-2xl font-bold mb-2">Report Found Item</h1>
+          <p className="text-gray-500 mb-6">
+            Fill in the details about the item you found
+          </p>
+
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border text-red-600 rounded-lg flex gap-2">
+              <Info className="w-4 h-4" />
+              {error}
             </div>
-          </div>
+          )}
 
-          <div className="flex items-center gap-6">
-            <button 
-              onClick={() => navigate('/report-lost')}
-              className="text-gray-600 hover:text-blue-600 font-medium text-sm transition-colors"
-            >
-              Report Lost
-            </button>
-            <button className="text-[#29b6f6] font-bold text-sm">
-              Report Found
-            </button>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button className="text-gray-600 hover:text-blue-600 transition-colors">
-              <Bell className="w-6 h-6" />
-            </button>
-            <button className="text-gray-600 hover:text-blue-600 transition-colors">
-              <Menu className="w-7 h-7" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* --- MAIN CONTENT --- */}
-      <main className="max-w-md mx-auto md:max-w-2xl px-6 py-6">
-        
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Report Found Item</h1>
-        <p className="text-gray-500 text-sm mb-6">Fill in the details about the item you found</p>
-
-        <div className="bg-[#a3d9c2] bg-opacity-60 border border-[#8fcbad] rounded-lg p-4 mb-6 flex items-start gap-3">
-           <div className="min-w-[20px] pt-0.5">
-             <Info className="w-5 h-5 text-[#3d6852]" />
-           </div>
-           <p className="text-xs text-[#2c5340] leading-relaxed ml-1">
-             Your report will be viewed by admin before being published. We'll check for potential matches with lost items!
-           </p>
-        </div>
-        
-        {error && <p className="text-sm text-red-500 bg-red-100 p-3 rounded-lg mb-4">{error}</p>}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          
-          <div className="space-y-1">
-            <label className="text-sm font-semibold text-gray-700">
-              Item Title <span className="text-red-500">*</span>
-            </label>
+          <form onSubmit={handleSubmit} className="space-y-6">
             <input
               type="text"
               name="itemTitle"
-              placeholder="e.g., Laptop"
+              required
               value={formData.itemTitle}
               onChange={handleInputChange}
-              className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:border-[#29b6f6] focus:ring-1 focus:ring-[#29b6f6]"
+              placeholder="Item title"
+              className="w-full px-4 py-3 border rounded-lg"
             />
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1 relative">
-              <label className="text-sm font-semibold text-gray-700">
-                Category <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <select
-                  name="category"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 appearance-none focus:outline-none focus:border-[#29b6f6] focus:ring-1 focus:ring-[#29b6f6] cursor-pointer"
-                >
-                  <option value="Phone">Phone</option>
-                  <option value="Wallet">Wallet</option>
-                  <option value="ID">ID</option>
-                  <option value="Electronics">Electronics</option>
-                  <option value="Others">Others</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-              </div>
+            <div className="relative">
+              <select
+                name="category"
+                value={formData.category}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 border rounded-lg appearance-none"
+              >
+                <option>Phone</option>
+                <option>Wallet</option>
+                <option>ID</option>
+                <option>Electronics</option>
+                <option>Others</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-sm font-semibold text-gray-700">
-                When did you find it? <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="date"
-                  name="dateFound"
-                  value={formData.dateFound}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-500 placeholder-gray-400 focus:outline-none focus:border-[#29b6f6] focus:ring-1 focus:ring-[#29b6f6]"
-                />
-                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              </div>
-            </div>
-          </div>
+            <input
+              type="date"
+              name="dateFound"
+              required
+              value={formData.dateFound}
+              onChange={handleInputChange}
+              className="w-full px-4 py-3 border rounded-lg"
+            />
 
-          <div className="space-y-1">
-            <label className="text-sm font-semibold text-gray-700 flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-gray-500" />
-              Where did you find it? <span className="text-red-500">*</span>
-            </label>
             <input
               type="text"
               name="location"
-              placeholder="e.g., Room 303"
+              required
               value={formData.location}
               onChange={handleInputChange}
-              className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:border-[#29b6f6] focus:ring-1 focus:ring-[#29b6f6]"
+              placeholder="Location found"
+              className="w-full px-4 py-3 border rounded-lg"
             />
-          </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-semibold text-gray-700">
-              Description <span className="text-red-500">*</span>
-            </label>
             <textarea
               name="description"
+              required
               rows={4}
-              placeholder="Provide detailed description of the item..."
               value={formData.description}
               onChange={handleInputChange}
-              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:border-[#29b6f6] focus:ring-1 focus:ring-[#29b6f6] resize-none"
+              placeholder="Description"
+              className="w-full px-4 py-3 border rounded-lg"
             />
-          </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-gray-600 rounded-sm flex items-center justify-center">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-              </div>
-              Upload Image here (Optional)
-            </label>
-            
-            <button
-              type="button"
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-blue-200 rounded-lg text-[#29b6f6] text-sm font-semibold hover:bg-blue-50 transition-colors shadow-sm"
-              onClick={() => document.getElementById('imageUploadFound')?.click()}
-            >
-              <Upload className="w-4 h-4" />
-              {image ? image.name : 'Add file'}
-            </button>
-            <input 
-              id="imageUploadFound" 
-              type="file" 
-              className="hidden" 
+            <input
+              type="file"
               accept="image/*"
-              onChange={handleImageChange} // Use the new handler
+              onChange={handleImageChange}
             />
-          </div>
 
-          <div className="pt-8 flex gap-4 justify-end items-center">
-            <button
-              type="button"
-              onClick={() => navigate('/home')}
-              className="px-8 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
-              disabled={loading}
-            >
-              Cancel
-            </button>
             <button
               type="submit"
-              className="px-8 py-2.5 bg-[#29b6f6] hover:bg-[#0288d1] text-white rounded-lg text-sm font-bold shadow-md transition-colors flex items-center justify-center"
               disabled={loading}
+              className="w-full py-3 rounded-lg bg-cyan-500 text-white font-bold flex justify-center gap-2"
             >
-              {loading ? 'Submitting...' : 'Submit Found Item'}
+              {loading ? <Loader2 className="animate-spin" /> : 'Submit'}
             </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </main>
 
-      <div className="fixed bottom-6 right-4 z-50 pointer-events-none">
-         <div className="w-20 h-20 relative">
-             <img 
-               src="https://cdn-icons-png.flaticon.com/512/4712/4712139.png" 
-               alt="Chatbot" 
-               className="w-full h-full object-contain drop-shadow-xl"
-             />
-             <div className="absolute top-4 right-0 w-8 h-12 bg-blue-900 rounded-md -z-10 rotate-12"></div>
-         </div>
+      <div className="fixed bottom-6 right-6">
+        <button onClick={handleOpenChatbot}>
+          <img src={chatbotIcon} alt="Chatbot" className="w-16 h-16" />
+        </button>
       </div>
 
+      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
     </div>
   );
 }

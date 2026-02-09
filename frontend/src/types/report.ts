@@ -3,12 +3,11 @@ export type ReportType = 'Lost' | 'Found';
 
 export interface Report {
   id: number;
-  reporter: string;
+  reporter: number; // User ID
+  reporterName: string; // Full name or username
   reporterRole: string;
-  // --- New Fields ---
   reporterSchoolId: string;
   reporterUsername: string;
-  // ------------------
   itemName: string;
   description: string;
   type: ReportType;
