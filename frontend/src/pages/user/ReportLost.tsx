@@ -22,9 +22,9 @@ import UserHeader from '../../components/UserHeader';
 import {
   createReport,
   type ReportPayload,
-  fetchNotifications,
-  type Notification
+  fetchReports,
 } from '../../services/api';
+import type { Report } from '../../types/report';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function ReportLost() {
@@ -32,8 +32,7 @@ export default function ReportLost() {
   const { user } = useAuth();
 
   // --- STATE ---
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [dbReports, setDbReports] = useState<Report[]>([]);
   
   const [formData, setFormData] = useState({
     itemTitle: '',
@@ -72,20 +71,17 @@ export default function ReportLost() {
     }
   };
 
-  // Background fetch for notifications
   useEffect(() => {
     if (user) {
-      const loadNotifications = async () => {
+      const loadReportsForChatbot = async () => {
         try {
-          await fetchNotifications();
-          // Logic to update local state if needed
-        } catch (error) {
-          console.error("Error loading notifications", error);
+          const reportsData = await fetchReports();
+          setDbReports(reportsData);
+        } catch (err) {
+          console.error("Error loading reports for chatbot", err);
         }
       };
-      loadNotifications();
-      const interval = setInterval(loadNotifications, 30000);
-      return () => clearInterval(interval);
+      loadReportsForChatbot();
     }
   }, [user]);
 
@@ -146,7 +142,7 @@ export default function ReportLost() {
       await createReport(payload, image);
       setIsSuccess(true);
       setLoading(false);
-     
+      
       setTimeout(() => {
         navigate('/report-success');
       }, 1000);
@@ -182,7 +178,7 @@ export default function ReportLost() {
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col items-center">
         <div className="w-full bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 sm:p-10 flex flex-col items-start">
-           
+            
             <div className="text-left w-full mb-8">
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Report Lost Item</h1>
                 <p className="text-gray-500 text-sm">Fill in the details about the item you lost.</p>
@@ -244,6 +240,7 @@ export default function ReportLost() {
                     type="date" 
                     name="dateLost" 
                     required 
+                    max={new Date().toISOString().split('T')[0]}
                     value={formData.dateLost} 
                     onChange={handleInputChange} 
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none bg-gray-50/50 focus:bg-white transition-all text-gray-600" 
@@ -257,7 +254,7 @@ export default function ReportLost() {
                   <MapPin className="w-3.5 h-3.5 text-gray-400" />
                   Where did you lose it? <span className="text-red-500">*</span>
                 </label>
-               
+                
                 <div className="flex flex-col gap-3">
                   <div className="relative">
                     <select
@@ -359,7 +356,7 @@ export default function ReportLost() {
                   {loading ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</>
                   ) : isSuccess ? (
-                    <div className="flex items-center gap-2 animate-in zoom-in-90 duration-300">
+                    <div className="flex items-center gap-2 animate-in zoom-in-90">
                       <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
                         <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                       </div>
@@ -393,8 +390,12 @@ export default function ReportLost() {
         </button>
       </div>
       
-      {/* Chatbot (General help mode) */}
-      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
+      {/* 4. CHATBOT CONNECTED TO DATABASE */}
+      <Chatbot 
+        isOpen={isChatbotOpen} 
+        onClose={() => setIsChatbotOpen(false)} 
+        reports={dbReports} // <--- PASSED THE DATA
+      />
     </div>
   );
 }

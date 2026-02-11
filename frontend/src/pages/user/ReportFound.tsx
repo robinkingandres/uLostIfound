@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Upload,
@@ -19,22 +19,27 @@ import Chatbot from '../../components/Chatbot';
 import UserHeader from '../../components/UserHeader';
 
 // API & Auth
-import {
-  createReport,
-  type ReportPayload,
-  fetchNotifications,
-  type Notification
+// Make sure 'fetchReports' and 'Report' are exported from your api file
+import { 
+  createReport, 
+  fetchReports, 
+  type ReportPayload, 
+  type Report 
 } from '../../services/api';
-import { useAuth } from '../../contexts/AuthContext';
+
+// --- CONSTANTS ---
+const CATEGORIES = ['Phone', 'Wallet', 'ID', 'Electronics', 'Clothing', 'Others'];
+const LOCATIONS = ['Room 101', 'Room 102', 'Library', 'Cafeteria', 'Gym', 'School Grounds'];
 
 export default function ReportFound() {
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   // --- STATE ---
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   
+  // 1. Chatbot Database State
+  const [reports, setReports] = useState<Report[]>([]);
+
+  // 2. Form State
   const [formData, setFormData] = useState({
     itemTitle: '',
     category: 'Phone',
@@ -46,18 +51,39 @@ export default function ReportFound() {
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   
-  // UI States
+  // 3. UI States
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
   
-  // Modal/Feature States
+  // 4. Modal/Feature States
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const [hasChatNotification, setHasChatNotification] = useState(true);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [isOtherLocation, setIsOtherLocation] = useState(false);
 
+  // Refs
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // --- LOGIC ---
+
+  // FETCH REPORTS FOR CHATBOT CONTEXT
+  useEffect(() => {
+    const loadReportsForChatbot = async () => {
+      try {
+        const data = await fetchReports();
+        setReports(data);
+      } catch (err) {
+        console.error("Failed to load reports for chatbot:", err);
+      }
+    };
+    loadReportsForChatbot();
+  }, []);
+
+  // Cleanup object URLs to prevent memory leaks
+  useEffect(() => {
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
+  }, [previewUrl]);
 
   // Handle Location Dropdown vs Custom Input
   const handleLocationSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -72,26 +98,6 @@ export default function ReportFound() {
     }
   };
 
-  // Background fetch for notifications (optional, keeps data fresh)
-  useEffect(() => {
-    if (user) {
-      const loadNotifications = async () => {
-        try {
-          const data = await fetchNotifications();
-          setNotifications(data);
-        } catch (error) {
-          console.error("Error loading notifications", error);
-        }
-      };
-      loadNotifications();
-    }
-  }, [user]);
-
-  // Cleanup object URLs to prevent memory leaks
-  useEffect(() => {
-    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
-  }, [previewUrl]);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -100,16 +106,25 @@ export default function ReportFound() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setError("File size too large. Please upload an image under 5MB.");
+        return;
+      }
       setImage(file);
       setPreviewUrl(URL.createObjectURL(file));
       setError('');
     }
   };
 
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
   const removeImage = () => {
     setImage(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleOpenChatbot = () => {
@@ -122,7 +137,7 @@ export default function ReportFound() {
     setLoading(true);
     setIsSuccess(false);
     setError('');
-   
+    
     if (!image) {
       setError('An image of the found item is required for verification.');
       setLoading(false);
@@ -143,16 +158,19 @@ export default function ReportFound() {
       await createReport(payload, image);
       setIsSuccess(true);
       
-      // Delay navigation slightly to show success state
       setTimeout(() => {
         navigate('/report-found-success');
       }, 1000);
     } catch (err) {
+      console.error(err);
       setError('Failed to submit report. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  // Get today's date for max attribute
+  const today = new Date().toISOString().split("T")[0];
 
   return (
     <div className="min-h-screen bg-gray-50/30 font-sans text-gray-800 relative pb-20">
@@ -180,7 +198,7 @@ export default function ReportFound() {
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col items-center">
         <div className="w-full bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 sm:p-10 flex flex-col items-start">
-           
+            
             <div className="text-left w-full mb-8">
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Report Found Item</h1>
                 <p className="text-gray-500 text-sm">Help return a lost item to its owner.</p>
@@ -226,12 +244,9 @@ export default function ReportFound() {
                       onChange={handleInputChange} 
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm appearance-none bg-gray-50/50 cursor-pointer focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none focus:bg-white transition-all"
                     >
-                      <option value="Phone">Phone</option>
-                      <option value="Wallet">Wallet</option>
-                      <option value="ID">ID</option>
-                      <option value="Electronics">Electronics</option>
-                      <option value="Clothing">Clothing</option>
-                      <option value="Others">Others</option>
+                      {CATEGORIES.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
@@ -242,6 +257,7 @@ export default function ReportFound() {
                     type="date" 
                     name="dateFound" 
                     required 
+                    max={today}
                     value={formData.dateFound} 
                     onChange={handleInputChange} 
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none bg-gray-50/50 focus:bg-white transition-all text-gray-600" 
@@ -255,7 +271,7 @@ export default function ReportFound() {
                   <MapPin className="w-3.5 h-3.5 text-gray-400" />
                   Location Found <span className="text-red-500">*</span>
                 </label>
-               
+                
                 <div className="flex flex-col gap-3">
                   <div className="relative">
                     <select
@@ -265,12 +281,9 @@ export default function ReportFound() {
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm appearance-none bg-gray-50/50 cursor-pointer focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none focus:bg-white transition-all"
                     >
                       <option value="" disabled>Select a location...</option>
-                      <option value="Room 101">Room 101</option>
-                      <option value="Room 102">Room 102</option>
-                      <option value="Library">Library</option>
-                      <option value="Cafeteria">Cafeteria</option>
-                      <option value="Gym">Gym</option>
-                      <option value="School Grounds">School Grounds</option>
+                      {LOCATIONS.map(loc => (
+                        <option key={loc} value={loc}>{loc}</option>
+                      ))}
                       <option value="Other">Other (Specify below...)</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -301,7 +314,7 @@ export default function ReportFound() {
                   value={formData.description}
                   onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm resize-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none bg-gray-50/50 focus:bg-white transition-all"
-                  placeholder="Brand, color, distinctive marks, or exactly where it was placed..."
+                  placeholder="Brand/Model • Color/Material • Unique Marks • Where "
                 />
               </div>
 
@@ -314,7 +327,7 @@ export default function ReportFound() {
                 {previewUrl ? (
                   <div className="relative w-full aspect-video sm:w-72 rounded-xl border border-gray-200 overflow-hidden bg-gray-50 group shadow-sm">
                     <img src={previewUrl} alt="Preview" className="w-full h-full object-contain" />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-4 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
                       <button type="button" onClick={() => setIsZoomOpen(true)} className="p-2.5 bg-white rounded-full text-gray-700 hover:scale-110 transition-transform"><Eye className="w-5 h-5" /></button>
                       <button type="button" onClick={removeImage} className="p-2.5 bg-white rounded-full text-red-500 hover:scale-110 transition-transform"><X className="w-5 h-5" /></button>
                     </div>
@@ -323,7 +336,7 @@ export default function ReportFound() {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <button 
                       type="button" 
-                      onClick={() => document.getElementById('imageUploadFound')?.click()} 
+                      onClick={triggerFileInput} 
                       className="flex items-center justify-center gap-2 px-6 py-3 border border-dashed border-cyan-300 rounded-xl text-cyan-600 text-sm font-bold bg-cyan-50/50 hover:bg-cyan-50 transition-colors"
                     >
                       <Upload className="w-4 h-4" /> Upload Photo
@@ -331,7 +344,13 @@ export default function ReportFound() {
                     <span className="text-xs text-gray-400 italic">Required for verification</span>
                   </div>
                 )}
-                <input id="imageUploadFound" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                <input 
+                  ref={fileInputRef} 
+                  type="file" 
+                  className="hidden" 
+                  accept="image/*" 
+                  onChange={handleImageChange} 
+                />
               </div>
 
               {/* Action Buttons */}
@@ -387,8 +406,12 @@ export default function ReportFound() {
         </button>
       </div>
       
-      {/* Chatbot - Passing no reports keeps it in "General Help" mode */}
-      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
+      {/* Chatbot with Reports Data */}
+      <Chatbot 
+        isOpen={isChatbotOpen} 
+        onClose={() => setIsChatbotOpen(false)} 
+        reports={reports} 
+      />
     </div>
   );
 }

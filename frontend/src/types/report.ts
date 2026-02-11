@@ -8,6 +8,7 @@ export interface Report {
   reporterRole: string;
   reporterSchoolId: string;
   reporterUsername: string;
+  reporterAvatar?: string | null; // Reporter's profile picture URL
   itemName: string;
   description: string;
   type: ReportType;

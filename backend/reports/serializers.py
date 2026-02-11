@@ -5,6 +5,7 @@ class ReportSerializer(serializers.ModelSerializer):
     # ... (Keep existing ReportSerializer code unchanged) ...
     reporterName = serializers.SerializerMethodField(read_only=True)
     reporterRole = serializers.SerializerMethodField(read_only=True)
+    reporterAvatar = serializers.SerializerMethodField(read_only=True)
     
     # --- NEW FIELDS ---
     reporterSchoolId = serializers.CharField(source='reporter.school_id', read_only=True)
@@ -17,8 +18,8 @@ class ReportSerializer(serializers.ModelSerializer):
     class Meta:
         model = Report
         fields = [
-            'id', 'reporter', 'reporterName', 'reporterRole', 
-            'reporterSchoolId', 'reporterUsername', # <-- Added here
+            'id', 'reporter', 'reporterName', 'reporterRole', 'reporterAvatar',
+            'reporterSchoolId', 'reporterUsername',
             'itemName', 'description', 'type', 'category', 
             'location', 'status', 'date', 'image', 'date_reported'
         ]
@@ -31,6 +32,15 @@ class ReportSerializer(serializers.ModelSerializer):
 
     def get_reporterRole(self, obj):
         return obj.reporter.role
+
+    def get_reporterAvatar(self, obj):
+        avatar = obj.reporter.avatar
+        if avatar:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(avatar.url)
+            return avatar.url if avatar else None
+        return None
         
     def create(self, validated_data):
         validated_data['item_name'] = validated_data.pop('item_name')

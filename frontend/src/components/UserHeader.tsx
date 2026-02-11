@@ -13,7 +13,9 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  AlertCircle // Added for rejection icon
+  AlertCircle,
+  Clock, // Icon for "Under Review"
+  CheckCircle2 // Icon for "Verified"
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -38,7 +40,6 @@ export default function UserHeader() {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // 1. Poll for notifications every 30 seconds
   const loadNotifications = async () => {
     try {
       const data = await fetchNotifications();
@@ -56,7 +57,6 @@ export default function UserHeader() {
     }
   }, [user]);
 
-  // 2. Handle clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -76,13 +76,33 @@ export default function UserHeader() {
     navigate('/login');
   };
 
-  // --- NOTIFICATION ACTIONS ---
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
-  const handleMarkAsRead = async (id: number) => {
+  // --- NEW FUNCTIONAL CLICK HANDLER ---
+  const handleNotificationClick = async (notif: Notification) => {
     try {
-        setNotifications(prev => prev.map(n => n.id === id ? {...n, is_read: true} : n));
-        await markNotificationRead(id);
+        // 1. Mark as read immediately in UI
+        setNotifications(prev => prev.map(n => n.id === notif.id ? {...n, is_read: true} : n));
+        
+        // 2. Close the dropdown
+        setIsNotifOpen(false);
+
+        // 3. INTELLIGENT NAVIGATION
+        const msg = notif.message.toLowerCase();
+
+        if (msg.includes('verified') || msg.includes('approved')) {
+           // If verified, go to Home to see the public post
+           navigate('/home'); 
+        } else if (msg.includes('review') || msg.includes('submitted') || msg.includes('pending')) {
+           // If under review, go to Matches page filtered to Pending reports
+           navigate('/matches?category=Pending'); 
+        } else if (msg.includes('rejected')) {
+           // If rejected, go to Profile to see details
+           navigate('/profile');
+        }
+
+        // 4. Send API request to mark read in backend
+        await markNotificationRead(notif.id);
     } catch (e) {
         console.error(e);
     }
@@ -121,10 +141,7 @@ export default function UserHeader() {
             className="flex items-center gap-3 cursor-pointer group"
             onClick={() => navigate('/home')}
           >
-            {/* Circular Logo Container with Rotating Ring */}
             <div className="relative w-12 h-12 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-              
-              {/* Circular rotating ring */}
               <div
                 className="absolute inset-0 rounded-full animate-spin-slow"
                 style={{
@@ -135,8 +152,6 @@ export default function UserHeader() {
                   maskComposite: "exclude",
                 }}
               ></div>
-
-              {/* Actual Logo Image Container */}
               <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center bg-white shadow-sm">
                 <img 
                   src={logoImg} 
@@ -146,14 +161,9 @@ export default function UserHeader() {
               </div>
             </div>
 
-            {/* Logo Text */}
             <span className="hidden sm:block font-bold text-lg text-black tracking-tight transition-colors">
-              <span className="hover:text-blue-600 transition-colors duration-200 cursor-pointer">
-                uLost
-              </span>
-              <span className="hover:text-orange-500 transition-colors duration-200 cursor-pointer">
-                iFound
-              </span>
+              <span className="hover:text-blue-600 transition-colors duration-200 cursor-pointer">uLost</span>
+              <span className="hover:text-orange-500 transition-colors duration-200 cursor-pointer">iFound</span>
             </span>
           </div>
 
@@ -173,7 +183,7 @@ export default function UserHeader() {
             </button>
           </div>
 
-          {/* RIGHT SIDE: Notification → Menu → Profile */}
+          {/* RIGHT SIDE: Notification & Combined User Menu */}
           <div className="flex items-center gap-3">
             
             {/* NOTIFICATION BELL */}
@@ -215,33 +225,55 @@ export default function UserHeader() {
                               </div>
                           ) : (
                               notifications.map((notif) => {
-                                // STEP 7 APPLICATION: Detect if it's a rejection notification to style it differently
-                                const isRejection = notif.message.toLowerCase().includes('rejected');
-                                
+                                // Determine Type based on keywords
+                                const lowerMsg = notif.message.toLowerCase();
+                                const isRejection = lowerMsg.includes('rejected');
+                                const isReview = lowerMsg.includes('review') || lowerMsg.includes('pending') || lowerMsg.includes('submitted');
+                                const isVerified = lowerMsg.includes('verified') || lowerMsg.includes('approved');
+
+                                // Colors and Icons
+                                let bgClass = 'hover:bg-gray-50';
+                                let dotColor = 'bg-cyan-500';
+                                let Icon = null;
+
+                                if (isRejection) {
+                                  bgClass = !notif.is_read ? 'bg-red-50/80 hover:bg-red-100/50' : 'hover:bg-red-50/30';
+                                  dotColor = 'bg-red-500';
+                                  Icon = AlertCircle;
+                                } else if (isReview) {
+                                  bgClass = !notif.is_read ? 'bg-amber-50/80 hover:bg-amber-100/50' : 'hover:bg-amber-50/30';
+                                  dotColor = 'bg-amber-500';
+                                  Icon = Clock;
+                                } else if (isVerified) {
+                                  bgClass = !notif.is_read ? 'bg-blue-50/80 hover:bg-blue-100/50' : 'hover:bg-blue-50/30';
+                                  dotColor = 'bg-blue-600';
+                                  Icon = CheckCircle2;
+                                } else {
+                                  // Default
+                                  bgClass = !notif.is_read ? 'bg-gray-50' : '';
+                                }
+
+                                if (notif.is_read) dotColor = 'bg-transparent';
+
                                 return (
                                   <div 
                                       key={notif.id} 
-                                      onClick={() => handleMarkAsRead(notif.id)} 
-                                      className={`px-5 py-4 border-b border-gray-50 cursor-pointer transition-colors group
-                                        ${isRejection 
-                                          ? (!notif.is_read ? 'bg-red-50/80 hover:bg-red-100/50' : 'hover:bg-red-50/30') 
-                                          : (!notif.is_read ? 'bg-cyan-50/60 hover:bg-cyan-50/30' : 'hover:bg-gray-50')}
-                                      `}
+                                      onClick={() => handleNotificationClick(notif)} 
+                                      className={`px-5 py-4 border-b border-gray-50 cursor-pointer transition-colors group ${bgClass}`}
                                   >
                                       <div className="flex gap-3">
-                                        <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 
-                                          ${!notif.is_read 
-                                            ? (isRejection ? 'bg-red-500' : 'bg-cyan-500') 
-                                            : 'bg-transparent'}`} 
-                                        />
-                                        <div>
-                                          <p className={`text-sm leading-snug ${!notif.is_read ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
-                                              {/* If Rejected, add an icon to draw attention */}
-                                              {isRejection && <AlertCircle className="inline w-3 h-3 text-red-500 mr-1 mb-0.5" />}
-                                              {notif.message}
+                                        <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 transition-colors ${dotColor}`} />
+                                        
+                                        <div className="flex-1">
+                                          <p className={`text-sm leading-snug flex items-start gap-1.5 ${!notif.is_read ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
+                                              {Icon && <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                                                isRejection ? 'text-red-500' : 
+                                                isReview ? 'text-amber-500' : 
+                                                isVerified ? 'text-blue-600' : 'text-gray-400'
+                                              }`} />}
+                                              <span>{notif.message}</span>
                                           </p>
-                                          {/* Explicitly show 'Reason' highlight if present in text (handled by backend string, but we style the container) */}
-                                          <p className="text-[10px] text-gray-400 mt-1.5 font-medium group-hover:text-cyan-500 transition-colors">
+                                          <p className="text-[10px] text-gray-400 mt-1.5 font-medium group-hover:text-cyan-500 transition-colors pl-6">
                                               {new Date(notif.created_at).toLocaleDateString()} • {new Date(notif.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                           </p>
                                         </div>
@@ -258,18 +290,42 @@ export default function UserHeader() {
               )}
             </div>
             
-            {/* MENU TOGGLE BUTTON */}
+            {/* USER MENU PILL */}
             <div className="relative" ref={menuRef}>
               <button 
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`p-2 rounded-full transition-all duration-200 ${isMenuOpen ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}
+                className={`flex items-center gap-2.5 h-11 pl-3.5 pr-1.5 rounded-full transition-all duration-200 border active:scale-[0.98] ${
+                  isMenuOpen 
+                    ? 'bg-white border-blue-200 shadow-md ring-4 ring-blue-50' 
+                    : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
+                }`}
               >
-                {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                <div className="text-gray-500 flex items-center">
+                  {isMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                </div>
+
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#29b6f6] to-[#0288d1] flex items-center justify-center overflow-hidden shrink-0 border border-white shadow-sm">
+                  {user?.avatar ? (
+                    <img
+                      src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-white font-bold text-[11px]">
+                      {(user?.name || user?.username || 'U').charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+
+                <span className="hidden sm:block text-[13px] font-bold text-gray-800 tracking-tight mr-1">
+                  {user?.name || user?.username || 'Guest'}
+                </span>
               </button>
 
               {/* MENU DROPDOWN */}
               {isMenuOpen && (
-                <div className="absolute right-0 top-full mt-4 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100/50 py-2 origin-top-right z-50 ring-1 ring-black/5">
+                <div className="absolute right-0 top-full mt-3 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100/80 py-2 origin-top-right z-50 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
                   
                   {/* User Profile Snippet */}
                   <button
@@ -277,47 +333,43 @@ export default function UserHeader() {
                       setIsMenuOpen(false);
                       navigate('/profile');
                     }}
-                    className="w-full px-6 py-4 border-b border-gray-100 bg-gradient-to-br from-gray-50 to-white hover:bg-gray-100 transition-colors text-left"
+                    className="w-[92%] mx-auto mb-2 px-4 py-3 rounded-xl flex items-center gap-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#29b6f6] flex items-center justify-center overflow-hidden shrink-0">
-                        {user?.avatar ? (
-                          <img
-                            src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-white font-bold text-lg">{user?.name?.charAt(0) || 'U'}</span>
-                        )}
-                      </div>
-                      <div className="overflow-hidden">
-                        <p className="text-sm font-bold text-gray-900 truncate">{user?.name || 'Guest'}</p>
-                        <p className="text-xs text-gray-500 truncate font-medium bg-gray-200/50 inline-block px-1.5 rounded mt-0.5">{user?.role || 'User'}</p>
-                      </div>
+                    <div className="w-10 h-10 rounded-full bg-[#29b6f6] flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                      {user?.avatar ? (
+                        <img
+                          src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-white font-bold text-lg">{user?.name?.charAt(0) || 'U'}</span>
+                      )}
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="text-sm font-bold text-gray-900 truncate">{user?.name || 'Guest'}</p>
+                      <p className="text-[10px] text-gray-500 truncate font-bold uppercase tracking-wider">{user?.role || 'User'}</p>
                     </div>
                   </button>
 
-                  <div className="py-2 px-2 space-y-1">
+                  <div className="py-1 px-2 space-y-1">
                     {menuItems.map((item) => (
                       <div key={item.label}>
-                        {/* Group Item (Reports) */}
                         {item.children ? (
                           <div className="rounded-xl overflow-hidden">
                             <button
                               onClick={() => setIsReportsOpen(!isReportsOpen)}
-                              className={`w-full text-left px-4 py-3 text-sm flex items-center justify-between transition-all font-medium rounded-xl
-                                ${isReportsOpen ? 'bg-cyan-50 text-cyan-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                              className={`w-full text-left px-4 py-3 text-sm flex items-center justify-between transition-all font-semibold rounded-xl
+                                ${isReportsOpen ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
                               `}
                             >
                               <div className="flex items-center gap-3">
-                                <item.icon className={`w-4 h-4 ${isReportsOpen ? 'text-cyan-500' : 'text-gray-400'}`} />
+                                <item.icon className={`w-4 h-4 ${isReportsOpen ? 'text-blue-500' : 'text-gray-400'}`} />
                                 {item.label}
                               </div>
                               {isReportsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                             </button>
 
-                            {/* Submenu Accordion */}
                             <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isReportsOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
                               <div className="bg-gray-50/50 mx-2 my-1 rounded-lg border border-gray-100/50">
                                 {item.children.map((subItem) => (
@@ -328,7 +380,7 @@ export default function UserHeader() {
                                       setIsReportsOpen(false);
                                       navigate(subItem.path);
                                     }}
-                                    className="w-full text-left pl-11 pr-4 py-2.5 text-xs text-gray-500 hover:text-cyan-600 hover:bg-white flex items-center gap-2 transition-all first:rounded-t-lg last:rounded-b-lg"
+                                    className="w-full text-left pl-11 pr-4 py-2.5 text-xs font-bold text-gray-500 hover:text-blue-600 hover:bg-white flex items-center gap-2 transition-all first:rounded-t-lg last:rounded-b-lg"
                                   >
                                     <subItem.icon className="w-3 h-3" />
                                     {subItem.label}
@@ -338,15 +390,14 @@ export default function UserHeader() {
                             </div>
                           </div>
                         ) : (
-                          // Standard Item
                           <button
                             onClick={() => {
                               setIsMenuOpen(false);
                               navigate(item.path);
                             }}
-                            className="w-full text-left px-4 py-3 text-sm text-gray-600 hover:bg-cyan-50 hover:text-cyan-700 flex items-center gap-3 transition-all font-medium rounded-xl"
+                            className="w-full text-left px-4 py-3 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-3 transition-all font-semibold rounded-xl"
                           >
-                            <item.icon className="w-4 h-4 text-gray-400 group-hover:text-cyan-500" />
+                            <item.icon className="w-4 h-4 text-gray-400" />
                             {item.label}
                           </button>
                         )}
@@ -354,10 +405,10 @@ export default function UserHeader() {
                     ))}
                   </div>
 
-                  <div className="border-t border-gray-100 pt-2 pb-2 px-2">
+                  <div className="border-t border-gray-100 mt-2 pt-2 px-2 pb-1">
                     <button
                       onClick={handleLogout}
-                      className="w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-red-50 hover:text-red-600 flex items-center gap-3 transition-colors font-medium rounded-xl"
+                      className="w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-red-50 hover:text-red-600 flex items-center gap-3 transition-colors font-bold rounded-xl"
                     >
                       <LogOut className="w-4 h-4" />
                       Logout
@@ -366,36 +417,6 @@ export default function UserHeader() {
                 </div>
               )}
             </div>
-            
-            {/* PROFILE BUTTON */}
-            <button
-              onClick={() => navigate('/profile')}
-              className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full transition-all duration-200 hover:bg-gray-100 text-gray-600 hover:text-gray-900"
-            >
-              <div className="w-9 h-9 rounded-full bg-[#29b6f6] flex items-center justify-center overflow-hidden shrink-0 border-2 border-white shadow-sm">
-                {user?.avatar ? (
-                  <img
-                    src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`}
-                    alt=""
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                      const fb = e.currentTarget.nextElementSibling;
-                      if (fb) (fb as HTMLElement).style.display = 'flex';
-                    }}
-                  />
-                ) : null}
-                <span
-                  className="text-white font-bold text-sm"
-                  style={{ display: user?.avatar ? 'none' : 'flex' }}
-                >
-                  {(user?.name || user?.username || 'U').charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <span className="hidden sm:block text-sm font-semibold text-gray-900 truncate max-w-[120px]">
-                {user?.name || user?.username || 'User'}
-              </span>
-            </button>
           </div>
         </div>
       </div>

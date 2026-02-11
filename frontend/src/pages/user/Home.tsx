@@ -241,8 +241,16 @@ export default function UserHome() {
                   {/* Card Footer */}
                   <div className="mt-auto pt-5 border-t border-slate-50 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 border border-blue-100">
-                        <UserIcon className="w-4 h-4" />
+                      <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 border border-blue-100 overflow-hidden shrink-0">
+                        {report.reporterAvatar ? (
+                          <img 
+                            src={report.reporterAvatar.startsWith('http') ? report.reporterAvatar : `http://localhost:8000${report.reporterAvatar}`} 
+                            alt="Reporter" 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <UserIcon className="w-4 h-4" />
+                        )}
                       </div>
                       <span className="text-xs font-bold text-slate-700 uppercase tracking-tight line-clamp-1 max-w-[100px]">
                         {report.reporterName || report.reporterUsername || report.reporter || 'User'}

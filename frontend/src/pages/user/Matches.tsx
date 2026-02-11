@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, CheckCircle, PackageCheck, TrendingUp, MapPin, Calendar, Sparkles, X } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Clock, CheckCircle, PackageCheck, TrendingUp, MapPin, Calendar, Sparkles, X, Pencil, Trash2 } from 'lucide-react';
 import UserHeader from '../../components/UserHeader';
 import Chatbot from '../../components/Chatbot';
-import { fetchMyReports, fetchClaims, fetchMyAIMatches } from '../../services/api';
+import EditReportModal from '../../components/EditReportModal';
+import { fetchMyReports, fetchClaims, fetchMyAIMatches, updateReport, deleteReport } from '../../services/api';
 import type { Report } from '../../types/report';
 import type { Claim } from '../../types/claim';
 import type { AIMatch } from '../../services/api';
@@ -32,8 +33,14 @@ interface MatchItem {
 
 export default function Matches() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const [activeCategory, setActiveCategory] = useState<MatchCategory>('All');
+  const categoryParam = searchParams.get('category');
+  const [activeCategory, setActiveCategory] = useState<MatchCategory>(
+    categoryParam && ['All', 'AI Matches', 'Pending', 'Verified', 'Complete'].includes(categoryParam)
+      ? (categoryParam as MatchCategory)
+      : 'All'
+  );
   const [reports, setReports] = useState<Report[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [aiMatches, setAIMatches] = useState<AIMatch[]>([]);
@@ -41,6 +48,8 @@ export default function Matches() {
   const [error, setError] = useState('');
   const [selectedMatch, setSelectedMatch] = useState<MatchItem | null>(null);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [editingReport, setEditingReport] = useState<Report | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // Calculate match percentage (mock calculation based on similarity)
   const calculateMatchPercentage = (report: Report, claim?: Claim): number => {
@@ -174,6 +183,27 @@ export default function Matches() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (categoryParam && ['All', 'AI Matches', 'Pending', 'Verified', 'Complete'].includes(categoryParam)) {
+      setActiveCategory(categoryParam as MatchCategory);
+    }
+  }, [categoryParam]);
+
+  const handleDeleteReport = async (reportId: number) => {
+    if (!confirm('Are you sure you want to delete this report?')) return;
+    setDeletingId(reportId);
+    try {
+      await deleteReport(reportId);
+      await loadData();
+      setSelectedMatch(null);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to delete report. Please try again.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const filteredItems = getFilteredItems();
 
@@ -366,17 +396,41 @@ export default function Matches() {
                       </div>
                     </div>
 
-                    {/* View Details Button */}
-                    <button
-                      onClick={() => setSelectedMatch(item)}
-                      className={`text-sm font-medium flex items-center gap-1 ${
-                        item.type === 'ai-match' 
-                          ? 'text-purple-600 hover:text-purple-700' 
-                          : 'text-blue-600 hover:text-blue-700'
-                      }`}
-                    >
-                      View Details →
-                    </button>
+                    {/* View Details + Edit/Delete (for Pending reports) */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setSelectedMatch(item)}
+                        className={`text-sm font-medium flex items-center gap-1 ${
+                          item.type === 'ai-match' 
+                            ? 'text-purple-600 hover:text-purple-700' 
+                            : 'text-blue-600 hover:text-blue-700'
+                        }`}
+                      >
+                        View Details →
+                      </button>
+                      {item.type === 'report' && item.status === 'Pending' && item.reportId && (
+                        <>
+                          <button
+                            onClick={() => {
+                              const report = reports.find(r => r.id === item.reportId);
+                              if (report) setEditingReport(report);
+                            }}
+                            className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            title="Edit report"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => item.reportId && handleDeleteReport(item.reportId)}
+                            disabled={deletingId === item.reportId}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Delete report"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -413,6 +467,21 @@ export default function Matches() {
           report={reports.find(r => r.id === selectedMatch.reportId)}
           claim={claims.find(c => c.id === selectedMatch.claimId)}
           getImageUrl={getImageUrl}
+          onEdit={(r) => {
+            setSelectedMatch(null);
+            setEditingReport(r);
+          }}
+          onDelete={handleDeleteReport}
+          isDeleting={deletingId !== null}
+        />
+      )}
+
+      {/* Edit Report Modal */}
+      {editingReport && (
+        <EditReportModal
+          report={editingReport}
+          onClose={() => setEditingReport(null)}
+          onSuccess={loadData}
         />
       )}
     </div>
@@ -426,9 +495,12 @@ interface MatchDetailsModalProps {
   report?: Report;
   claim?: Claim;
   getImageUrl: (path: string | null | undefined) => string;
+  onEdit?: (report: Report) => void;
+  onDelete?: (reportId: number) => void;
+  isDeleting?: boolean;
 }
 
-function MatchDetailsModal({ match, onClose, report, claim, getImageUrl }: MatchDetailsModalProps) {
+function MatchDetailsModal({ match, onClose, report, claim, getImageUrl, onEdit, onDelete, isDeleting }: MatchDetailsModalProps) {
   const getStatusMessage = () => {
     if (match.type === 'ai-match') {
       return {
@@ -633,7 +705,7 @@ function MatchDetailsModal({ match, onClose, report, claim, getImageUrl }: Match
                     'text-orange-600'
                   }`} />
                 )}
-                <div>
+                <div className="flex-1">
                   <h4 className={`font-bold text-lg ${
                     statusInfo.color === 'green' ? 'text-green-800' :
                     statusInfo.color === 'blue' ? 'text-blue-800' :
@@ -653,6 +725,25 @@ function MatchDetailsModal({ match, onClose, report, claim, getImageUrl }: Match
                 </div>
               </div>
             </div>
+
+            {/* Edit / Delete for Pending reports */}
+            {match.type === 'report' && match.status === 'Pending' && report && onEdit && onDelete && (
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => onEdit(report)}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-100 text-amber-700 rounded-xl font-semibold hover:bg-amber-200 transition-colors"
+                >
+                  <Pencil className="w-4 h-4" /> Edit Report
+                </button>
+                <button
+                  onClick={() => match.reportId && confirm('Delete this report?') && onDelete(match.reportId)}
+                  disabled={isDeleting}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-100 text-red-700 rounded-xl font-semibold hover:bg-red-200 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" /> Delete Report
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

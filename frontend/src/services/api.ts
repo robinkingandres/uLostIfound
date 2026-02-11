@@ -239,6 +239,64 @@ export const fetchReports = async (type?: ReportType, status?: ReportStatus): Pr
 
 
 /**
+ * Updates an existing report (User: own Pending only; Admin: any).
+ */
+export const updateReport = async (id: number, data: Partial<ReportPayload>, imageFile?: File | null): Promise<Report> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
+
+  let body: FormData | string;
+  const headers: Record<string, string> = { 'X-CSRFToken': csrfToken };
+
+  if (imageFile) {
+    const formData = new FormData();
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        formData.append(key, value.toString());
+      }
+    });
+    formData.append('image', imageFile);
+    body = formData;
+    // Don't set Content-Type for FormData - browser sets it with boundary
+  } else {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(data);
+  }
+
+  const response = await fetch(`${REPORT_URL}${id}/`, {
+    method: 'PATCH',
+    headers,
+    body,
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+  return response.json();
+};
+
+/**
+ * Deletes a report (User: own Pending only; Admin: any).
+ */
+export const deleteReport = async (id: number): Promise<void> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
+
+  const response = await fetch(`${REPORT_URL}${id}/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': csrfToken },
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+};
+
+/**
  * Updates the status of an existing report (Used by Admin).
  */
 export const updateReportStatus = async (id: number, newStatus: ReportStatus): Promise<Report> => {

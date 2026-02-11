@@ -168,6 +168,13 @@ class ReportViewSet(viewsets.ModelViewSet):
         # Automatically set the reporter to the logged-in user
         report = serializer.save(reporter=self.request.user)
         
+        # Notify user that report is under review
+        Notification.objects.create(
+            recipient=self.request.user,
+            message=f"Your report for '{report.item_name}' has been submitted and is under review.",
+            report=report
+        )
+        
         # Trigger AI matching for the new report (run in background)
         try:
             from .ai_matching import process_new_report
@@ -175,6 +182,30 @@ class ReportViewSet(viewsets.ModelViewSet):
         except Exception as e:
             # Don't fail the report creation if AI matching fails
             print(f"AI matching failed for report {report.id}: {e}")
+
+    def check_report_owner_pending(self, instance):
+        """Allow reporter to update/delete only their own Pending reports."""
+        if instance.reporter != self.request.user:
+            raise exceptions.PermissionDenied("You can only edit or delete your own reports.")
+        if instance.status != 'Pending':
+            raise exceptions.PermissionDenied("Only Pending reports can be edited or deleted.")
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        user = request.user
+        is_admin = (user.role == 'Admin' or user.is_superuser)
+        # Non-admins can only update their own Pending reports
+        if not is_admin:
+            self.check_report_owner_pending(instance)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        user = request.user
+        is_admin = (user.role == 'Admin' or user.is_superuser)
+        if not is_admin:
+            self.check_report_owner_pending(instance)
+        return super().destroy(request, *args, **kwargs)
 
     def perform_update(self, serializer):
         user = self.request.user
