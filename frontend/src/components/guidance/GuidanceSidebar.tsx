@@ -1,4 +1,4 @@
-import { LayoutDashboard, ClipboardCheck, LogOut, Home } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, LogOut, Home, FileSearch, Search } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -44,6 +44,30 @@ export default function GuidanceSidebar() {
         >
           <ClipboardCheck className="w-5 h-5" />
           <span className="font-medium">Review Claims</span>
+        </NavLink>
+
+        <NavLink
+          to="/report-lost"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-6 py-4 transition-colors ${
+              isActive ? 'bg-emerald-800 border-l-4 border-white' : 'hover:bg-emerald-800/50'
+            }`
+          }
+        >
+          <FileSearch className="w-5 h-5" />
+          <span className="font-medium">Report Lost</span>
+        </NavLink>
+
+        <NavLink
+          to="/report-found"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-6 py-4 transition-colors ${
+              isActive ? 'bg-emerald-800 border-l-4 border-white' : 'hover:bg-emerald-800/50'
+            }`
+          }
+        >
+          <Search className="w-5 h-5" />
+          <span className="font-medium">Report Found</span>
         </NavLink>
       </nav>
 

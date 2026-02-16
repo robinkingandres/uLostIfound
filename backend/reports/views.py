@@ -165,13 +165,20 @@ class ReportViewSet(viewsets.ModelViewSet):
     ordering_fields = ['date_reported', 'type', 'status']
 
     def perform_create(self, serializer):
-        # Automatically set the reporter to the logged-in user
-        report = serializer.save(reporter=self.request.user)
-        
-        # Notify user that report is under review
+        # Automatically set the reporter and enforce role-based initial status.
+        user = self.request.user
+        initial_status = 'Verified' if user.role == 'Guidance' else 'Pending'
+        report = serializer.save(reporter=user, status=initial_status)
+
+        # Guidance reports publish immediately, while others require review.
+        message = (
+            f"Your report for '{report.item_name}' has been posted and is now visible to users."
+            if initial_status == 'Verified'
+            else f"Your report for '{report.item_name}' has been submitted and is under review."
+        )
         Notification.objects.create(
-            recipient=self.request.user,
-            message=f"Your report for '{report.item_name}' has been submitted and is under review.",
+            recipient=user,
+            message=message,
             report=report
         )
         

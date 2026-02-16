@@ -63,25 +63,25 @@ function App() {
           } />
           
           <Route path="/report-lost" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
               <ReportLost />
             </ProtectedRoute>
           } />
 
           <Route path="/report-found" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
               <ReportFound />
             </ProtectedRoute>
           } />
 
           <Route path="/report-success" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
               <ReportSuccess />
             </ProtectedRoute>
           } />
 
           <Route path="/report-found-success" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
               <ReportFoundSuccess />
             </ProtectedRoute>
           } />

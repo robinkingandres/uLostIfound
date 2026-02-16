@@ -1,11 +1,14 @@
 import { useNavigate } from 'react-router-dom';
 import UserHeader from '../../components/UserHeader';
+import { useAuth } from '../../contexts/AuthContext';
 
 // --- Assets ---
 import logo from '/src/assets/logo.png';
 
 export default function ReportFoundSuccess() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isGuidanceReporter = user?.role === 'Guidance';
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-gray-800 relative">
@@ -31,17 +34,26 @@ export default function ReportFoundSuccess() {
         </h1>
         
         <p className="text-gray-600 text-sm leading-relaxed max-w-xs mx-auto">
-          Thank you for reporting the <span className="font-semibold text-cyan-600">found item</span>.
-          We'll review the information you provided and
-          notify you if a potential match is found.
+          {isGuidanceReporter ? (
+            <>
+              Your <span className="font-semibold text-cyan-600">found item report</span> is already verified and posted.
+              It is now visible on the homepage feed.
+            </>
+          ) : (
+            <>
+              Thank you for reporting the <span className="font-semibold text-cyan-600">found item</span>.
+              We'll review the information you provided and
+              notify you if a potential match is found.
+            </>
+          )}
         </p>
 
         {/* Back Home Button */}
         <button 
-          onClick={() => navigate('/home')}
+          onClick={() => navigate(isGuidanceReporter ? '/guidance/dashboard' : '/home')}
           className="mt-12 text-cyan-500 font-semibold hover:underline transition-all active:scale-95"
         >
-          Return to Home
+          {isGuidanceReporter ? 'Return to Guidance Dashboard' : 'Return to Home'}
         </button>
 
       </main>

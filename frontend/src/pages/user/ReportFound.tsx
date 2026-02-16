@@ -17,6 +17,7 @@ import chatbotIcon from '../../assets/chatbot.png';
 // Components
 import Chatbot from '../../components/Chatbot';
 import UserHeader from '../../components/UserHeader';
+import { useAuth } from '../../contexts/AuthContext';
 
 // API & Auth
 // Make sure 'fetchReports' and 'Report' are exported from your api file
@@ -33,6 +34,8 @@ const LOCATIONS = ['Room 101', 'Room 102', 'Library', 'Cafeteria', 'Gym', 'Schoo
 
 export default function ReportFound() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isGuidanceReporter = user?.role === 'Guidance';
 
   // --- STATE ---
   
@@ -211,10 +214,20 @@ export default function ReportFound() {
               </div>
             )}
 
-            <div className="w-full bg-[#e3f2fd] border border-[#bbdefb] rounded-xl p-4 mb-8 flex items-start gap-3">
-              <Info className="w-5 h-5 text-[#1976d2] mt-0.5 shrink-0" />
-              <p className="text-xs text-[#1565c0] leading-relaxed font-medium">
-                Your report will be reviewed by the admin. Please provide accurate details to help us verify ownership.
+            <div className={`w-full rounded-xl p-4 mb-8 flex items-start gap-3 ${
+              isGuidanceReporter
+                ? 'bg-emerald-50 border border-emerald-200'
+                : 'bg-[#e3f2fd] border border-[#bbdefb]'
+            }`}>
+              <Info className={`w-5 h-5 mt-0.5 shrink-0 ${
+                isGuidanceReporter ? 'text-emerald-600' : 'text-[#1976d2]'
+              }`} />
+              <p className={`text-xs leading-relaxed font-medium ${
+                isGuidanceReporter ? 'text-emerald-700' : 'text-[#1565c0]'
+              }`}>
+                {isGuidanceReporter
+                  ? 'Guidance reports are automatically verified and posted immediately.'
+                  : 'Your report will be reviewed by the admin. Please provide accurate details to help us verify ownership.'}
               </p>
             </div>
 
@@ -357,7 +370,7 @@ export default function ReportFound() {
               <div className="pt-6 flex flex-col-reverse sm:flex-row gap-4 w-full">
                 <button 
                   type="button" 
-                  onClick={() => navigate('/home')} 
+                  onClick={() => navigate(isGuidanceReporter ? '/guidance/dashboard' : '/home')} 
                   className="w-full py-3.5 sm:px-8 border border-gray-300 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors"
                 >
                   Cancel
