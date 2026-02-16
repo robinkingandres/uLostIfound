@@ -17,6 +17,8 @@ import chatbotIcon from '../../assets/chatbot.png';
 // Components
 import Chatbot from '../../components/Chatbot';
 import UserHeader from '../../components/UserHeader';
+import GuidanceSidebar from '../../components/guidance/GuidanceSidebar';
+import DashboardHeader from '../../components/admin/DashboardHeader';
 
 // API & Auth
 import {
@@ -154,8 +156,14 @@ export default function ReportLost() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50/30 font-sans text-gray-800 relative pb-20">
-      <UserHeader />
+    <div className={isGuidanceReporter ? "flex h-screen bg-gray-50 overflow-hidden" : "min-h-screen bg-gray-50/30 font-sans text-gray-800 relative pb-20"}>
+      {isGuidanceReporter ? (
+        <GuidanceSidebar />
+      ) : (
+        <UserHeader />
+      )}
+      <div className={isGuidanceReporter ? "flex-1 flex flex-col overflow-hidden" : ""}>
+      {isGuidanceReporter ? <DashboardHeader /> : null}
 
       {/* --- ZOOM MODAL --- */}
       {isZoomOpen && previewUrl && (
@@ -176,7 +184,7 @@ export default function ReportLost() {
       )}
 
       {/* --- MAIN FORM --- */}
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col items-center">
+      <main className={isGuidanceReporter ? "flex-1 overflow-auto p-8" : "max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col items-center"}>
         <div className="w-full bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 sm:p-10 flex flex-col items-start">
             
@@ -382,31 +390,36 @@ export default function ReportLost() {
       </main>
 
       {/* Floating Chatbot */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <button
-          onClick={handleOpenChatbot}
-          className="relative group transition-transform duration-300 hover:scale-110 active:scale-95 outline-none"
-        >
-          <img
-            src={chatbotIcon}
-            alt="Chatbot"
-            className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md"
+      {!isGuidanceReporter && (
+        <>
+          <div className="fixed bottom-6 right-6 z-50">
+            <button
+              onClick={handleOpenChatbot}
+              className="relative group transition-transform duration-300 hover:scale-110 active:scale-95 outline-none"
+            >
+              <img
+                src={chatbotIcon}
+                alt="Chatbot"
+                className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md"
+              />
+              {hasChatNotification && (
+                <div className="absolute top-1 right-1 flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
+                </div>
+              )}
+            </button>
+          </div>
+          
+          {/* 4. CHATBOT CONNECTED TO DATABASE */}
+          <Chatbot 
+            isOpen={isChatbotOpen} 
+            onClose={() => setIsChatbotOpen(false)} 
+            reports={dbReports}
           />
-          {hasChatNotification && (
-            <div className="absolute top-1 right-1 flex h-4 w-4">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
-            </div>
-          )}
-        </button>
+        </>
+      )}
       </div>
-      
-      {/* 4. CHATBOT CONNECTED TO DATABASE */}
-      <Chatbot 
-        isOpen={isChatbotOpen} 
-        onClose={() => setIsChatbotOpen(false)} 
-        reports={dbReports} // <--- PASSED THE DATA
-      />
     </div>
   );
 }

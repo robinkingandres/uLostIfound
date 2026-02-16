@@ -14,6 +14,8 @@ const ROUTE_HEADERS: Record<string, { title: string; subtitle: string }> = {
   "/admin/account-settings": { title: "Account Settings", subtitle: "Manage your account and security" },
   "/guidance/dashboard": { title: "Dashboard", subtitle: "Welcome back! Here's what's happening today." },
   "/guidance/claims": { title: "Claim Review", subtitle: "Review and process claims" },
+  "/report-lost": { title: "Report Lost", subtitle: "Submit details for a lost item" },
+  "/report-found": { title: "Report Found", subtitle: "Submit details for a found item" },
 };
 
 function getRouteHeader(pathname: string): { title: string; subtitle: string } {
@@ -66,8 +68,11 @@ export default function DashboardHeader() {
   const breadcrumbs = useMemo(() => {
     if (location.pathname.startsWith('/admin')) return ['Admin', title];
     if (location.pathname.startsWith('/guidance')) return ['Guidance', title];
+    if (user?.role === 'Guidance' && ['/report-lost', '/report-found'].includes(location.pathname)) {
+      return ['Guidance', title];
+    }
     return [title];
-  }, [location.pathname, title]);
+  }, [location.pathname, title, user?.role]);
 
   return (
     <div className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center shrink-0">
