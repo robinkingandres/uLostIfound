@@ -9,6 +9,7 @@ import type { Report } from '../../types/report';
 import type { Claim } from '../../types/claim';
 import type { AIMatch } from '../../services/api';
 import chatbotIcon from '../../assets/chatbot.png';
+import aiMatchesLogo from '../../assets/aimatches.png';
 import { useAuth } from '../../contexts/AuthContext';
 
 type MatchCategory = 'All' | 'AI Matches' | 'Pending' | 'Verified' | 'Complete';
@@ -257,6 +258,19 @@ export default function Matches() {
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 relative pb-24">
+      {/* Animation Style Injection */}
+      <style>
+        {`
+          @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+          }
+          .animate-float {
+            animation: float 3s ease-in-out infinite;
+          }
+        `}
+      </style>
+      
       <UserHeader />
 
       <main className="max-w-md mx-auto md:max-w-5xl px-4 py-6">
@@ -327,12 +341,14 @@ export default function Matches() {
         {/* Match Items List */}
         {filteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4">
-            <div className="w-48 h-48 mb-6 relative">
+            <div className="w-64 h-64 mb-6 relative">
               <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
-                <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-lg">
-                  <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center">
-                    <TrendingUp className="w-12 h-12 text-gray-400" />
-                  </div>
+                <div className="w-48 h-48 bg-white rounded-full flex items-center justify-center shadow-lg overflow-hidden">
+                  <img 
+                    src={aiMatchesLogo} 
+                    alt="AI Matches Logo" 
+                    className="w-40 h-40 object-contain animate-float"
+                  />
                 </div>
               </div>
             </div>

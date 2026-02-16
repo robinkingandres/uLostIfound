@@ -14,8 +14,8 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  Clock, // Icon for "Under Review"
-  CheckCircle2 // Icon for "Verified"
+  Clock, 
+  CheckCircle2 
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -78,30 +78,21 @@ export default function UserHeader() {
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
-  // --- NEW FUNCTIONAL CLICK HANDLER ---
   const handleNotificationClick = async (notif: Notification) => {
     try {
-        // 1. Mark as read immediately in UI
         setNotifications(prev => prev.map(n => n.id === notif.id ? {...n, is_read: true} : n));
-        
-        // 2. Close the dropdown
         setIsNotifOpen(false);
 
-        // 3. INTELLIGENT NAVIGATION
         const msg = notif.message.toLowerCase();
 
         if (msg.includes('verified') || msg.includes('approved')) {
-           // If verified, go to Home to see the public post
            navigate('/home'); 
         } else if (msg.includes('review') || msg.includes('submitted') || msg.includes('pending')) {
-           // If under review, go to Matches page filtered to Pending reports
            navigate('/matches?category=Pending'); 
         } else if (msg.includes('rejected')) {
-           // If rejected, go to Profile to see details
            navigate('/profile');
         }
 
-        // 4. Send API request to mark read in backend
         await markNotificationRead(notif.id);
     } catch (e) {
         console.error(e);
@@ -148,6 +139,7 @@ export default function UserHeader() {
                   padding: "3px",
                   background: "conic-gradient(#0059ff95, #f6a51f, #0059ff95)",
                   WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                  WebkitMaskComposite: "xor",
                   WebkitMaskComposite: "xor",
                   maskComposite: "exclude",
                 }}
@@ -202,22 +194,28 @@ export default function UserHeader() {
               </button>
 
               {isNotifOpen && (
-                  <div className="absolute right-0 top-full mt-4 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-100/50 py-0 origin-top-right overflow-hidden z-50 ring-1 ring-black/5">
+                  /* RESPONSIVE FIX: 'fixed' on mobile with margins, 'absolute' on desktop */
+                  <div className="fixed left-4 right-4 mt-4 sm:absolute sm:left-auto sm:right-0 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-100/50 py-0 origin-top-right overflow-hidden z-50 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
                       <div className="px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white flex justify-between items-center">
                           <span className="font-bold text-gray-800 text-sm flex items-center gap-2">
                             Notifications <span className="bg-gray-200 text-gray-600 text-[10px] px-2 py-0.5 rounded-full">{unreadCount}</span>
                           </span>
-                          {unreadCount > 0 && (
-                              <button 
-                                  onClick={handleMarkAllRead} 
-                                  className="text-xs text-cyan-600 hover:text-cyan-700 hover:underline flex items-center gap-1 font-medium transition-all"
-                              >
-                                  <Check className="w-3 h-3" /> Mark all read
-                              </button>
-                          )}
+                          <div className="flex items-center gap-3">
+                            {unreadCount > 0 && (
+                                <button 
+                                    onClick={handleMarkAllRead} 
+                                    className="text-xs text-cyan-600 hover:text-cyan-700 hover:underline flex items-center gap-1 font-medium transition-all"
+                                >
+                                    <Check className="w-3 h-3" /> Mark all read
+                                </button>
+                            )}
+                            <button onClick={() => setIsNotifOpen(false)} className="sm:hidden text-gray-400 hover:text-gray-600">
+                                <X className="w-4 h-4" />
+                            </button>
+                          </div>
                       </div>
                       
-                      <div className="max-h-[20rem] overflow-y-auto custom-scrollbar">
+                      <div className="max-h-[60vh] sm:max-h-[20rem] overflow-y-auto custom-scrollbar">
                           {notifications.length === 0 ? (
                               <div className="flex flex-col items-center justify-center py-10 text-gray-400">
                                   <Bell className="w-8 h-8 mb-2 opacity-20" />
@@ -225,13 +223,11 @@ export default function UserHeader() {
                               </div>
                           ) : (
                               notifications.map((notif) => {
-                                // Determine Type based on keywords
                                 const lowerMsg = notif.message.toLowerCase();
                                 const isRejection = lowerMsg.includes('rejected');
                                 const isReview = lowerMsg.includes('review') || lowerMsg.includes('pending') || lowerMsg.includes('submitted');
                                 const isVerified = lowerMsg.includes('verified') || lowerMsg.includes('approved');
 
-                                // Colors and Icons
                                 let bgClass = 'hover:bg-gray-50';
                                 let dotColor = 'bg-cyan-500';
                                 let Icon = null;
@@ -249,7 +245,6 @@ export default function UserHeader() {
                                   dotColor = 'bg-blue-600';
                                   Icon = CheckCircle2;
                                 } else {
-                                  // Default
                                   bgClass = !notif.is_read ? 'bg-gray-50' : '';
                                 }
 

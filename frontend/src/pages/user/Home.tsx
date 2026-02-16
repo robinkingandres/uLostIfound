@@ -41,11 +41,8 @@ export default function UserHome() {
   const [hasChatNotification, setHasChatNotification] = useState(true);
 
   // Checks if the current user is the owner to adjust button states
-  // Note: Adjust 'reporterUsername' to match your exact API response key if different (e.g., 'reporterId')
   const isReportOwner = (report: Report): boolean => {
     if (!user) return false;
-    // Assuming report.reporterUsername matches user.username 
-    // Or check IDs: return report.reporterId === user.id;
     return report.reporterUsername === user.username;
   };
 
@@ -110,7 +107,7 @@ export default function UserHome() {
                  <div className="text-red-500 mb-2 font-bold text-xl">Connection Error</div>
                  <p className="text-gray-500 mb-6">{error}</p>
                  <button onClick={loadReports} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                    Try Again
+                   Try Again
                  </button>
              </div>
         </div>
@@ -134,7 +131,7 @@ export default function UserHome() {
           </p>
         </div>
 
-        {/* Mobile Action Buttons (Visible only on small screens) */}
+        {/* Mobile Action Buttons */}
         <div className="flex sm:hidden items-center justify-center gap-8 mb-10 px-2">
           <button onClick={() => navigate('/report-lost')} className="flex flex-col items-center gap-3">
             <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center text-red-500 shadow-sm border border-red-100 active:scale-95 transition-all">
@@ -150,7 +147,7 @@ export default function UserHome() {
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Report Found</span>
           </button>
         </div>
-               
+                
         {/* Search and Filters */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-10 space-y-4">
           <div className="relative">
@@ -183,10 +180,15 @@ export default function UserHome() {
                 className="w-full pl-4 pr-10 py-3 bg-slate-50 border-none rounded-xl text-sm text-slate-700 appearance-none focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
               >
                 <option>All Categories</option>
-                <option>Electronics</option>
-                <option>Documents</option>
-                <option>Clothing</option>
-                <option>Accessories</option>
+                <option value="Phone">Phone</option>
+                <option value="Wallet">Wallet</option>
+                <option value="ID">ID</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Documents">Documents</option>
+                <option value="Clothing">Clothing</option>
+                <option value="Accessories">Accessories</option>
+                {/* Updated Others to match "Others" value in ReportLost */}
+                <option value="Others">Others</option>
               </select>
               <Tag className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             </div>
@@ -287,20 +289,17 @@ export default function UserHome() {
         </div>
       </main>
 
-      {/* Floating Chatbot - Logo Only Version */}
+      {/* Floating Chatbot */}
       <div className="fixed bottom-6 right-6 z-50">
         <button
           onClick={handleOpenChatbot}
           className="relative group transition-transform duration-300 hover:scale-110 active:scale-95 outline-none"
         >
-          {/* Logo Image */}
           <img
             src={chatbotIcon}
             alt="Chatbot"
             className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md"
           />
-
-          {/* Notification Dot */}
           {hasChatNotification && (
             <div className="absolute top-1 right-1 flex h-4 w-4">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -310,7 +309,6 @@ export default function UserHome() {
         </button>
       </div>
 
-      {/* Chatbot Component with Reports Data Passed */}
       <Chatbot
         isOpen={isChatbotOpen}
         onClose={() => setIsChatbotOpen(false)}

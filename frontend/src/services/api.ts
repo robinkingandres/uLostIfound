@@ -9,6 +9,14 @@ const CLAIM_URL = `${API_URL}/claims/`; // <-- NEW CLAIM URL
 const USER_URL = `${API_URL}/users/`;
 const DASHBOARD_STATS_URL = `${API_URL}/dashboard/stats/`; // <-- NEW URL
 
+// --- Utility: Map Backend User Data to Frontend Format ---
+const mapUser = (data: any) => ({
+  ...data,
+  // Ensure camelCase for frontend components even if backend sends snake_case
+  yearLevel: data.year_level || data.yearLevel,
+  userId: data.school_id || data.userId, 
+});
+
 // --- Utility function to get CSRF Token from cookie ---
 const getCsrfToken = () => {
     const name = 'csrftoken';
@@ -451,7 +459,8 @@ export const updateProfile = async (userId: number, data: { first_name?: string;
     throw new Error(JSON.stringify(errorData));
   }
 
-  return response.json();
+  const result = await response.json();
+  return mapUser(result);
 };
 
 /**
@@ -466,7 +475,8 @@ export const fetchCurrentUser = async (userId: number): Promise<any> => {
     throw new Error('Failed to fetch user data');
   }
 
-  return response.json();
+  const data = await response.json();
+  return mapUser(data);
 };
 
 /**
@@ -495,7 +505,8 @@ export const uploadAvatar = async (userId: number, imageFile: File): Promise<any
     throw new Error(JSON.stringify(errorData));
   }
 
-  return response.json();
+  const result = await response.json();
+  return mapUser(result);
 };
 
 
