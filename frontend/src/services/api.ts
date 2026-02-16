@@ -438,7 +438,17 @@ export const fetchMyReports = async (): Promise<Report[]> => {
 /**
  * Updates user profile information (name, email, etc.)
  */
-export const updateProfile = async (userId: number, data: { first_name?: string; last_name?: string; email?: string }): Promise<any> => {
+export const updateProfile = async (
+  userId: number,
+  data: {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    year_level?: string;
+    room?: string;
+    gender?: string;
+  }
+): Promise<any> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) {
     throw new Error('CSRF token not found. Please ensure you are logged in.');

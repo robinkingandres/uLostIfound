@@ -15,6 +15,9 @@ class User(AbstractUser):
     # 'userId' in frontend maps to 'school_id' here
     school_id = models.CharField(max_length=20, unique=True, help_text="ID Number like A-01 or 11738...")
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='Student')
+    year_level = models.CharField(max_length=50, blank=True, default='')
+    room = models.CharField(max_length=100, blank=True, default='')
+    gender = models.CharField(max_length=30, blank=True, default='')
     
     # We can use first_name/last_name from AbstractUser, but to match your frontend 'name' exactly:
     # We can either make a property or a field. Let's make it a property that combines names, 

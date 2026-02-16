@@ -14,6 +14,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'userId', 'email', 'role', 'username',
             'first_name', 'last_name',  # writable for profile edit
+            'year_level', 'room', 'gender',
             'avatar', 'avatar_url', 'password', 'school_id'
         ]
         extra_kwargs = {
@@ -22,6 +23,9 @@ class UserSerializer(serializers.ModelSerializer):
             'avatar': {'write_only': False, 'required': False},
             'first_name': {'required': False},
             'last_name': {'required': False},
+            'year_level': {'required': False},
+            'room': {'required': False},
+            'gender': {'required': False},
         }
 
     def get_name(self, obj):
