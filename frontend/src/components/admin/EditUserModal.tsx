@@ -8,6 +8,8 @@ export type AddUserFormData = {
   school_id: string;
   role: string;
   password: string;
+  year_level?: string;
+  room?: string;
 };
 
 interface EditUserModalProps {
@@ -19,6 +21,24 @@ interface EditUserModalProps {
 }
 
 const ROLE_OPTIONS: UserRole[] = ['Student', 'Admin', 'Guidance'];
+const YEAR_LEVEL_OPTIONS = [
+  'Grade 7',
+  'Grade 8',
+  'Grade 9',
+  'Grade 10',
+  'Grade 11',
+  'Grade 12',
+] as const;
+const ROOM_OPTIONS = [
+  'Room 101',
+  'Room 102',
+  'Room 103',
+  'Room 104',
+  'Room 105',
+  'Room 106',
+  'Room 107',
+  'Room 108',
+] as const;
 
 export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate }: EditUserModalProps) {
   const isAddMode = user === null;
@@ -28,6 +48,8 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
     role: 'Student' as UserRole,
     userId: '',
     password: '',
+    yearLevel: '',
+    room: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -41,6 +63,8 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           role: user.role,
           userId: user.userId || '',
           password: '',
+          yearLevel: user.yearLevel || (user as any).year_level || '',
+          room: user.room || '',
         });
       } else {
         setFormData({
@@ -49,6 +73,8 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           role: 'Student',
           userId: '',
           password: '',
+          yearLevel: '',
+          room: '',
         });
       }
       setError('');
@@ -70,6 +96,8 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           school_id: formData.userId,
           role: formData.role,
           password: formData.password,
+          year_level: formData.role === 'Student' ? formData.yearLevel : '',
+          room: formData.role === 'Student' ? formData.room : '',
         });
       } else if (user && !isAddMode) {
         await onSave(user.id, {
@@ -77,6 +105,8 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           email: formData.email,
           role: formData.role,
           userId: formData.userId,
+          yearLevel: formData.role === 'Student' ? formData.yearLevel : '',
+          room: formData.role === 'Student' ? formData.room : '',
         });
       }
       onClose();
@@ -104,7 +134,9 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           {error && <div className="text-red-500 text-sm bg-red-50 p-3 rounded">{error}</div>}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Username / Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {isAddMode ? 'Username' : 'Full Name'}
+            </label>
             <input
               type="text"
               value={formData.username}
@@ -148,6 +180,40 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
               ))}
             </select>
           </div>
+
+          {formData.role === 'Student' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
+                <select
+                  value={formData.yearLevel}
+                  onChange={(e) => setFormData({ ...formData, yearLevel: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select year level</option>
+                  {YEAR_LEVEL_OPTIONS.map((year) => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
+                <select
+                  value={formData.room}
+                  onChange={(e) => setFormData({ ...formData, room: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select room</option>
+                  {ROOM_OPTIONS.map((room) => (
+                    <option key={room} value={room}>{room}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
 
           {isAddMode && (
             <div>
