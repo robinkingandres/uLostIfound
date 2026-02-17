@@ -246,7 +246,7 @@ export default function ReportFound() {
               }`}>
                 {isGuidanceReporter
                   ? 'Guidance reports are automatically verified and posted immediately.'
-                  : 'Your report will be reviewed by the admin. Please provide accurate details to help us verify ownership.'}
+                  : "Your report will be reviewed by the admin. After submitting a found item, please surrender it to the Guidance Office at the Ground Floor, Main Building, beside the Principal's Office."}
               </p>
             </div>
 

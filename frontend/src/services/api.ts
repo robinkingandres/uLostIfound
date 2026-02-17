@@ -130,16 +130,21 @@ export const createClaim = async (reportId: number, proofDescription: string, pr
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(JSON.stringify(errorData));
+    const detail = errorData?.detail || errorData?.non_field_errors?.[0] || 'Failed to submit claim';
+    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(errorData));
   }
 
   return response.json();
 };
 
 // --- NEW: Fetch all claims (Admin sees all, User sees own) ---
-export const fetchClaims = async (): Promise<Claim[]> => {
+export const fetchClaims = async (reportId?: number): Promise<Claim[]> => {
+  let url = CLAIM_URL;
+  if (reportId !== undefined) {
+    url += `?report_id=${reportId}`;
+  }
   // Authentication is required, include credentials
-  const response = await fetch(CLAIM_URL, { 
+  const response = await fetch(url, {
     credentials: 'include' 
   });
 
@@ -150,6 +155,36 @@ export const fetchClaims = async (): Promise<Claim[]> => {
   if (Array.isArray(data)) return data;
   if (data?.results && Array.isArray(data.results)) return data.results;
   return [];
+};
+
+// --- Claimant can edit proof details while claim is pending ---
+export const updateClaimProof = async (
+  claimId: number,
+  proofDescription: string,
+  proofImage?: File | null
+): Promise<Claim> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
+
+  const formData = new FormData();
+  formData.append('proofDescription', proofDescription);
+  if (proofImage) {
+    formData.append('proofImage', proofImage);
+  }
+
+  const response = await fetch(`${CLAIM_URL}${claimId}/`, {
+    method: 'PATCH',
+    headers: { 'X-CSRFToken': csrfToken },
+    body: formData,
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    const detail = errorData?.detail || errorData?.non_field_errors?.[0] || 'Failed to update claim proof';
+    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(errorData));
+  }
+  return response.json();
 };
 
 // --- NEW: Update claim status (Approve/Reject) ---

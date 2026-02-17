@@ -29,12 +29,12 @@ function downloadAndOpenRecords(records: Report[], contextLabel: string) {
     </tr>
   `).join('');
 
-  const html = `
+  const printHtml = `
     <!doctype html>
     <html>
       <head>
         <meta charset="utf-8" />
-        <title>Guidance Records</title>
+        <title>Guidance Records PDF</title>
         <style>
           body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
           h1 { margin: 0 0 8px 0; }
@@ -66,15 +66,15 @@ function downloadAndOpenRecords(records: Report[], contextLabel: string) {
     </html>
   `;
 
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const stamp = generatedAt.toISOString().replace(/[:.]/g, '-');
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `guidance_records_${stamp}.html`;
-  anchor.click();
-  window.open(url, '_blank');
-  setTimeout(() => URL.revokeObjectURL(url), 15000);
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+  printWindow.document.open();
+  printWindow.document.write(printHtml);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+  }, 300);
 }
 
 export default function GuidanceDashboard() {

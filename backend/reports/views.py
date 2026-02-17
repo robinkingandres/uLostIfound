@@ -7,6 +7,7 @@ from django.db.models import Q, Count, Avg, F, Sum
 from django.db.models.functions import TruncMonth, TruncDay, TruncWeek, TruncYear, TruncHour
 from django.utils import timezone
 from datetime import timedelta, datetime, date
+from django.db import IntegrityError
 import calendar
 from itertools import chain # Add this import if not present, though we can do list concatenation easily
 from operator import itemgetter
@@ -171,7 +172,14 @@ class ReportViewSet(viewsets.ModelViewSet):
         initial_status = 'Pending'
         report = serializer.save(reporter=user, status=initial_status)
 
-        message = f"Your report for '{report.item_name}' has been submitted and is under review."
+        if report.type == 'Found':
+            message = (
+                f"Your report for '{report.item_name}' has been submitted. "
+                "Please surrender the item to the Guidance Office at the Ground Floor, Main Building, "
+                "beside the Principal's Office."
+            )
+        else:
+            message = f"Your report for '{report.item_name}' has been submitted and is under review."
         Notification.objects.create(
             recipient=user,
             message=message,
@@ -226,7 +234,7 @@ class ReportViewSet(viewsets.ModelViewSet):
             if new_status == 'Verified':
                 message = f"Good news! Your report for '{updated_report.item_name}' has been Verified by the admin."
             elif new_status == 'Rejected':
-                message = f"Update: Your report for '{updated_report.item_name}' was Rejected. Please check details."
+                message = f"Update: Your report for '{updated_report.item_name}' was Rejected. Please follow the guidelines to avoid being rejected."
             elif new_status == 'Claimed':
                 message = f"Success! Your found item '{updated_report.item_name}' has been successfully Claimed."
 
@@ -287,21 +295,49 @@ class ClaimViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated] 
 
     def perform_create(self, serializer):
-        serializer.save(claimant=self.request.user)
+        try:
+            serializer.save(claimant=self.request.user)
+        except IntegrityError:
+            raise exceptions.ValidationError(
+                {"detail": "You already submitted a claim for this item."}
+            )
 
     def get_queryset(self):
         user = self.request.user
+        report_id = self.request.query_params.get('report_id')
         # Allow Admin AND Guidance to see all claims
         if user.role in ['Admin', 'Guidance'] or user.is_superuser:
-            return Claim.objects.all()
-        return Claim.objects.filter(claimant=user)
+            queryset = Claim.objects.all()
+        else:
+            queryset = Claim.objects.filter(claimant=user)
+
+        if report_id:
+            queryset = queryset.filter(report_id=report_id)
+        return queryset
 
     def update(self, request, *args, **kwargs):
         user = request.user
-        
-        # 1. Basic RBAC Check
-        if user.role not in ['Admin', 'Guidance'] and not user.is_superuser:
-             return Response({"detail": "You do not have permission to update claims."}, status=status.HTTP_403_FORBIDDEN)
+        instance = self.get_object()
+        is_admin_or_guidance = user.role in ['Admin', 'Guidance'] or user.is_superuser
+        is_claim_owner = instance.claimant_id == user.id
+
+        # Claim owners can edit proof only while claim is still pending review.
+        if is_claim_owner and not is_admin_or_guidance:
+            if instance.status != 'Pending':
+                return Response(
+                    {"detail": "Only pending claims can be edited."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if 'status' in request.data or 'rejection_reason' in request.data:
+                return Response(
+                    {"detail": "You can only edit proof details while claim is pending."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            return super().update(request, *args, **kwargs)
+
+        # 1. Basic RBAC Check for workflow status updates
+        if not is_admin_or_guidance:
+            return Response({"detail": "You do not have permission to update claims."}, status=status.HTTP_403_FORBIDDEN)
         
         # 2. Strict Workflow Check
         new_status = request.data.get('status')
@@ -317,7 +353,7 @@ class ClaimViewSet(viewsets.ModelViewSet):
             
             # GUIDANCE RESTRICTION: Can only Release (Claimed) or Reject. Cannot Approve from Pending.
             if user.role == 'Guidance' and not user.is_superuser:
-                current_status = self.get_object().status
+                current_status = instance.status
                 if current_status == 'Pending' and new_status == 'Approved':
                      return Response(
                         {"detail": "Guidance Officers cannot approve pending claims. Admin must verify first."}, 

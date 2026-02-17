@@ -164,6 +164,52 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
     return "❓ **I didn't quite catch that.**\n\nTry asking simply:\n• **\"Wallet\"** (to search)\n• **\"How to claim\"**\n• **\"Where is the office\"**";
   };
 
+  const translateBotTextToTagalog = (text: string): string => {
+    if (text.includes("I'm your **uLost AI Assistant**")) {
+      return "Kamusta! Ako ang **uLost AI Assistant** mo.\n\nMatutulungan kitang mag-report ng item o maghanap sa database.\n\nSubukan mong i-type ang **\"Keys\"** o **\"Nawala ang ID ko\"**.";
+    }
+    if (text.includes('Guidance Office Location')) {
+      return "Narito ang lokasyon ng Guidance Office:\nNasa Ground Floor, Main Building, katabi ng Principal's Office.\nOras: 7:30 AM - 4:30 PM (Mon-Fri).";
+    }
+    if (text.includes('About uLost')) {
+      return "Tungkol sa uLost:\nPinamamahalaan ito ng **Guidance Office**. Tinutulungan ng uLost ang mga estudyante na maibalik ang kanilang nawawalang gamit.";
+    }
+    if (text.includes('To Report a Lost Item')) {
+      return "Paano mag-report ng nawawalang gamit:\n1. I-click ang Report Lost sa menu.\n2. Ilagay ang item name, detalye, at huling lokasyon.\n3. I-submit.\nAabisuhan ka namin kapag may match.";
+    }
+    if (text.includes('To Report a Found Item')) {
+      return "Paano mag-report ng nahanap na gamit:\n1. I-click ang Report Found sa menu.\n2. Mag-upload ng larawan at detalye.\n3. Isuko ang item sa Guidance Office para sa safekeeping.";
+    }
+    if (text.includes('How to Claim')) {
+      return "Paano mag-claim:\n1. Hanapin ang item sa Feed.\n2. I-click ang Claim.\n3. Pumunta sa Guidance Office.\nPaalala: Magdala ng patunay ng pagmamay-ari.";
+    }
+    if (text.includes("I didn't quite catch that")) {
+      return "Hindi ko masyadong naintindihan.\nSubukan: \"Wallet\", \"How to claim\", o \"Where is the office\".";
+    }
+    if (text.includes("I couldn't find that item")) {
+      return "Hindi ko nakita ang item na iyan.\n\nMukhang wala pang nag-uulat ng item na ito.\n\nI-report mo ito bilang **Lost** para maabisuhan ka namin agad kapag may nakahanap.";
+    }
+
+    if (text.includes('I found') && text.includes('possible match')) {
+      return text
+        .replace('I found', 'May nahanap akong')
+        .replace('possible match(es)', 'posibleng tugma')
+        .replace('Posted Today', 'Nai-post Ngayon')
+        .replace('Older Records', 'Mas Lumang Rekord')
+        .replace('Tip:', 'Tip:')
+        .replace('Close this chat and check the **Main Feed** to see photos and claim them!', 'Isara ang chat at tingnan ang **Main Feed** para makita ang mga larawan at mag-claim.');
+    }
+
+    const fallback = text
+      .replaceAll('Please', 'Pakiusap')
+      .replaceAll('report', 'i-report')
+      .replaceAll('item', 'gamit')
+      .replaceAll('found', 'nahanap')
+      .replaceAll('lost', 'nawala')
+      .replaceAll('Guidance Office', 'Guidance Office');
+    return `Salin sa Tagalog:\n${fallback}`;
+  };
+
   const handleAction = useCallback((text: string) => {
     if (!text.trim()) return;
     
@@ -176,7 +222,12 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
       setMessages(prev => [...prev, { text: botResponse, sender: 'bot', timestamp: new Date() }]);
       setIsTyping(false);
     }, 800);
-  }, [reports]);
+  }, [reports, messages]);
+
+  const handleTranslateMessage = (messageText: string) => {
+    const translated = translateBotTextToTagalog(messageText);
+    setMessages((prev) => [...prev, { text: translated, sender: 'bot', timestamp: new Date() }]);
+  };
 
   // --- UPDATED BUTTONS (Removed Check Status) ---
   const faqOptions = [
@@ -229,6 +280,15 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
                     : 'bg-white text-gray-700 rounded-2xl rounded-tl-none border border-gray-100'
                 }`}>
                   {formatText(m.text)}
+                  {m.sender === 'bot' && (
+                    <button
+                      type="button"
+                      onClick={() => handleTranslateMessage(m.text)}
+                      className="mt-2 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 underline underline-offset-2"
+                    >
+                      Isalin sa Tagalog
+                    </button>
+                  )}
                   <p className={`text-[10px] mt-1.5 opacity-70 ${m.sender === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
                     {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
