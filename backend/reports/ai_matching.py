@@ -30,13 +30,10 @@ except ImportError:
     torch = None
     TORCH_AVAILABLE = False
 
-# CLIP imports - using transformers library
-try:
-    from transformers import CLIPProcessor, CLIPModel
-    CLIP_AVAILABLE = TORCH_AVAILABLE
-except ImportError:
-    CLIP_AVAILABLE = False
-    print("WARNING: CLIP not available. Install transformers and torch for image matching.")
+# CLIP imports - LAZY LOADING SETUP
+# We assume CLIP is available if Torch is, but we won't import transformers yet
+# to prevent server timeout during startup.
+CLIP_AVAILABLE = TORCH_AVAILABLE
 
 MAX_ACTIVE_MATCH_SCORE = 85.0
 
@@ -83,6 +80,10 @@ class AIMatchingService:
             
         if self._model is None:
             try:
+                # --- LAZY IMPORT FIX ---
+                print("Loading AI Engine (Transformers)...")
+                from transformers import CLIPProcessor, CLIPModel
+                
                 # Use a smaller CLIP model for faster inference
                 model_name = "openai/clip-vit-base-patch32"
                 self._model = CLIPModel.from_pretrained(model_name)
@@ -95,6 +96,9 @@ class AIMatchingService:
                 self._model.eval()
                 print(f"CLIP model loaded: {model_name}")
                 return True
+            except ImportError:
+                print("WARNING: transformers library not found. Install it for image matching.")
+                return False
             except Exception as e:
                 print(f"Failed to load CLIP model: {e}")
                 return False
