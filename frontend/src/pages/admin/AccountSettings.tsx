@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
 import { Camera } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import {
-  createSettingsCategory,
-  deleteSettingsCategory,
   fetchCurrentUser,
   fetchSettingsCategories,
   fetchSiteSettings,
+  patchSettingsCategories,
+  updateAiThreshold,
   updateProfile,
-  updateSettingsCategory,
   updateSiteSettings,
-  uploadAvatar,
   updateUser,
+  uploadAvatar,
   type SettingsCategory,
   type SiteSettings,
 } from '../../services/api';
@@ -27,7 +26,7 @@ const buildDefaultSettings = (): SiteSettings => ({
   default_new_report_status: 'Pending',
   home_visible_report_statuses: ['Verified'],
   claim_require_proof_image: false,
-  ai_min_score: 50,
+  ai_min_score: 75,
   ai_matching_enabled: true,
   user_home_chatbot_visible: true,
   user_home_chat_notification_dot: true,
@@ -38,11 +37,16 @@ const buildDefaultSettings = (): SiteSettings => ({
   updated_at: '',
 });
 
+function sortCategories(cats: SettingsCategory[]) {
+  return [...cats].sort((a, b) => a.sort_order - b.sort_order);
+}
+
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
   const [tab, setTab] = useState<Tab>('account');
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [categoriesBusy, setCategoriesBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -56,16 +60,21 @@ export default function SettingsPage() {
   });
 
   const [settings, setSettings] = useState<SiteSettings | null>(buildDefaultSettings());
+  const [categories, setCategories] = useState<SettingsCategory[]>([]);
   const [newCategory, setNewCategory] = useState('');
+  const [nextTempId, setNextTempId] = useState(-1);
+  const [isDirty, setIsDirty] = useState(false);
 
-  const categories = useMemo(() => settings?.categories || [], [settings]);
+  const aiThreshold = useMemo(() => Math.max(0, Math.min(100, Math.round(settings?.ai_min_score ?? 75))), [settings?.ai_min_score]);
 
   const refreshCategories = async () => {
     try {
       const cats = await fetchSettingsCategories();
-      setSettings((prev) => prev ? { ...prev, categories: cats.sort((a, b) => a.sort_order - b.sort_order) } : prev);
+      const sorted = sortCategories(cats);
+      setCategories(sorted);
+      setIsDirty(false);
     } catch {
-      // ignore, keep last known categories
+      // keep local draft
     }
   };
 
@@ -74,9 +83,10 @@ export default function SettingsPage() {
       if (!user?.id) return;
       setLoadingInitial(true);
       try {
-        const [meResult, siteResult] = await Promise.allSettled([
+        const [meResult, siteResult, catsResult] = await Promise.allSettled([
           fetchCurrentUser(user.id),
           fetchSiteSettings(),
+          fetchSettingsCategories(),
         ]);
 
         if (meResult.status === 'fulfilled') {
@@ -99,15 +109,18 @@ export default function SettingsPage() {
 
         if (siteResult.status === 'fulfilled') {
           const site = siteResult.value;
-          setSettings(site);
-          if (!site.categories || site.categories.length === 0) {
-            await refreshCategories();
+          if (!site.ai_min_score && site.ai_min_score !== 0) {
+            site.ai_min_score = 75;
           }
+          setSettings(site);
+          const sourceCategories = site.categories?.length ? site.categories : (catsResult.status === 'fulfilled' ? catsResult.value : []);
+          setCategories(sortCategories(sourceCategories));
         } else {
-          // Keep page functional even if system settings API/model isn't available yet.
           setSettings(buildDefaultSettings());
           setError('System settings endpoint is unavailable. Showing fallback defaults.');
-          await refreshCategories();
+          if (catsResult.status === 'fulfilled') {
+            setCategories(sortCategories(catsResult.value));
+          }
         }
       } catch {
         setError('Failed to load settings data.');
@@ -148,12 +161,19 @@ export default function SettingsPage() {
     }
   };
 
-  const patchSettings = async (payload: Partial<SiteSettings>) => {
+  const saveSystemSettings = async () => {
+    if (!settings) return;
     setBusy(true);
     setError('');
     setMessage('');
     try {
-      const updated = await updateSiteSettings(payload);
+      const updated = await updateSiteSettings({
+        claim_require_proof_image: settings.claim_require_proof_image,
+        ai_matching_enabled: settings.ai_matching_enabled,
+        user_home_chatbot_visible: settings.user_home_chatbot_visible,
+        user_home_chat_notification_dot: settings.user_home_chat_notification_dot,
+        email_master_enabled: settings.email_master_enabled,
+      });
       setSettings(updated);
       setMessage('System settings updated.');
     } catch {
@@ -163,62 +183,74 @@ export default function SettingsPage() {
     }
   };
 
-  const uploadLogo = async (file: File) => {
-    const form = new FormData();
-    form.append('org_logo', file);
-    await patchSettings(form as unknown as Partial<SiteSettings>);
-  };
-
-  const addCategory = async () => {
-    if (!newCategory.trim()) return;
+  const saveThreshold = async (value: number) => {
     setBusy(true);
     setError('');
+    setMessage('');
     try {
-      const maxOrder = categories.reduce((m, c) => Math.max(m, c.sort_order), -1);
-      const created = await createSettingsCategory({
-        name: newCategory.trim(),
-        sort_order: maxOrder + 1,
-        is_active: true,
-      });
-      setSettings((prev) => prev ? { ...prev, categories: [...prev.categories, created].sort((a, b) => a.sort_order - b.sort_order) } : prev);
-      setNewCategory('');
-      await refreshCategories();
+      const updated = await updateAiThreshold(value);
+      setSettings(updated);
+      setMessage('AI threshold updated.');
     } catch {
-      setError('Failed to create category.');
+      setError('Failed to update AI threshold.');
     } finally {
       setBusy(false);
     }
   };
 
-  const moveCategory = async (cat: SettingsCategory, delta: number) => {
-    const sorted = [...categories].sort((a, b) => a.sort_order - b.sort_order);
-    const idx = sorted.findIndex((c) => c.id === cat.id);
-    const swapIdx = idx + delta;
-    if (idx < 0 || swapIdx < 0 || swapIdx >= sorted.length) return;
-    const target = sorted[swapIdx];
-    setBusy(true);
-    try {
-      await Promise.all([
-        updateSettingsCategory(cat.id, { sort_order: target.sort_order }),
-        updateSettingsCategory(target.id, { sort_order: cat.sort_order }),
-      ]);
-      await refreshCategories();
-    } catch {
-      setError('Failed to reorder category.');
-    } finally {
-      setBusy(false);
-    }
+  const handleAddCategory = () => {
+    const name = newCategory.trim();
+    if (!name) return;
+    const next = [...categories, { id: nextTempId, name, sort_order: categories.length, is_active: true }];
+    setCategories(sortCategories(next).map((c, idx) => ({ ...c, sort_order: idx })));
+    setNewCategory('');
+    setNextTempId((v) => v - 1);
+    setIsDirty(true);
   };
 
-  const removeCategory = async (id: number) => {
-    setBusy(true);
+  const handleMoveCategory = (id: number, delta: number) => {
+    const sorted = sortCategories(categories);
+    const index = sorted.findIndex((c) => c.id === id);
+    const swapIndex = index + delta;
+    if (index < 0 || swapIndex < 0 || swapIndex >= sorted.length) return;
+    [sorted[index], sorted[swapIndex]] = [sorted[swapIndex], sorted[index]];
+    setCategories(sorted.map((c, idx) => ({ ...c, sort_order: idx })));
+    setIsDirty(true);
+  };
+
+  const handleRemoveCategory = (id: number) => {
+    setCategories(categories.filter((c) => c.id !== id).map((c, idx) => ({ ...c, sort_order: idx })));
+    setIsDirty(true);
+  };
+
+  const handleCategoryNameChange = (id: number, name: string) => {
+    setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
+    setIsDirty(true);
+  };
+
+  const handleSaveCategories = async () => {
+    setCategoriesBusy(true);
+    setError('');
+    setMessage('');
     try {
-      await deleteSettingsCategory(id);
-      await refreshCategories();
+      const payload = categories
+        .map((c, idx) => ({
+          id: c.id > 0 ? c.id : c.id,
+          name: c.name.trim(),
+          sort_order: idx,
+          is_active: true,
+        }))
+        .filter((c) => c.name.length > 0);
+      const saved = await patchSettingsCategories(payload);
+      const sorted = sortCategories(saved);
+      setCategories(sorted);
+      setSettings((prev) => (prev ? { ...prev, categories: sorted } : prev));
+      setIsDirty(false);
+      setMessage('Categories saved.');
     } catch {
-      setError('Failed to remove category.');
+      setError('Failed to save categories.');
     } finally {
-      setBusy(false);
+      setCategoriesBusy(false);
     }
   };
 
@@ -295,24 +327,14 @@ export default function SettingsPage() {
         <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-6">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">System Settings</h2>
-            <p className="text-sm text-gray-500 mt-1">Manage branding, categories, report behavior, AI and notification controls.</p>
           </div>
           {!settings ? <p className="text-sm text-gray-500">Loading settings...</p> : (
             <>
-              <section className="space-y-2 rounded-xl border border-gray-200 p-4">
-                <h3 className="font-semibold text-sm text-gray-800">Branding</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <input className="border rounded-lg px-3 py-2" value={settings.org_name} onChange={(e) => setSettings((p) => p ? { ...p, org_name: e.target.value } : p)} placeholder="Organization name" />
-                  <input className="border rounded-lg px-3 py-2 md:col-span-2" value={settings.org_tagline} onChange={(e) => setSettings((p) => p ? { ...p, org_tagline: e.target.value } : p)} placeholder="Tagline" />
-                  <input className="border rounded-lg px-3 py-2 md:col-span-3" type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && uploadLogo(e.target.files[0])} />
-                </div>
-              </section>
-
               <section className="space-y-3 rounded-xl border border-gray-200 p-4">
                 <h3 className="font-semibold text-sm text-gray-800">Categories</h3>
                 <div className="flex gap-2">
                   <input className="border rounded-lg px-3 py-2 flex-1" value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Add category" />
-                  <button onClick={addCategory} disabled={busy} className="border border-gray-300 rounded-lg px-3 py-2 text-sm">Add</button>
+                  <button onClick={handleAddCategory} disabled={categoriesBusy} className="border border-gray-300 rounded-lg px-3 py-2 text-sm">Add</button>
                 </div>
                 <div className="space-y-2">
                   {categories.length === 0 ? (
@@ -321,67 +343,77 @@ export default function SettingsPage() {
                     </div>
                   ) : categories.map((cat) => (
                     <div key={cat.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 border rounded-lg px-3 py-2">
-                      <input className="border rounded px-2 py-1 text-sm w-full" value={cat.name} onChange={(e) => setSettings((p) => p ? { ...p, categories: p.categories.map((x) => x.id === cat.id ? { ...x, name: e.target.value } : x) } : p)} onBlur={async () => { await updateSettingsCategory(cat.id, { name: cat.name }); }} />
-                      <button onClick={() => moveCategory(cat, -1)} className="text-xs border rounded px-2 py-1">Up</button>
-                      <button onClick={() => moveCategory(cat, 1)} className="text-xs border rounded px-2 py-1">Down</button>
-                      <button onClick={() => removeCategory(cat.id)} className="text-xs border rounded px-2 py-1 text-red-600 border-red-200">Remove</button>
+                      <input className="border rounded px-2 py-1 text-sm w-full" value={cat.name} onChange={(e) => handleCategoryNameChange(cat.id, e.target.value)} />
+                      <button onClick={() => handleMoveCategory(cat.id, -1)} className="text-xs border rounded px-2 py-1">Up</button>
+                      <button onClick={() => handleMoveCategory(cat.id, 1)} className="text-xs border rounded px-2 py-1">Down</button>
+                      <button onClick={() => handleRemoveCategory(cat.id)} className="text-xs border rounded px-2 py-1 text-red-600 border-red-200">Remove</button>
                     </div>
                   ))}
                 </div>
-              </section>
-
-              <section className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-gray-200 p-4">
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-sm text-gray-800">Reports</h3>
-                  <label className="text-xs text-gray-600">Default report status</label>
-                  <select className="w-full border rounded-lg px-3 py-2" value={settings.default_new_report_status} onChange={(e) => setSettings((p) => p ? { ...p, default_new_report_status: e.target.value as SiteSettings['default_new_report_status'] } : p)}>
-                    <option value="Pending">Pending</option>
-                    <option value="Verified">Verified</option>
-                  </select>
-                  <label className="text-xs text-gray-600">Home visible statuses (comma-separated)</label>
-                  <input className="w-full border rounded-lg px-3 py-2" value={settings.home_visible_report_statuses.join(', ')} onChange={(e) => setSettings((p) => p ? { ...p, home_visible_report_statuses: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) } : p)} />
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-sm text-gray-800">Claims & AI</h3>
-                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.claim_require_proof_image} onChange={(e) => setSettings((p) => p ? { ...p, claim_require_proof_image: e.target.checked } : p)} /> Require proof image for claims</label>
-                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.ai_matching_enabled} onChange={(e) => setSettings((p) => p ? { ...p, ai_matching_enabled: e.target.checked } : p)} /> Enable AI matching</label>
-                  <label className="text-xs text-gray-600">AI minimum score</label>
-                  <input type="number" min={0} max={100} className="w-full border rounded-lg px-3 py-2" value={settings.ai_min_score} onChange={(e) => setSettings((p) => p ? { ...p, ai_min_score: Number(e.target.value) } : p)} />
+                <div className="flex justify-end">
+                  <button disabled={!isDirty || categoriesBusy} onClick={handleSaveCategories} className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
+                    {categoriesBusy ? 'Saving...' : 'Save Categories'}
+                  </button>
                 </div>
               </section>
 
-              <section className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-gray-200 p-4">
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-sm text-gray-800">User Home</h3>
-                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.user_home_chatbot_visible} onChange={(e) => setSettings((p) => p ? { ...p, user_home_chatbot_visible: e.target.checked } : p)} /> Show chatbot</label>
-                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.user_home_chat_notification_dot} onChange={(e) => setSettings((p) => p ? { ...p, user_home_chat_notification_dot: e.target.checked } : p)} /> Show chatbot notification dot</label>
-                </div>
+              <section className="space-y-2 rounded-xl border border-gray-200 p-4">
+                <h3 className="font-semibold text-sm text-gray-800">Claims</h3>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={settings.claim_require_proof_image} onChange={(e) => setSettings((p) => p ? { ...p, claim_require_proof_image: e.target.checked } : p)} />
+                  Require proof image for claims
+                </label>
+              </section>
 
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-sm text-gray-800">Email</h3>
-                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.email_master_enabled} onChange={(e) => setSettings((p) => p ? { ...p, email_master_enabled: e.target.checked } : p)} /> Enable outgoing email</label>
-                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.email_notify_verified_reports} onChange={(e) => setSettings((p) => p ? { ...p, email_notify_verified_reports: e.target.checked } : p)} /> Notify on verified reports</label>
-                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.email_notify_claim_results} onChange={(e) => setSettings((p) => p ? { ...p, email_notify_claim_results: e.target.checked } : p)} /> Notify on claim results</label>
+              <section className="space-y-3 rounded-xl border border-gray-200 p-4">
+                <h3 className="font-semibold text-sm text-gray-800">AI</h3>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={settings.ai_matching_enabled} onChange={(e) => setSettings((p) => p ? { ...p, ai_matching_enabled: e.target.checked } : p)} />
+                  Enable AI matching
+                </label>
+                <div>
+                  <label className="text-xs text-gray-600">AI threshold: {aiThreshold}</label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={aiThreshold}
+                    className="w-full mt-2"
+                    onChange={(e) => setSettings((p) => p ? { ...p, ai_min_score: Number(e.target.value) } : p)}
+                    onMouseUp={() => saveThreshold(aiThreshold)}
+                    onTouchEnd={() => saveThreshold(aiThreshold)}
+                  />
                 </div>
               </section>
 
-              <button disabled={busy} onClick={() => patchSettings({
-                org_name: settings.org_name,
-                org_tagline: settings.org_tagline,
-                default_new_report_status: settings.default_new_report_status,
-                home_visible_report_statuses: settings.home_visible_report_statuses,
-                claim_require_proof_image: settings.claim_require_proof_image,
-                ai_min_score: settings.ai_min_score,
-                ai_matching_enabled: settings.ai_matching_enabled,
-                user_home_chatbot_visible: settings.user_home_chatbot_visible,
-                user_home_chat_notification_dot: settings.user_home_chat_notification_dot,
-                email_master_enabled: settings.email_master_enabled,
-                email_notify_verified_reports: settings.email_notify_verified_reports,
-                email_notify_claim_results: settings.email_notify_claim_results,
-              })} className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
-                Save System Settings
-              </button>
+              <section className="space-y-2 rounded-xl border border-gray-200 p-4">
+                <h3 className="font-semibold text-sm text-gray-800">User Home</h3>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={settings.user_home_chatbot_visible} onChange={(e) => setSettings((p) => p ? { ...p, user_home_chatbot_visible: e.target.checked } : p)} />
+                  Show chatbot
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={settings.user_home_chat_notification_dot} onChange={(e) => setSettings((p) => p ? { ...p, user_home_chat_notification_dot: e.target.checked } : p)} />
+                  Show chatbot notification dot
+                </label>
+              </section>
+
+              <section className="space-y-2 rounded-xl border border-gray-200 p-4">
+                <h3 className="font-semibold text-sm text-gray-800">Email</h3>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={settings.email_master_enabled} onChange={(e) => setSettings((p) => p ? { ...p, email_master_enabled: e.target.checked } : p)} />
+                  Enable outgoing email
+                </label>
+              </section>
+
+              <div className="flex justify-between">
+                <button onClick={refreshCategories} className="border border-gray-300 rounded-lg px-4 py-2 text-sm bg-white">
+                  Reset Category Draft
+                </button>
+                <button disabled={busy} onClick={saveSystemSettings} className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
+                  {busy ? 'Saving...' : 'Save System Settings'}
+                </button>
+              </div>
             </>
           )}
         </div>

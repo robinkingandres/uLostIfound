@@ -150,6 +150,87 @@ class SettingsView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class SettingsCategoriesView(APIView):
+    """
+    Admin-only bulk category update endpoint used by the Settings Save action.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        user = request.user
+        if user.role != 'Admin' and not user.is_superuser:
+            return Response({"detail": "Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+
+        payload = request.data.get('categories', request.data)
+        if not isinstance(payload, list):
+            return Response({"detail": "categories must be a list."}, status=status.HTTP_400_BAD_REQUEST)
+
+        existing = {cat.id: cat for cat in Category.objects.all()}
+        keep_ids = []
+
+        for index, raw_item in enumerate(payload):
+            if not isinstance(raw_item, dict):
+                continue
+            name = str(raw_item.get('name', '')).strip()
+            if not name:
+                continue
+            sort_order = int(raw_item.get('sort_order', index))
+            is_active = bool(raw_item.get('is_active', True))
+            category_id = raw_item.get('id')
+
+            category = existing.get(category_id)
+            if category:
+                category.name = name
+                category.sort_order = sort_order
+                category.is_active = is_active
+                category.save(update_fields=['name', 'sort_order', 'is_active'])
+                keep_ids.append(category.id)
+            else:
+                category = Category.objects.create(
+                    name=name,
+                    sort_order=sort_order,
+                    is_active=is_active,
+                )
+                keep_ids.append(category.id)
+
+        if keep_ids:
+            Category.objects.exclude(id__in=keep_ids).delete()
+        else:
+            Category.objects.all().delete()
+
+        categories = Category.objects.all().order_by('sort_order', 'name')
+        serializer = CategorySerializer(categories, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class SettingsAiThresholdView(APIView):
+    """
+    Admin-only endpoint for AI minimum score slider updates.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        user = request.user
+        if user.role != 'Admin' and not user.is_superuser:
+            return Response({"detail": "Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+
+        min_score = request.data.get('min_score', None)
+        if min_score is None:
+            return Response({"detail": "min_score is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            min_score = float(min_score)
+        except (TypeError, ValueError):
+            return Response({"detail": "min_score must be a number."}, status=status.HTTP_400_BAD_REQUEST)
+
+        settings_obj = SiteSettings.get_solo()
+        settings_obj.ai_min_score = max(0.0, min(100.0, min_score))
+        settings_obj.save(update_fields=['ai_min_score'])
+
+        serializer = SiteSettingsSerializer(settings_obj, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all().order_by('sort_order', 'name')
     serializer_class = CategorySerializer

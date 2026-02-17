@@ -166,35 +166,17 @@ class ReportViewSet(viewsets.ModelViewSet):
     ordering_fields = ['date_reported', 'type', 'status']
 
     def perform_create(self, serializer):
-        # Automatically set the reporter and enforce role-based initial status.
+        # All new reports must start as Pending and require admin verification.
         user = self.request.user
-        site_settings = SiteSettings.get_solo()
-        configured_status = site_settings.default_new_report_status or 'Pending'
-        if configured_status not in ['Pending', 'Verified', 'Claimed', 'Rejected']:
-            configured_status = 'Pending'
-        initial_status = 'Verified' if user.role == 'Guidance' else configured_status
+        initial_status = 'Pending'
         report = serializer.save(reporter=user, status=initial_status)
 
-        # Guidance reports publish immediately, while others require review.
-        message = (
-            f"Your report for '{report.item_name}' has been posted and is now visible to users."
-            if initial_status == 'Verified'
-            else f"Your report for '{report.item_name}' has been submitted and is under review."
-        )
+        message = f"Your report for '{report.item_name}' has been submitted and is under review."
         Notification.objects.create(
             recipient=user,
             message=message,
             report=report
         )
-        
-        # Trigger AI matching for the new report (run in background)
-        if site_settings.ai_matching_enabled:
-            try:
-                from .ai_matching import process_new_report
-                process_new_report(report)
-            except Exception as e:
-                # Don't fail the report creation if AI matching fails
-                print(f"AI matching failed for report {report.id}: {e}")
 
     def check_report_owner_pending(self, instance):
         """Allow reporter to update/delete only their own Pending reports."""
@@ -377,6 +359,14 @@ class ClaimViewSet(viewsets.ModelViewSet):
                 report.status = 'Claimed'
                 report.save()
 
+                # Mark related AI matches as completed confidence.
+                AIMatch.objects.filter(
+                    Q(lost_report=report) | Q(found_report=report)
+                ).exclude(status='Rejected').update(
+                    match_score=100.0,
+                    status='Approved'
+                )
+
             # Create the notification object if a message was generated
             if message:
                 Notification.objects.create(
@@ -551,15 +541,17 @@ class AIMatchViewSet(viewsets.ModelViewSet):
                     'message': 'AI matching is disabled in system settings.',
                     'matches_created': 0
                 }, status=status.HTTP_200_OK)
-            from .ai_matching import find_potential_matches
-            min_score = float(request.data.get('min_score', site_settings.ai_min_score))
-            new_matches = find_potential_matches(min_score=min_score)
+            from .ai_matching import find_potential_matches_all
+            min_score_raw = request.data.get('min_score', None)
+            min_score = float(min_score_raw) if min_score_raw is not None else float(site_settings.ai_min_score)
+            new_matches = find_potential_matches_all(min_score=min_score)
             return Response({
                 'status': 'success',
                 'message': f'Found {len(new_matches)} new potential matches.',
                 'matches_created': len(new_matches)
             }, status=status.HTTP_200_OK)
         except Exception as e:
+            print(f"AI scan_all failed: {e}")
             return Response({
                 'status': 'error',
                 'message': str(e)
@@ -843,6 +835,14 @@ class AdminAnalyticsView(APIView):
     permission_classes = [IsAdmin]
 
     def get(self, request, format=None):
+        timeframe = request.query_params.get('timeframe', 'month').lower()
+        if timeframe not in ['week', 'month', 'year']:
+            timeframe = 'month'
+        metrics_param = request.query_params.get('metrics', 'lost,found,claims,ai')
+        active_metrics = [m.strip().lower() for m in metrics_param.split(',') if m.strip()]
+        if not active_metrics:
+            active_metrics = ['lost', 'found', 'claims', 'ai']
+
         date_from_param = request.query_params.get('date_from')
         date_to_param = request.query_params.get('date_to')
         category = request.query_params.get('category', 'all')
@@ -851,9 +851,14 @@ class AdminAnalyticsView(APIView):
         today = timezone.localdate()
 
         try:
-            date_from = datetime.strptime(date_from_param, '%Y-%m-%d').date() if date_from_param else (today - timedelta(days=365))
+            if date_from_param:
+                date_from = datetime.strptime(date_from_param, '%Y-%m-%d').date()
+            else:
+                default_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 365)
+                date_from = today - timedelta(days=default_days - 1)
         except ValueError:
-            date_from = today - timedelta(days=365)
+            fallback_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 365)
+            date_from = today - timedelta(days=fallback_days - 1)
 
         try:
             date_to = datetime.strptime(date_to_param, '%Y-%m-%d').date() if date_to_param else today
@@ -899,67 +904,104 @@ class AdminAnalyticsView(APIView):
                     resolution_days.append(delta_days)
         avg_resolution_time_days = (sum(resolution_days) / len(resolution_days)) if resolution_days else 0
 
-        monthly_reports = (
+        if timeframe == 'week':
+            trunc_func = TruncDay
+            period_step = 'day'
+            period_label = lambda d: d.strftime('%a')
+        elif timeframe == 'month':
+            trunc_func = TruncWeek
+            period_step = 'week'
+            period_label = lambda d: d.strftime('%b %d')
+        else:
+            trunc_func = TruncMonth
+            period_step = 'month'
+            period_label = lambda d: d.strftime('%b')
+
+        period_reports = (
             reports_qs
-            .annotate(month=TruncMonth('date_reported'))
-            .values('month')
+            .annotate(period=trunc_func('date_reported'))
+            .values('period')
             .annotate(
                 lost=Count('id', filter=Q(type='Lost')),
                 found=Count('id', filter=Q(type='Found')),
             )
-            .order_by('month')
+            .order_by('period')
         )
-        monthly_claims = (
+        period_claims = (
             claims_qs
-            .annotate(month=TruncMonth('date_created'))
-            .values('month')
+            .annotate(period=trunc_func('date_created'))
+            .values('period')
             .annotate(
                 claims=Count('id'),
                 pending=Count('id', filter=Q(status='Pending')),
                 due=Count('id', filter=Q(status='Pending', date_created__lt=overdue_cutoff)),
             )
-            .order_by('month')
+            .order_by('period')
         )
-        monthly_matches = (
+        period_matches = (
             matches_qs
-            .annotate(month=TruncMonth('date_created'))
-            .values('month')
+            .annotate(period=trunc_func('date_created'))
+            .values('period')
             .annotate(ai=Count('id'))
-            .order_by('month')
+            .order_by('period')
         )
 
-        month_cursor = date(date_from.year, date_from.month, 1)
-        month_end = date(date_to.year, date_to.month, 1)
-        month_list = []
-        while month_cursor <= month_end:
-            month_list.append(month_cursor)
-            if month_cursor.month == 12:
-                month_cursor = date(month_cursor.year + 1, 1, 1)
-            else:
-                month_cursor = date(month_cursor.year, month_cursor.month + 1, 1)
+        if period_step == 'day':
+            period_list = []
+            cursor = date_from
+            while cursor <= date_to:
+                period_list.append(cursor)
+                cursor += timedelta(days=1)
+        elif period_step == 'week':
+            period_list = []
+            cursor = date_from - timedelta(days=date_from.weekday())
+            week_end = date_to - timedelta(days=date_to.weekday())
+            while cursor <= week_end:
+                period_list.append(cursor)
+                cursor += timedelta(days=7)
+        else:
+            period_list = []
+            cursor = date(date_from.year, date_from.month, 1)
+            month_end = date(date_to.year, date_to.month, 1)
+            while cursor <= month_end:
+                period_list.append(cursor)
+                if cursor.month == 12:
+                    cursor = date(cursor.year + 1, 1, 1)
+                else:
+                    cursor = date(cursor.year, cursor.month + 1, 1)
 
-        report_map = {entry['month'].date() if hasattr(entry['month'], 'date') else entry['month']: entry for entry in monthly_reports}
-        claim_map = {entry['month'].date() if hasattr(entry['month'], 'date') else entry['month']: entry for entry in monthly_claims}
-        match_map = {entry['month'].date() if hasattr(entry['month'], 'date') else entry['month']: entry for entry in monthly_matches}
+        report_map = {entry['period'].date() if hasattr(entry['period'], 'date') else entry['period']: entry for entry in period_reports}
+        claim_map = {entry['period'].date() if hasattr(entry['period'], 'date') else entry['period']: entry for entry in period_claims}
+        match_map = {entry['period'].date() if hasattr(entry['period'], 'date') else entry['period']: entry for entry in period_matches}
 
         trends = []
         due_claims_monthly = []
         pending_claims_monthly = []
-        for month_start in month_list:
-            report_entry = report_map.get(month_start, {})
-            claim_entry = claim_map.get(month_start, {})
-            match_entry = match_map.get(month_start, {})
+        for period_start in period_list:
+            report_entry = report_map.get(period_start, {})
+            claim_entry = claim_map.get(period_start, {})
+            match_entry = match_map.get(period_start, {})
 
-            month_label = month_start.strftime('%b')
+            period_text = period_label(period_start)
             trends.append({
-                'month': month_label,
+                'month': period_text,
                 'lost': report_entry.get('lost', 0),
                 'found': report_entry.get('found', 0),
                 'claims': claim_entry.get('claims', 0),
                 'ai': match_entry.get('ai', 0),
             })
-            due_claims_monthly.append({'month': month_label, 'count': claim_entry.get('due', 0)})
-            pending_claims_monthly.append({'month': month_label, 'count': claim_entry.get('pending', 0)})
+            due_claims_monthly.append({'month': period_text, 'count': claim_entry.get('due', 0)})
+            pending_claims_monthly.append({'month': period_text, 'count': claim_entry.get('pending', 0)})
+
+        for trend_row in trends:
+            if 'lost' not in active_metrics:
+                trend_row['lost'] = 0
+            if 'found' not in active_metrics:
+                trend_row['found'] = 0
+            if 'claims' not in active_metrics:
+                trend_row['claims'] = 0
+            if 'ai' not in active_metrics:
+                trend_row['ai'] = 0
 
         category_counts = (
             reports_qs
@@ -999,6 +1041,8 @@ class AdminAnalyticsView(APIView):
                 'date_from': date_from.isoformat(),
                 'date_to': date_to.isoformat(),
                 'category': category,
+                'timeframe': timeframe,
+                'metrics': active_metrics,
             },
             'kpis': {
                 'total_reports': total_reports,

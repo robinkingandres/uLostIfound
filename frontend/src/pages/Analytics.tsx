@@ -18,7 +18,8 @@ import {
 import { Loader2, Download, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { fetchAdminAnalytics, type AdminAnalyticsResponse } from '../services/api';
 
-type DatePreset = 'week' | 'month' | 'year';
+type Timeframe = 'week' | 'month' | 'year';
+type MetricKey = 'lost' | 'found' | 'claims' | 'ai';
 
 type DetailState = {
   title: string;
@@ -137,7 +138,8 @@ function SkeletonPanel({ height = 'h-80' }: { height?: string }) {
 }
 
 export default function Analytics() {
-  const [preset, setPreset] = useState<DatePreset>('month');
+  const [timeframe, setTimeframe] = useState<Timeframe>('month');
+  const [activeMetrics, setActiveMetrics] = useState<MetricKey[]>(['lost', 'found', 'claims', 'ai']);
   const [dateFrom, setDateFrom] = useState(dateOffset(-30));
   const [dateTo, setDateTo] = useState(dateOffset(0));
   const [category, setCategory] = useState('all');
@@ -155,6 +157,8 @@ export default function Analytics() {
         date_from: dateFrom,
         date_to: dateTo,
         category,
+        timeframe,
+        metrics: activeMetrics,
       });
       setData(payload);
     } catch (err) {
@@ -165,16 +169,16 @@ export default function Analytics() {
   };
 
   useEffect(() => {
-    if (preset === 'week') setDateFrom(dateOffset(-7));
-    if (preset === 'month') setDateFrom(dateOffset(-30));
-    if (preset === 'year') setDateFrom(dateOffset(-365));
+    if (timeframe === 'week') setDateFrom(dateOffset(-7));
+    if (timeframe === 'month') setDateFrom(dateOffset(-30));
+    if (timeframe === 'year') setDateFrom(dateOffset(-365));
     setDateTo(dateOffset(0));
-  }, [preset]);
+  }, [timeframe]);
 
   useEffect(() => {
     loadAnalytics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFrom, dateTo, category]);
+  }, [dateFrom, dateTo, category, timeframe, activeMetrics]);
 
   const statusChartData = useMemo(() => {
     if (!data) return [];
@@ -191,6 +195,15 @@ export default function Analytics() {
   }
 
   const kpis = data?.kpis;
+  const timeframeText = timeframe === 'week' ? 'Weekly' : timeframe === 'month' ? 'Monthly' : 'Yearly';
+  const rangeText = timeframe === 'week' ? '7 Days' : timeframe === 'month' ? '30 Days' : '365 Days';
+
+  const toggleMetric = (metric: MetricKey) => {
+    setActiveMetrics((prev) => {
+      if (prev.includes(metric)) return prev.filter((m) => m !== metric);
+      return [...prev, metric];
+    });
+  };
 
   return (
     <div className="p-4 md:p-8 space-y-6">
@@ -233,9 +246,9 @@ export default function Analytics() {
               {exporting === 'csv' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               Export CSV
             </button>
-            <button onClick={() => setPreset('week')} className={`px-3 py-2 rounded-lg border text-sm ${preset === 'week' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Week</button>
-            <button onClick={() => setPreset('month')} className={`px-3 py-2 rounded-lg border text-sm ${preset === 'month' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Month</button>
-            <button onClick={() => setPreset('year')} className={`px-3 py-2 rounded-lg border text-sm ${preset === 'year' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Year</button>
+            <button onClick={() => setTimeframe('week')} className={`px-3 py-2 rounded-lg border text-sm ${timeframe === 'week' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Week</button>
+            <button onClick={() => setTimeframe('month')} className={`px-3 py-2 rounded-lg border text-sm ${timeframe === 'month' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Month</button>
+            <button onClick={() => setTimeframe('year')} className={`px-3 py-2 rounded-lg border text-sm ${timeframe === 'year' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Year</button>
           </div>
         </div>
 
@@ -265,6 +278,22 @@ export default function Analytics() {
             </button>
           </div>
         </div>
+
+        <details className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <summary className="cursor-pointer text-sm font-medium text-gray-700">Trend Metrics</summary>
+          <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
+            {(['lost', 'found', 'claims', 'ai'] as MetricKey[]).map((metric) => (
+              <label key={metric} className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={activeMetrics.includes(metric)}
+                  onChange={() => toggleMetric(metric)}
+                />
+                {toTitleCase(metric)}
+              </label>
+            ))}
+          </div>
+        </details>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -300,7 +329,7 @@ export default function Analytics() {
       <div className="grid grid-cols-1 gap-6">
         <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Monthly Trends</h2>
+            <h2 className="font-semibold text-gray-900">{timeframeText} Trends</h2>
             <span className="text-xs text-gray-500">Lost, Found, Claims, AI Matches</span>
           </div>
           {loading || !data ? (
@@ -318,10 +347,10 @@ export default function Analytics() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="lost" stroke={lineColors.lost} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={900} />
-                  <Line type="monotone" dataKey="found" stroke={lineColors.found} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={1000} />
-                  <Line type="monotone" dataKey="claims" stroke={lineColors.claims} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={1100} />
-                  <Line type="monotone" dataKey="ai" stroke={lineColors.ai} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={1200} />
+                  {activeMetrics.includes('lost') ? <Line type="monotone" dataKey="lost" stroke={lineColors.lost} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={900} /> : null}
+                  {activeMetrics.includes('found') ? <Line type="monotone" dataKey="found" stroke={lineColors.found} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={1000} /> : null}
+                  {activeMetrics.includes('claims') ? <Line type="monotone" dataKey="claims" stroke={lineColors.claims} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={1100} /> : null}
+                  {activeMetrics.includes('ai') ? <Line type="monotone" dataKey="ai" stroke={lineColors.ai} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={1200} /> : null}
                 </LineChart>
               </ResponsiveContainer>
             </motion.div>
@@ -331,7 +360,7 @@ export default function Analytics() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
-          <h2 className="font-semibold text-gray-900">Due Claims (Monthly)</h2>
+          <h2 className="font-semibold text-gray-900">Due Claims ({timeframeText})</h2>
           {loading || !data ? (
             <div className="mt-4"><SkeletonPanel /></div>
           ) : (
@@ -354,7 +383,7 @@ export default function Analytics() {
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
-          <h2 className="font-semibold text-gray-900">Pending Claims (Monthly)</h2>
+          <h2 className="font-semibold text-gray-900">Pending Claims ({timeframeText})</h2>
           {loading || !data ? (
             <div className="mt-4"><SkeletonPanel /></div>
           ) : (
@@ -379,7 +408,7 @@ export default function Analytics() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
-          <h2 className="font-semibold text-gray-900">Top Categories</h2>
+          <h2 className="font-semibold text-gray-900">{timeframeText} Category Breakdown</h2>
           {loading || !data ? (
             <div className="mt-4"><SkeletonPanel /></div>
           ) : (
@@ -402,7 +431,7 @@ export default function Analytics() {
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
-          <h2 className="font-semibold text-gray-900">Status Distribution</h2>
+          <h2 className="font-semibold text-gray-900">Status: Last {rangeText}</h2>
           {loading || !data ? (
             <div className="mt-4"><SkeletonPanel /></div>
           ) : (

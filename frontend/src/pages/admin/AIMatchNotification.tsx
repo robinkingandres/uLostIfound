@@ -49,6 +49,13 @@ export default function AIMatchNotification() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadData();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [loadData]);
+
   // Filter matches based on the active tab
   const filteredMatches = matches.filter(m => {
     if (activeTab === 'All') return true;
@@ -69,11 +76,9 @@ export default function AIMatchNotification() {
   const handleScanAll = async () => {
     setScanning(true);
     try {
-      const minScore = 30;
-      console.log(`Starting AI scan with min_score=${minScore}`);
-      const result = await triggerAIScan(minScore);
+      const result = await triggerAIScan();
       console.log('AI scan result:', result);
-      alert(`${result.message}`);
+      alert(`Scan complete. Created ${result.matches_created} new match(es).`);
       // Reload data after scan
       await loadData();
     } catch (err) {

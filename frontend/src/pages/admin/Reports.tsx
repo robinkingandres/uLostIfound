@@ -51,22 +51,23 @@ export default function ManageReports() {
     try {
       // Call the API to update the status
       await updateReportStatus(reportId, newStatus);
-      
-      // Update the local state (or reload data)
-      setReports((prev) =>
-        prev.map((r) => (r.id === reportId ? { ...r, status: newStatus } : r))
-      );
-      setSelectedReport(null); // Close modal
-      
-      // If the filter is active, force a reload to filter out the updated item
-      if (filter !== 'All' && filter !== 'Lost' && filter !== 'Found') {
-          setTimeout(loadReports, 100); 
-      }
 
+      // Always reload from DB so "All" stays in sync with backend state.
+      await loadReports();
+      setSelectedReport(null); // Close modal
     } catch (err) {
       console.error(`Failed to update status to ${newStatus}:`, err);
       alert(`Failed to update report status. Error: ${err}`);
     }
+  };
+
+  const handleFilterClick = async (option: FilterType) => {
+    // If the same filter is clicked again, explicitly refresh from DB.
+    if (option === filter) {
+      await loadReports();
+      return;
+    }
+    setFilter(option);
   };
 
 
@@ -152,7 +153,7 @@ export default function ManageReports() {
             {(['All', 'Lost', 'Found', 'Verified', 'Pending', 'Rejected'] as FilterType[]).map((option) => (
               <button
                 key={option}
-                onClick={() => setFilter(option)}
+                onClick={() => { void handleFilterClick(option); }}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   filter === option
                     ? 'bg-gray-900 text-white'

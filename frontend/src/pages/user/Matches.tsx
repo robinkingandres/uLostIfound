@@ -25,7 +25,7 @@ interface MatchItem {
   location: string;
   date: string;
   status: 'Pending' | 'Verified' | 'Complete' | 'AI Match';
-  matchPercentage?: number;
+  progressPercentage?: number;
   reportId?: number;
   claimId?: number;
   category: string;
@@ -52,16 +52,25 @@ export default function Matches() {
   const [editingReport, setEditingReport] = useState<Report | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  // Calculate match percentage (mock calculation based on similarity)
-  const calculateMatchPercentage = (report: Report, claim?: Claim): number => {
-    if (claim) {
-      const reportWords = report.description.toLowerCase().split(/\s+/);
-      const claimWords = claim.proofDescription.toLowerCase().split(/\s+/);
-      const commonWords = reportWords.filter(word => claimWords.includes(word));
-      const similarity = (commonWords.length / Math.max(reportWords.length, claimWords.length)) * 100;
-      return Math.min(100, Math.max(70, Math.round(similarity + 20)));
+  const clampProgress = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
+
+  const getStatusProgress = (status: 'Pending' | 'Verified' | 'Complete'): number => {
+    switch (status) {
+      case 'Pending':
+        return 25;
+      case 'Verified':
+        return 75;
+      case 'Complete':
+        return 100;
+      default:
+        return 25;
     }
-    return 75;
+  };
+
+  const getAIMatchProgress = (aiMatch: AIMatch): number => {
+    if ((aiMatch.matchScore || 0) >= 100) return 100;
+    if (aiMatch.status === 'Approved') return 75;
+    return 25;
   };
 
   const getImageUrl = (imagePath: string | null | undefined) => {
@@ -88,7 +97,7 @@ export default function Matches() {
         location: item.location || 'N/A',
         date: aiMatch.date,
         status: 'AI Match',
-        matchPercentage: aiMatch.matchScore,
+        progressPercentage: clampProgress(getAIMatchProgress(aiMatch)),
         category: item.category,
         aiMatch: aiMatch,
       });
@@ -116,7 +125,7 @@ export default function Matches() {
         location: report.location,
         date: report.date,
         status,
-        matchPercentage: relatedClaim ? calculateMatchPercentage(report, relatedClaim) : undefined,
+        progressPercentage: clampProgress(getStatusProgress(status)),
         reportId: report.id,
         claimId: relatedClaim?.id,
         category: report.category,
@@ -143,7 +152,7 @@ export default function Matches() {
           location: 'N/A',
           date: claim.date,
           status,
-          matchPercentage: 85,
+          progressPercentage: clampProgress(getStatusProgress(status)),
           claimId: claim.id,
           category: 'Unknown',
         });
@@ -383,7 +392,7 @@ export default function Matches() {
                         <h3 className="font-bold text-gray-900 text-lg mb-1">{item.itemName}</h3>
                         <p className="text-sm text-gray-600 line-clamp-2 mb-2">{item.description}</p>
                       </div>
-                      {item.matchPercentage !== undefined && (
+                      {item.progressPercentage !== undefined && (
                         <div className={`flex items-center gap-1 flex-shrink-0 ${
                           item.type === 'ai-match' ? 'text-purple-600' : 'text-green-600'
                         }`}>
@@ -392,7 +401,7 @@ export default function Matches() {
                           ) : (
                             <TrendingUp className="w-4 h-4" />
                           )}
-                          <span className="text-sm font-semibold">{item.matchPercentage}% match</span>
+                          <span className="text-sm font-semibold">{item.progressPercentage}% progress</span>
                         </div>
                       )}
                     </div>
@@ -517,6 +526,8 @@ interface MatchDetailsModalProps {
 }
 
 function MatchDetailsModal({ match, onClose, report, claim, getImageUrl, onEdit, onDelete, isDeleting }: MatchDetailsModalProps) {
+  const displayProgress = Math.max(0, Math.min(100, Math.round(match.progressPercentage ?? 25)));
+
   const getStatusMessage = () => {
     if (match.type === 'ai-match') {
       return {
@@ -632,8 +643,8 @@ function MatchDetailsModal({ match, onClose, report, claim, getImageUrl, onEdit,
                 {/* Match Scores */}
                 <div className="mt-4 pt-4 border-t border-purple-200">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold text-purple-900">Match Confidence</span>
-                    <span className="text-lg font-bold text-purple-600">{match.aiMatch.matchScore}%</span>
+                    <span className="text-sm font-semibold text-purple-900">Case Progress</span>
+                    <span className="text-lg font-bold text-purple-600">{displayProgress}%</span>
                   </div>
                   <div className="flex gap-4 text-xs text-purple-700">
                     <span>Visual: {match.aiMatch.visualScore}%</span>
@@ -642,24 +653,24 @@ function MatchDetailsModal({ match, onClose, report, claim, getImageUrl, onEdit,
                   <div className="mt-2 bg-purple-200 rounded-full h-2">
                     <div 
                       className="bg-purple-600 h-2 rounded-full transition-all"
-                      style={{ width: `${match.aiMatch.matchScore}%` }}
+                      style={{ width: `${displayProgress}%` }}
                     />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Match Score (for non-AI matches) */}
-            {match.matchPercentage !== undefined && match.type !== 'ai-match' && (
+            {/* Case Progress (for non-AI matches) */}
+            {match.progressPercentage !== undefined && match.type !== 'ai-match' && (
               <div className="bg-gray-50 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900">Match Score</h3>
+                  <h3 className="font-semibold text-gray-900">Case Progress</h3>
                   <div className={`px-4 py-1.5 rounded-full text-sm font-bold ${
-                    match.matchPercentage >= 90 ? 'bg-green-100 text-green-700' :
-                    match.matchPercentage >= 70 ? 'bg-yellow-100 text-yellow-700' :
+                    displayProgress >= 90 ? 'bg-green-100 text-green-700' :
+                    displayProgress >= 70 ? 'bg-yellow-100 text-yellow-700' :
                     'bg-orange-100 text-orange-700'
                   }`}>
-                    {match.matchPercentage}%
+                    {displayProgress}%
                   </div>
                 </div>
                 {report && claim && (

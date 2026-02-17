@@ -38,6 +38,8 @@ except ImportError:
     CLIP_AVAILABLE = False
     print("WARNING: CLIP not available. Install transformers and torch for image matching.")
 
+MAX_ACTIVE_MATCH_SCORE = 85.0
+
 
 class AIMatchingService:
     """Service for matching lost and found items using AI."""
@@ -55,6 +57,24 @@ class AIMatchingService:
     def __init__(self):
         """Initialize CLIP model lazily."""
         pass
+
+    def _normalize_embedding(self, features):
+        """
+        Normalize a tensor-like embedding and return a 1D numpy vector.
+        Handles variant output shapes and protects against zero norm.
+        """
+        if torch is None:
+            return None
+        if features is None:
+            return None
+        if not hasattr(features, "dim"):
+            return None
+        if features.dim() == 1:
+            features = features.unsqueeze(0)
+        norms = features.norm(dim=-1, keepdim=True)
+        norms = torch.where(norms == 0, torch.ones_like(norms), norms)
+        features = features / norms
+        return features.detach().cpu().numpy().flatten()
     
     def _load_model(self):
         """Load CLIP model on first use."""
@@ -123,11 +143,18 @@ class AIMatchingService:
                 inputs = {k: v.to('cuda') for k, v in inputs.items()}
             
             with torch.no_grad():
-                image_features = self._model.get_image_features(**inputs)
-                # Normalize
-                image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-            
-            return image_features.cpu().numpy().flatten()
+                image_features = None
+                if hasattr(self._model, 'get_image_features'):
+                    image_kwargs = {}
+                    if 'pixel_values' in inputs:
+                        image_kwargs['pixel_values'] = inputs['pixel_values']
+                    if image_kwargs:
+                        image_features = self._model.get_image_features(**image_kwargs)
+                if image_features is None:
+                    output = self._model(**inputs)
+                    if hasattr(output, 'image_embeds') and output.image_embeds is not None:
+                        image_features = output.image_embeds
+            return self._normalize_embedding(image_features)
         except Exception as e:
             print(f"Failed to get image embedding: {e}")
             return None
@@ -146,11 +173,22 @@ class AIMatchingService:
                 inputs = {k: v.to('cuda') for k, v in inputs.items()}
             
             with torch.no_grad():
-                text_features = self._model.get_text_features(**inputs)
-                # Normalize
-                text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-            
-            return text_features.cpu().numpy().flatten()
+                text_features = None
+                if hasattr(self._model, 'get_text_features'):
+                    text_kwargs = {}
+                    if 'input_ids' in inputs:
+                        text_kwargs['input_ids'] = inputs['input_ids']
+                    if 'attention_mask' in inputs:
+                        text_kwargs['attention_mask'] = inputs['attention_mask']
+                    if text_kwargs:
+                        text_features = self._model.get_text_features(**text_kwargs)
+                if text_features is None:
+                    output = self._model(**inputs)
+                    if hasattr(output, 'text_embeds') and output.text_embeds is not None:
+                        text_features = output.text_embeds
+                    elif hasattr(output, 'pooler_output') and output.pooler_output is not None:
+                        text_features = output.pooler_output
+            return self._normalize_embedding(text_features)
         except Exception as e:
             print(f"Failed to get text embedding: {e}")
             return None
@@ -274,23 +312,134 @@ class AIMatchingService:
         lost_text = f"{lost_report.item_name} {lost_report.description}"
         found_text = f"{found_report.item_name} {found_report.description}"
         text_score = self.calculate_text_similarity(lost_text, found_text)
+        name_score = self.calculate_text_similarity(lost_report.item_name, found_report.item_name)
         
         # Category bonus
         category_score = self.calculate_category_match(lost_report.category, found_report.category)
+        location_score = self.calculate_text_similarity(lost_report.location or '', found_report.location or '')
         
         # Calculate weighted overall score
-        # Visual: 40%, Text: 40%, Category: 20%
+        # Visual: 35%, text+name: 50%, category+location: 15%
         if lost_image and found_image:
-            match_score = (visual_score * 0.4) + (text_score * 0.4) + (category_score * 0.2)
+            match_score = (
+                (visual_score * 0.35)
+                + (text_score * 0.30)
+                + (name_score * 0.20)
+                + (category_score * 0.10)
+                + (location_score * 0.05)
+            )
         else:
-            # If no images, rely more on text and category
-            match_score = (text_score * 0.6) + (category_score * 0.4)
-        
+            # If images are unavailable, rely on text, item-name and category/location consistency.
+            match_score = (
+                (text_score * 0.45)
+                + (name_score * 0.35)
+                + (category_score * 0.15)
+                + (location_score * 0.05)
+            )
+
+        # Heuristic floors to avoid under-scoring obvious same-item reports.
+        if category_score >= 80 and name_score >= 65:
+            match_score = max(match_score, 78.0)
+        if category_score == 100 and name_score >= 80:
+            match_score = max(match_score, 84.0)
+
+        active_match_score = min(float(match_score), MAX_ACTIVE_MATCH_SCORE)
         return {
             'visual_score': round(visual_score, 1),
             'text_score': round(text_score, 1),
-            'match_score': round(match_score, 1),
+            'match_score': round(active_match_score, 1),
         }
+
+
+def find_potential_matches_for_report(report_id: int, min_score: Optional[float] = None):
+    """
+    Find potential matches for a single report against opposite-type reports.
+    Returns the list of newly created AIMatch rows.
+    """
+    from .models import Report, AIMatch
+    from users.models import SiteSettings
+
+    settings_obj = SiteSettings.get_solo()
+    if not settings_obj.ai_matching_enabled:
+        return []
+    if min_score is None:
+        min_score = float(settings_obj.ai_min_score)
+    min_score = min(float(min_score), MAX_ACTIVE_MATCH_SCORE)
+
+    try:
+        report = Report.objects.get(id=report_id)
+    except Report.DoesNotExist:
+        return []
+
+    if report.type not in ['Lost', 'Found']:
+        return []
+    if report.status not in ['Pending', 'Verified']:
+        return []
+
+    service = AIMatchingService()
+    new_matches = []
+
+    if report.type == 'Lost':
+        candidate_reports = Report.objects.filter(type='Found', status__in=['Pending', 'Verified']).exclude(id=report.id)
+        for candidate in candidate_reports:
+            if AIMatch.objects.filter(lost_report=report, found_report=candidate).exists():
+                continue
+            scores = service.calculate_match_score(report, candidate)
+            if scores['match_score'] >= min_score:
+                new_matches.append(
+                    AIMatch.objects.create(
+                        lost_report=report,
+                        found_report=candidate,
+                        visual_score=scores['visual_score'],
+                        text_score=scores['text_score'],
+                        match_score=scores['match_score'],
+                        status='Pending',
+                    )
+                )
+    else:
+        candidate_reports = Report.objects.filter(type='Lost', status__in=['Pending', 'Verified']).exclude(id=report.id)
+        for candidate in candidate_reports:
+            if AIMatch.objects.filter(lost_report=candidate, found_report=report).exists():
+                continue
+            scores = service.calculate_match_score(candidate, report)
+            if scores['match_score'] >= min_score:
+                new_matches.append(
+                    AIMatch.objects.create(
+                        lost_report=candidate,
+                        found_report=report,
+                        visual_score=scores['visual_score'],
+                        text_score=scores['text_score'],
+                        match_score=scores['match_score'],
+                        status='Pending',
+                    )
+                )
+
+    return new_matches
+
+
+def find_potential_matches_all(min_score: Optional[float] = None):
+    """
+    Find potential matches between all active Lost/Found reports.
+    Returns the list of newly created AIMatch rows.
+    """
+    from .models import Report
+    from users.models import SiteSettings
+
+    settings_obj = SiteSettings.get_solo()
+    if not settings_obj.ai_matching_enabled:
+        return []
+    if min_score is None:
+        min_score = float(settings_obj.ai_min_score)
+    min_score = min(float(min_score), MAX_ACTIVE_MATCH_SCORE)
+
+    report_ids = list(
+        Report.objects.filter(type__in=['Lost', 'Found'], status__in=['Pending', 'Verified']).values_list('id', flat=True)
+    )
+
+    created_matches = []
+    for rid in report_ids:
+        created_matches.extend(find_potential_matches_for_report(rid, min_score=min_score))
+    return created_matches
 
 
 def find_potential_matches(min_score: Optional[float] = None):
@@ -298,46 +447,7 @@ def find_potential_matches(min_score: Optional[float] = None):
     Find potential matches between all Lost and Found reports.
     Creates AIMatch entries for pairs above the minimum score threshold.
     """
-    from .models import Report, AIMatch
-    from users.models import SiteSettings
-    
-    settings_obj = SiteSettings.get_solo()
-    if not settings_obj.ai_matching_enabled:
-        return []
-    if min_score is None:
-        min_score = float(settings_obj.ai_min_score)
-
-    service = AIMatchingService()
-    
-    # Get all verified Lost and Found reports
-    lost_reports = Report.objects.filter(type='Lost', status__in=['Pending', 'Verified'])
-    found_reports = Report.objects.filter(type='Found', status__in=['Pending', 'Verified'])
-    
-    new_matches = []
-    
-    for lost in lost_reports:
-        for found in found_reports:
-            # Skip if match already exists
-            if AIMatch.objects.filter(lost_report=lost, found_report=found).exists():
-                continue
-            
-            # Calculate match score
-            scores = service.calculate_match_score(lost, found)
-            
-            # Only create match if score is above threshold
-            if scores['match_score'] >= min_score:
-                match = AIMatch.objects.create(
-                    lost_report=lost,
-                    found_report=found,
-                    visual_score=scores['visual_score'],
-                    text_score=scores['text_score'],
-                    match_score=scores['match_score'],
-                    status='Pending'
-                )
-                new_matches.append(match)
-                print(f"Created match: {lost.item_name} <-> {found.item_name} ({scores['match_score']}%)")
-    
-    return new_matches
+    return find_potential_matches_all(min_score=min_score)
 
 
 def process_new_report(report):
@@ -345,54 +455,4 @@ def process_new_report(report):
     Process a newly created report and find potential matches.
     Called when a new Lost or Found report is created.
     """
-    from .models import Report, AIMatch
-    from users.models import SiteSettings
-    
-    settings_obj = SiteSettings.get_solo()
-    if not settings_obj.ai_matching_enabled:
-        return []
-
-    service = AIMatchingService()
-    min_score = float(settings_obj.ai_min_score)
-    
-    new_matches = []
-    
-    if report.type == 'Lost':
-        # Find matching Found reports
-        found_reports = Report.objects.filter(type='Found', status__in=['Pending', 'Verified'])
-        for found in found_reports:
-            if AIMatch.objects.filter(lost_report=report, found_report=found).exists():
-                continue
-            
-            scores = service.calculate_match_score(report, found)
-            if scores['match_score'] >= min_score:
-                match = AIMatch.objects.create(
-                    lost_report=report,
-                    found_report=found,
-                    visual_score=scores['visual_score'],
-                    text_score=scores['text_score'],
-                    match_score=scores['match_score'],
-                    status='Pending'
-                )
-                new_matches.append(match)
-    
-    elif report.type == 'Found':
-        # Find matching Lost reports
-        lost_reports = Report.objects.filter(type='Lost', status__in=['Pending', 'Verified'])
-        for lost in lost_reports:
-            if AIMatch.objects.filter(lost_report=lost, found_report=report).exists():
-                continue
-            
-            scores = service.calculate_match_score(lost, report)
-            if scores['match_score'] >= min_score:
-                match = AIMatch.objects.create(
-                    lost_report=lost,
-                    found_report=report,
-                    visual_score=scores['visual_score'],
-                    text_score=scores['text_score'],
-                    match_score=scores['match_score'],
-                    status='Pending'
-                )
-                new_matches.append(match)
-    
-    return new_matches
+    return find_potential_matches_for_report(report.id)

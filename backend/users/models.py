@@ -55,7 +55,7 @@ class SiteSettings(models.Model):
     claim_require_proof_image = models.BooleanField(default=False)
 
     # AI
-    ai_min_score = models.FloatField(default=50.0)
+    ai_min_score = models.FloatField(default=75.0)
     ai_matching_enabled = models.BooleanField(default=True)
 
     # User Home

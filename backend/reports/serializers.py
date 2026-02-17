@@ -59,6 +59,7 @@ class ClaimSerializer(serializers.ModelSerializer):
     # Input field mapping
     proofDescription = serializers.CharField(source='proof_description', required=True)
     proofImage = serializers.ImageField(source='proof_image', required=False, allow_null=True)
+    proof_image = serializers.SerializerMethodField(read_only=True)
     reportId = serializers.PrimaryKeyRelatedField(
         queryset=Report.objects.all(), source='report', write_only=True
     )
@@ -67,7 +68,7 @@ class ClaimSerializer(serializers.ModelSerializer):
         model = Claim
         fields = [
             'id', 'reportId', 'itemName', 'claimantName', 
-            'claimantRole', 'proofDescription', 'proofImage', 'status', 'date','rejection_reason'
+            'claimantRole', 'proofDescription', 'proofImage', 'proof_image', 'status', 'date','rejection_reason'
         ]
         read_only_fields = ['id', 'itemName', 'claimantName', 'claimantRole', 'date']
 
@@ -75,6 +76,14 @@ class ClaimSerializer(serializers.ModelSerializer):
         user = obj.claimant
         full_name = f"{user.first_name} {user.last_name}".strip()
         return full_name if full_name else user.username
+
+    def get_proof_image(self, obj):
+        if not obj.proof_image:
+            return None
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(obj.proof_image.url)
+        return obj.proof_image.url
     
     def validate(self, attrs):
         # Get the report object from the input data
@@ -121,7 +130,7 @@ class AIMatchSerializer(serializers.ModelSerializer):
     foundItem = AIMatchItemSerializer(source='found_report', read_only=True)
     visualScore = serializers.FloatField(source='visual_score', read_only=True)
     textScore = serializers.FloatField(source='text_score', read_only=True)
-    matchScore = serializers.FloatField(source='match_score', read_only=True)
+    matchScore = serializers.SerializerMethodField(read_only=True)
     date = serializers.DateTimeField(source='date_created', format="%m-%d-%y", read_only=True)
     
     class Meta:
@@ -131,3 +140,8 @@ class AIMatchSerializer(serializers.ModelSerializer):
             'matchScore', 'status', 'date', 'lost_reporter_notified', 'found_reporter_notified'
         ]
         read_only_fields = ['id', 'lostItem', 'foundItem', 'visualScore', 'textScore', 'matchScore', 'date']
+
+    def get_matchScore(self, obj):
+        if obj.lost_report.status == 'Claimed' or obj.found_report.status == 'Claimed':
+            return 100.0
+        return min(float(obj.match_score or 0.0), 85.0)

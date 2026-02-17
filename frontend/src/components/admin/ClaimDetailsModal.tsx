@@ -57,6 +57,8 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
 
   // supports either URL or base64
   const proofImgSrc =
+    claim.proof_image ||
+    claim.proofImage ||
     // @ts-ignore
     (claim.proofImageUrl as string | undefined) ||
     // @ts-ignore

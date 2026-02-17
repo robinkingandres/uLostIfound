@@ -14,6 +14,9 @@ router.register(r'ai-matches', AIMatchViewSet, basename='ai-matches')
 # e.g., /api/reports/ and /api/reports/{id}/
 urlpatterns = [
     path('admin/analytics/', AdminAnalyticsView.as_view(), name='admin-analytics'),
+    path('admin/ai/scan/', AIMatchViewSet.as_view({'post': 'scan_all'}), name='admin-ai-scan'),
+    path('admin/ai/matches/', AIMatchViewSet.as_view({'get': 'list'}), name='admin-ai-matches-list'),
+    path('admin/ai/matches/<int:pk>/', AIMatchViewSet.as_view({'patch': 'partial_update'}), name='admin-ai-matches-update'),
     path('dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
     path('dashboard/activity/', ActivityFeedView.as_view(), name='dashboard-activity'),
     path('analytics/', AnalyticsView.as_view(), name='analytics'),

@@ -684,10 +684,10 @@ export const updateAIMatchStatus = async (id: number, status: 'Approved' | 'Reje
 /**
  * Trigger AI scan for all potential matches (Admin only)
  */
-export const triggerAIScan = async (minScore: number = 50): Promise<{ status: string; message: string; matches_created: number }> => {
+export const triggerAIScan = async (minScore?: number): Promise<{ status: string; message: string; matches_created: number }> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
-  const scanEndpoints = [`${AI_MATCH_URL}scan_all/`, `${API_URL}/ai/scan/`];
+  const scanEndpoints = [`${API_URL}/admin/ai/scan/`, `${AI_MATCH_URL}scan_all/`, `${API_URL}/ai/scan/`];
   let lastError = '';
 
   for (const endpoint of scanEndpoints) {
@@ -697,7 +697,7 @@ export const triggerAIScan = async (minScore: number = 50): Promise<{ status: st
         'Content-Type': 'application/json',
         'X-CSRFToken': csrfToken,
       },
-      body: JSON.stringify({ min_score: minScore }),
+      body: JSON.stringify(minScore === undefined ? {} : { min_score: minScore }),
       credentials: 'include',
     });
 
@@ -835,6 +835,8 @@ export interface AdminAnalyticsResponse {
     date_from: string;
     date_to: string;
     category: string;
+    timeframe?: 'week' | 'month' | 'year';
+    metrics?: string[];
   };
   kpis: {
     total_reports: number;
@@ -863,6 +865,8 @@ export const fetchAdminAnalytics = async (params?: {
   date_from?: string;
   date_to?: string;
   category?: string;
+  timeframe?: 'week' | 'month' | 'year';
+  metrics?: string[];
 }): Promise<AdminAnalyticsResponse> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('Authentication required');
@@ -871,6 +875,8 @@ export const fetchAdminAnalytics = async (params?: {
   if (params?.date_from) url.searchParams.set('date_from', params.date_from);
   if (params?.date_to) url.searchParams.set('date_to', params.date_to);
   if (params?.category) url.searchParams.set('category', params.category);
+  if (params?.timeframe) url.searchParams.set('timeframe', params.timeframe);
+  if (params?.metrics?.length) url.searchParams.set('metrics', params.metrics.join(','));
 
   const response = await fetch(url.toString(), {
     credentials: 'include',
@@ -911,6 +917,8 @@ export interface SiteSettings {
 }
 
 const SETTINGS_URL = `${API_URL}/settings/`;
+const SETTINGS_CATEGORIES_PATCH_URL = `${API_URL}/settings/categories/`;
+const SETTINGS_AI_THRESHOLD_URL = `${API_URL}/settings/ai-threshold/`;
 const SETTINGS_CATEGORIES_URL = `${API_URL}/categories/`;
 
 export const fetchSiteSettings = async (): Promise<SiteSettings> => {
@@ -937,6 +945,48 @@ export const updateSiteSettings = async (payload: Partial<SiteSettings> | FormDa
   });
   if (!response.ok) {
     throw new Error('Failed to update settings');
+  }
+  return response.json();
+};
+
+export const patchSettingsCategories = async (categories: SettingsCategory[]): Promise<SettingsCategory[]> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('Authentication required');
+
+  const response = await fetch(SETTINGS_CATEGORIES_PATCH_URL, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify({ categories }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to save categories');
+  }
+  const data = await response.json();
+  if (Array.isArray(data)) return data;
+  if (data?.results && Array.isArray(data.results)) return data.results;
+  return [];
+};
+
+export const updateAiThreshold = async (minScore: number): Promise<SiteSettings> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('Authentication required');
+
+  const response = await fetch(SETTINGS_AI_THRESHOLD_URL, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify({ min_score: minScore }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to update AI threshold');
   }
   return response.json();
 };
