@@ -6,6 +6,7 @@ from .views import (
     LogoutView,
     RequestPasswordResetView,
     ResetPasswordView,
+    VerifyPasswordResetCodeView,
     SettingsView,
     CategoryViewSet,
     SettingsCategoriesView,
@@ -28,6 +29,7 @@ urlpatterns = [
     path('auth/logout/', LogoutView.as_view(), name='api_logout'), # /api/auth/logout/
 
     path('auth/password-reset/request/', RequestPasswordResetView.as_view(), name='password_reset_request'),
+    path('auth/password-reset/verify-code/', VerifyPasswordResetCodeView.as_view(), name='password_reset_verify_code'),
     path('auth/password-reset/confirm/', ResetPasswordView.as_view(), name='password_reset_confirm'),
     
     # Existing User Management Endpoints

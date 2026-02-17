@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
-import { requestPasswordReset, confirmPasswordReset } from '../../services/authApi';
+import { requestPasswordReset, verifyPasswordResetCode, confirmPasswordReset } from '../../services/authApi';
 import emailIcon from '../../assets/email.png'; // Email Icon
 import keyIcon from '../../assets/key.png'; // Key Icon
 import lockIcon from '../../assets/lock.png'; // Lock Icon
@@ -35,16 +35,24 @@ export default function ForgotPassword() {
     }
   };
 
-  // Step 2: Verify Code (Local check essentially, actually just moving to step 3)
-  const handleVerifyCodeStep = (e: React.FormEvent) => {
+  // Step 2: Verify Code against backend before moving to Step 3
+  const handleVerifyCodeStep = async (e: React.FormEvent) => {
     e.preventDefault();
     if (code.length !== 6) {
         setError('Code must be 6 digits.');
         return;
     }
+    setLoading(true);
     setError('');
-    setSuccessMsg(''); // Clear previous success msg
-    setStep(3);
+    setSuccessMsg('');
+    try {
+      await verifyPasswordResetCode(email, code);
+      setStep(3);
+    } catch (err: any) {
+      setError(err.message || 'Invalid or expired verification code.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Step 3: Confirm Reset
@@ -167,9 +175,10 @@ export default function ForgotPassword() {
                 </div>
                 <button 
                     type="submit" 
+                    disabled={loading}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors shadow-lg shadow-blue-200"
                 >
-                    Verify Code
+                    {loading ? 'Verifying...' : 'Verify Code'}
                 </button>
                 <div className="text-center">
                     <button type="button" onClick={() => setStep(1)} className="text-xs text-gray-500 hover:underline">Wrong email?</button>
