@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import GuidanceLayout from './layouts/GuidanceLayout';
 import GuidanceDashboard from './pages/guidance/Dashboard';
 import GuidanceClaims from './pages/guidance/ClaimReview';
+import GuidanceAccountSettings from './pages/guidance/AccountSettings';
 
 // Admin Imports
 import AdminLayout from './layouts/AdminLayout';
@@ -53,6 +54,8 @@ function App() {
             <Route index element={<Navigate to="/guidance/dashboard" replace />} />
             <Route path="dashboard" element={<GuidanceDashboard />} />
             <Route path="claims" element={<GuidanceClaims />} />
+            <Route path="settings" element={<GuidanceAccountSettings />} />
+            <Route path="account-settings" element={<Navigate to="/guidance/settings" replace />} />
           </Route>
 
           {/* --- PROTECTED USER ROUTES (Access: Student, Teacher, Admin) --- */}

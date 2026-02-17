@@ -18,7 +18,7 @@ interface EditUserModalProps {
   onCreate?: (data: AddUserFormData) => Promise<void>;
 }
 
-const ROLE_OPTIONS: UserRole[] = ['Student', 'Teacher', 'Admin', 'Guidance'];
+const ROLE_OPTIONS: UserRole[] = ['Student', 'Admin', 'Guidance'];
 
 export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate }: EditUserModalProps) {
   const isAddMode = user === null;

@@ -1,4 +1,4 @@
-	import { LayoutDashboard, FileText, Users, ShoppingCart, Sparkles, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, ShoppingCart, Sparkles, BarChart3 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import logo from '../../assets/logo.png';
 
@@ -15,12 +15,28 @@ export default function Sidebar() {
   return (
     <div className="w-60 bg-indigo-900 h-screen sticky top-0 text-white flex flex-col overflow-y-auto">
       <div className="p-6 flex flex-col items-center border-b border-indigo-800">
-        <img 
-          src={logo} 
-          alt="San Isidro National High School Logo"
-          className="w-24 h-24 rounded-lg mb-3 object-cover"
-        />    
-        <h2 className="text-sm font-medium text-center">San Isidro National High School</h2>
+        
+        {/* ANIMATED LOGO SECTION */}
+        <div className="relative w-24 h-24 flex items-center justify-center mb-3">
+          <div
+            className="absolute inset-0 rounded-full animate-spin"
+            style={{
+              animationDuration: '8s',
+              padding: "3px",
+              background: "conic-gradient(#6366f1, #f6a51f, #6366f1)",
+              WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              WebkitMaskComposite: "xor",
+              maskComposite: "exclude",
+            }}
+          ></div>
+          <img 
+            src={logo} 
+            alt="San Isidro National High School Logo"
+            className="w-20 h-20 rounded-full object-cover relative z-10 bg-white p-1"
+          />
+        </div>
+        
+        <h2 className="text-sm font-medium text-center leading-tight">San Isidro National High School</h2>
       </div>
 
       <nav className="flex-1 py-6">
