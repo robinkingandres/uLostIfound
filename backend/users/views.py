@@ -107,7 +107,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Non-admins cannot change role or school_id
+        # Non-admins cannot change role, school_id, year_level, or room.
         if user.role != 'Admin' and not user.is_superuser:
             if 'role' in request.data:
                 return Response(
@@ -117,6 +117,16 @@ class UserViewSet(viewsets.ModelViewSet):
             if 'school_id' in request.data or 'userId' in request.data:
                 return Response(
                     {"detail": "You cannot change your school ID."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if 'year_level' in request.data or 'yearLevel' in request.data:
+                return Response(
+                    {"detail": "Only admins can change year level."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if 'room' in request.data:
+                return Response(
+                    {"detail": "Only admins can change room."},
                     status=status.HTTP_403_FORBIDDEN
                 )
         

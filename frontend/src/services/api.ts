@@ -353,7 +353,15 @@ export const fetchUsers = async () => {
 };
 
 // create user (Admin only)
-export const createUser = async (data: { username: string; email: string; school_id: string; role: string; password: string }) => {
+export const createUser = async (data: {
+  username: string;
+  email: string;
+  school_id: string;
+  role: string;
+  password: string;
+  year_level?: string;
+  room?: string;
+}) => {
   const csrfToken = getCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found.');
   const response = await fetch(USER_URL, {

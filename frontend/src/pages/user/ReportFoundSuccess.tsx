@@ -11,13 +11,17 @@ export default function ReportFoundSuccess() {
   const isGuidanceReporter = user?.role === 'Guidance';
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-gray-800 relative">
+    <div
+      className={`min-h-screen font-sans relative ${
+        isGuidanceReporter ? 'bg-emerald-900 text-white' : 'bg-slate-50 text-gray-800'
+      }`}
+    >
       
       {/* --- HEADER --- */}
-      <UserHeader />
+      {!isGuidanceReporter ? <UserHeader /> : null}
 
       {/* --- MAIN CONTENT --- */}
-      <main className="max-w-md mx-auto px-6 pt-20 flex flex-col items-center text-center">
+      <main className={`max-w-md mx-auto px-6 flex flex-col items-center text-center ${isGuidanceReporter ? 'pt-12' : 'pt-20'}`}>
         
         {/* Large Central Logo */}
         <div className="relative w-48 h-48 mb-8">
@@ -29,14 +33,14 @@ export default function ReportFoundSuccess() {
         </div>
 
         {/* Success Message */}
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">
+        <h1 className={`text-2xl font-bold mb-4 ${isGuidanceReporter ? 'text-white' : 'text-gray-900'}`}>
           Report Submitted!
         </h1>
         
-        <p className="text-gray-600 text-sm leading-relaxed max-w-xs mx-auto">
+        <p className={`text-sm leading-relaxed max-w-xs mx-auto ${isGuidanceReporter ? 'text-emerald-100' : 'text-gray-600'}`}>
           {isGuidanceReporter ? (
             <>
-              Your <span className="font-semibold text-cyan-600">found item report</span> is already verified and posted.
+              Your <span className="font-semibold text-emerald-200">found item report</span> is already verified and posted.
               It is now visible on the homepage feed.
             </>
           ) : (
@@ -51,7 +55,9 @@ export default function ReportFoundSuccess() {
         {/* Back Home Button */}
         <button 
           onClick={() => navigate(isGuidanceReporter ? '/guidance/dashboard' : '/home')}
-          className="mt-12 text-cyan-500 font-semibold hover:underline transition-all active:scale-95"
+          className={`mt-12 font-semibold hover:underline transition-all active:scale-95 ${
+            isGuidanceReporter ? 'text-emerald-200' : 'text-cyan-500'
+          }`}
         >
           {isGuidanceReporter ? 'Return to Guidance Dashboard' : 'Return to Home'}
         </button>
