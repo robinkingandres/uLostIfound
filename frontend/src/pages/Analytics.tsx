@@ -16,7 +16,12 @@ import {
   YAxis,
 } from 'recharts';
 import { Loader2, Download, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { fetchAdminAnalytics, type AdminAnalyticsResponse } from '../services/api';
+import {
+  fetchAdminAnalytics,
+  fetchAdminAnalyticsExportData,
+  type AdminAnalyticsResponse,
+  type AdminAnalyticsExportResponse,
+} from '../services/api';
 
 type Timeframe = 'week' | 'month' | 'year';
 type MetricKey = 'lost' | 'found' | 'claims' | 'ai';
@@ -50,75 +55,252 @@ function toTitleCase(v: string) {
   return v.charAt(0).toUpperCase() + v.slice(1);
 }
 
-function exportCsv(data: AdminAnalyticsResponse) {
-  const rows: string[] = [];
-  rows.push('section,key,value');
+const EXPORT_COLUMNS = [
+  'Date Reported',
+  'Record Type',
+  'Report ID',
+  'Item Name',
+  'Category',
+  'Location',
+  'Report Status',
+  'Report Description',
+  'Item Image URL',
+  'Reporter Name',
+  'Reporter School ID',
+  'Reporter Role',
+  'Reporter Email',
+  'Claim ID',
+  'Claim Status',
+  'Claimed At',
+  'Claimant Name',
+  'Claimant School ID',
+  'Claimant Email',
+  'Claim Proof Image URL',
+] as const;
 
-  Object.entries(data.kpis).forEach(([k, v]) => rows.push(`kpi,${k},${v}`));
-  data.trends.forEach((r) => rows.push(`trend,${r.month},lost=${r.lost}|found=${r.found}|claims=${r.claims}|ai=${r.ai}`));
-  data.due_claims_monthly.forEach((r) => rows.push(`due_claims,${r.month},${r.count}`));
-  data.pending_claims_monthly.forEach((r) => rows.push(`pending_claims,${r.month},${r.count}`));
-  data.categories.forEach((r) => rows.push(`category,${r.name},${r.count}`));
-  Object.entries(data.status_breakdown).forEach(([k, v]) => rows.push(`status,${k},${v}`));
-  data.locations.forEach((r) => rows.push(`location,${r.name},${r.count}`));
-
-  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `analytics_${data.filters.date_from}_${data.filters.date_to}.csv`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-function exportPdf(data: AdminAnalyticsResponse) {
+type CapturedDashboardChart = {
+  title: string;
+  svgDataUri: string;
+};
+
+function captureDashboardCharts(): CapturedDashboardChart[] {
+  const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-dashboard-chart]'));
+  const charts: CapturedDashboardChart[] = [];
+
+  sections.forEach((section) => {
+    const title = section.dataset.chartTitle || 'Chart';
+    const svg = section.querySelector('svg.recharts-surface');
+    if (!svg) return;
+
+    const cloned = svg.cloneNode(true) as SVGSVGElement;
+    if (!cloned.getAttribute('xmlns')) cloned.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    if (!cloned.getAttribute('xmlns:xlink')) cloned.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+    const width = svg.getAttribute('width') || `${Math.ceil(svg.getBoundingClientRect().width)}`;
+    const height = svg.getAttribute('height') || `${Math.ceil(svg.getBoundingClientRect().height)}`;
+    if (width) cloned.setAttribute('width', width);
+    if (height) cloned.setAttribute('height', height);
+
+    const serialized = new XMLSerializer().serializeToString(cloned);
+    const encoded = window.btoa(unescape(encodeURIComponent(serialized)));
+    charts.push({
+      title,
+      svgDataUri: `data:image/svg+xml;base64,${encoded}`,
+    });
+  });
+
+  return charts;
+}
+
+function exportDashboardPdfWithGraphs(
+  data: AdminAnalyticsResponse,
+  charts: CapturedDashboardChart[],
+  rows: AdminAnalyticsExportResponse['rows']
+) {
   const win = window.open('', '_blank');
   if (!win) return;
 
-  const statusRows = Object.entries(data.status_breakdown)
-    .map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`)
-    .join('');
+  const compactRows = rows.slice(0, 20);
+  const detailRows = compactRows.map((row) => `
+    <tr>
+      <td>${escapeHtml(row.date_reported)}</td>
+      <td>${escapeHtml(row.item_name)}</td>
+      <td>${escapeHtml(row.record_type)}</td>
+      <td>${escapeHtml(row.report_status)}</td>
+      <td>${escapeHtml(row.reporter_name)}<br/><small>${escapeHtml(row.reporter_school_id)}</small></td>
+      <td>${row.claimant_name ? `${escapeHtml(row.claimant_name)}<br/><small>${escapeHtml(row.claimant_school_id)}</small>` : '-'}</td>
+    </tr>
+  `).join('');
+
+  const chartBlocks = charts.length
+    ? charts.map((chart) => `
+      <div class="chart-card">
+        <h3>${escapeHtml(chart.title)}</h3>
+        <img src="${chart.svgDataUri}" alt="${escapeHtml(chart.title)}" />
+      </div>
+    `).join('')
+    : '<p>No chart visuals available. Please wait for charts to load, then export again.</p>';
 
   const html = `
     <!doctype html>
     <html>
       <head>
         <meta charset="utf-8" />
-        <title>Analytics Export</title>
+        <title>Admin Dashboard Graph Export</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+          @page { size: A4 portrait; margin: 8mm; }
+          body { font-family: Arial, sans-serif; padding: 8px; color: #111827; }
           h1 { margin: 0 0 8px 0; }
-          h2 { margin: 24px 0 8px 0; font-size: 18px; }
+          h2 { margin: 14px 0 8px 0; font-size: 14px; }
+          h3 { margin: 0 0 6px 0; font-size: 11px; }
+          .meta { color: #6b7280; font-size: 10px; margin-bottom: 10px; }
+          .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 8px 0 10px 0; }
+          .chip { border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 10px; background: #f9fafb; }
+          .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+          .chart-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; break-inside: avoid; }
+          .chart-card img { width: 100%; max-height: 160px; height: auto; object-fit: contain; display: block; }
           table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-          th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; font-size: 12px; }
+          th, td { border: 1px solid #e5e7eb; padding: 5px; text-align: left; font-size: 9px; vertical-align: top; }
           th { background: #f3f4f6; }
-          .meta { color: #6b7280; font-size: 12px; margin-bottom: 16px; }
+          small { color: #6b7280; font-size: 8px; }
+          .note { margin-top: 4px; color: #6b7280; font-size: 9px; }
+          @media print {
+            .chart-card { page-break-inside: avoid; }
+          }
         </style>
       </head>
       <body>
-        <h1>Lost & Found Analytics</h1>
-        <div class="meta">Range: ${data.filters.date_from} to ${data.filters.date_to} | Category: ${data.filters.category}</div>
-
-        <h2>KPIs</h2>
+        <h1>Admin Analytics Dashboard</h1>
+        <div class="meta">Range: ${escapeHtml(data.filters.date_from)} to ${escapeHtml(data.filters.date_to)} | Category: ${escapeHtml(data.filters.category)}</div>
+        <div class="summary">
+          <div class="chip">Total Reports: ${data.kpis.total_reports}</div>
+          <div class="chip">Claims Submitted: ${data.kpis.claims_submitted}</div>
+          <div class="chip">Resolution Rate: ${data.kpis.resolution_rate}%</div>
+          <div class="chip">AI Matches: ${data.kpis.ai_matches_generated}</div>
+        </div>
+        <h2>Graph Snapshot</h2>
+        <div class="charts">${chartBlocks}</div>
+        <h2>Reported Items and Users</h2>
         <table>
-          <thead><tr><th>Metric</th><th>Value</th></tr></thead>
-          <tbody>
-            ${Object.entries(data.kpis).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}
-          </tbody>
+          <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Status</th><th>Reporter</th><th>Claimant</th></tr></thead>
+          <tbody>${detailRows}</tbody>
         </table>
+        <div class="note">Showing ${compactRows.length} of ${rows.length} records for compact PDF output.</div>
+      </body>
+    </html>
+  `;
 
-        <h2>Monthly Trends</h2>
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => win.print(), 300);
+}
+
+function escapeCsv(value: unknown) {
+  const text = String(value ?? '');
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function buildDetailedCsv(exportData: AdminAnalyticsExportResponse) {
+  const lines: string[] = [EXPORT_COLUMNS.join(',')];
+  exportData.rows.forEach((row) => {
+    lines.push([
+      escapeCsv(row.date_reported),
+      escapeCsv(row.record_type),
+      escapeCsv(row.report_id),
+      escapeCsv(row.item_name),
+      escapeCsv(row.category),
+      escapeCsv(row.location),
+      escapeCsv(row.report_status),
+      escapeCsv(row.report_description),
+      escapeCsv(row.item_image_url),
+      escapeCsv(row.reporter_name),
+      escapeCsv(row.reporter_school_id),
+      escapeCsv(row.reporter_role),
+      escapeCsv(row.reporter_email),
+      escapeCsv(row.claim_id),
+      escapeCsv(row.claim_status),
+      escapeCsv(row.claimed_at),
+      escapeCsv(row.claimant_name),
+      escapeCsv(row.claimant_school_id),
+      escapeCsv(row.claimant_email),
+      escapeCsv(row.claim_proof_image_url),
+    ].join(','));
+  });
+  return new Blob([lines.join('\n')], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function exportDetailedPdf(exportData: AdminAnalyticsExportResponse) {
+  const win = window.open('', '_blank');
+  if (!win) return;
+
+  const lostCount = exportData.rows.filter((r) => r.record_type === 'Lost').length;
+  const foundCount = exportData.rows.filter((r) => r.record_type === 'Found').length;
+  const claimedCount = exportData.rows.filter((r) => r.report_status === 'Claimed' || r.claim_status === 'Claimed').length;
+  const tableRows = exportData.rows.map((row) => `
+    <tr>
+      <td>${escapeHtml(row.date_reported)}</td>
+      <td>${escapeHtml(row.record_type)}</td>
+      <td>${escapeHtml(row.item_name)}</td>
+      <td>${escapeHtml(row.report_status)}</td>
+      <td>${escapeHtml(row.reporter_name)}<br/><small>${escapeHtml(row.reporter_school_id)} | ${escapeHtml(row.reporter_email)}</small></td>
+      <td>${row.claimant_name ? `${escapeHtml(row.claimant_name)}<br/><small>${escapeHtml(row.claimant_school_id)} | ${escapeHtml(row.claimant_email)}</small>` : '-'}</td>
+      <td>${row.item_image_url ? `<img src="${escapeHtml(row.item_image_url)}" alt="item" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;" />` : '-'}</td>
+      <td>${row.claim_proof_image_url ? `<img src="${escapeHtml(row.claim_proof_image_url)}" alt="proof" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;" />` : '-'}</td>
+    </tr>
+  `).join('');
+
+  const html = `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Analytics Detailed Export</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+          h1 { margin: 0 0 8px 0; }
+          h2 { margin: 20px 0 8px 0; font-size: 16px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; font-size: 11px; vertical-align: top; }
+          th { background: #f3f4f6; }
+          .meta { color: #6b7280; font-size: 12px; margin-bottom: 16px; }
+          .summary { display: flex; gap: 8px; margin: 12px 0 16px 0; }
+          .chip { border: 1px solid #e5e7eb; border-radius: 999px; padding: 6px 10px; font-size: 12px; background: #f9fafb; }
+        </style>
+      </head>
+      <body>
+        <h1>Lost & Found Detailed Report</h1>
+        <div class="meta">Range: ${escapeHtml(exportData.filters.date_from)} to ${escapeHtml(exportData.filters.date_to)} | Category: ${escapeHtml(exportData.filters.category)}</div>
+        <div class="summary">
+          <div class="chip">Lost Reports: ${lostCount}</div>
+          <div class="chip">Found Reports: ${foundCount}</div>
+          <div class="chip">Claimed Items: ${claimedCount}</div>
+          <div class="chip">Rows: ${exportData.rows.length}</div>
+        </div>
+
+        <h2>Record Details</h2>
         <table>
-          <thead><tr><th>Month</th><th>Lost</th><th>Found</th><th>Claims</th><th>AI</th></tr></thead>
+          <thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Status</th><th>Reporter</th><th>Claimant</th><th>Item Image</th><th>Proof Image</th></tr></thead>
           <tbody>
-            ${data.trends.map((r) => `<tr><td>${r.month}</td><td>${r.lost}</td><td>${r.found}</td><td>${r.claims}</td><td>${r.ai}</td></tr>`).join('')}
+            ${tableRows}
           </tbody>
-        </table>
-
-        <h2>Status Breakdown</h2>
-        <table>
-          <thead><tr><th>Status</th><th>Count</th></tr></thead>
-          <tbody>${statusRows}</tbody>
         </table>
       </body>
     </html>
@@ -145,7 +327,7 @@ export default function Analytics() {
   const [category, setCategory] = useState('all');
   const [data, setData] = useState<AdminAnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState<'csv' | 'pdf' | null>(null);
+  const [exporting, setExporting] = useState<'excel' | 'pdf' | 'dashboard' | null>(null);
   const [error, setError] = useState('');
   const [detail, setDetail] = useState<DetailState>(null);
 
@@ -205,6 +387,14 @@ export default function Analytics() {
     });
   };
 
+  const loadExportData = () =>
+    fetchAdminAnalyticsExportData({
+      date_from: dateFrom,
+      date_to: dateTo,
+      category,
+      timeframe,
+    });
+
   return (
     <div className="p-4 md:p-8 space-y-6">
       <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
@@ -215,36 +405,64 @@ export default function Analytics() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (!data) return;
+                setExporting('dashboard');
+                try {
+                  const charts = captureDashboardCharts();
+                  const exportData = await loadExportData();
+                  exportDashboardPdfWithGraphs(data, charts, exportData.rows);
+                } catch (err) {
+                  console.error(err);
+                } finally {
+                  setTimeout(() => setExporting(null), 150);
+                }
+              }}
+              disabled={!data || exporting !== null}
+              className="px-3 py-2 rounded-lg border text-sm bg-white border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+            >
+              {exporting === 'dashboard' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              Export Dashboard PDF
+            </button>
+            <button
+              onClick={async () => {
                 setExporting('pdf');
                 try {
-                  exportPdf(data);
+                  const exportData = await loadExportData();
+                  exportDetailedPdf(exportData);
+                } catch (err) {
+                  console.error(err);
                 } finally {
                   setTimeout(() => setExporting(null), 300);
                 }
               }}
-              disabled={!data || exporting !== null}
+              disabled={exporting !== null}
               className="px-3 py-2 rounded-lg border text-sm bg-white border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               {exporting === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Export PDF
+              Export History PDF
             </button>
             <button
-              onClick={() => {
-                if (!data) return;
-                setExporting('csv');
+              onClick={async () => {
+                setExporting('excel');
                 try {
-                  exportCsv(data);
+                  const exportData = await loadExportData();
+                  const csvBlob = buildDetailedCsv(exportData);
+                  downloadBlob(
+                    csvBlob,
+                    `analytics_detailed_${exportData.filters.date_from}_${exportData.filters.date_to}.xls`
+                  );
+                } catch (err) {
+                  console.error(err);
                 } finally {
                   setExporting(null);
                 }
               }}
-              disabled={!data || exporting !== null}
+              disabled={exporting !== null}
               className="px-3 py-2 rounded-lg border text-sm bg-white border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
-              {exporting === 'csv' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Export CSV
+              {exporting === 'excel' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              Export Excel
             </button>
             <button onClick={() => setTimeframe('week')} className={`px-3 py-2 rounded-lg border text-sm ${timeframe === 'week' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Week</button>
             <button onClick={() => setTimeframe('month')} className={`px-3 py-2 rounded-lg border text-sm ${timeframe === 'month' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Month</button>
@@ -327,7 +545,11 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
+        <div
+          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          data-dashboard-chart
+          data-chart-title={`${timeframeText} Trends`}
+        >
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">{timeframeText} Trends</h2>
             <span className="text-xs text-gray-500">Lost, Found, Claims, AI Matches</span>
@@ -359,7 +581,11 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
+        <div
+          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          data-dashboard-chart
+          data-chart-title={`Due Claims (${timeframeText})`}
+        >
           <h2 className="font-semibold text-gray-900">Due Claims ({timeframeText})</h2>
           {loading || !data ? (
             <div className="mt-4"><SkeletonPanel /></div>
@@ -382,7 +608,11 @@ export default function Analytics() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
+        <div
+          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          data-dashboard-chart
+          data-chart-title={`Pending Claims (${timeframeText})`}
+        >
           <h2 className="font-semibold text-gray-900">Pending Claims ({timeframeText})</h2>
           {loading || !data ? (
             <div className="mt-4"><SkeletonPanel /></div>
@@ -407,7 +637,11 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
+        <div
+          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          data-dashboard-chart
+          data-chart-title={`${timeframeText} Category Breakdown`}
+        >
           <h2 className="font-semibold text-gray-900">{timeframeText} Category Breakdown</h2>
           {loading || !data ? (
             <div className="mt-4"><SkeletonPanel /></div>
@@ -430,7 +664,11 @@ export default function Analytics() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
+        <div
+          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          data-dashboard-chart
+          data-chart-title={`Status: Last ${rangeText}`}
+        >
           <h2 className="font-semibold text-gray-900">Status: Last {rangeText}</h2>
           {loading || !data ? (
             <div className="mt-4"><SkeletonPanel /></div>
@@ -461,7 +699,11 @@ export default function Analytics() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
+        <div
+          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          data-dashboard-chart
+          data-chart-title="Top Locations"
+        >
           <h2 className="font-semibold text-gray-900">Top Locations</h2>
           {loading || !data ? (
             <div className="mt-4"><SkeletonPanel /></div>

@@ -867,7 +867,41 @@ export interface AdminAnalyticsResponse {
   locations: Array<{ name: string; count: number }>;
 }
 
+export interface AdminAnalyticsExportRow {
+  date_reported: string;
+  record_type: 'Lost' | 'Found';
+  report_id: number;
+  item_name: string;
+  category: string;
+  location: string;
+  report_status: string;
+  report_description: string;
+  item_image_url: string;
+  reporter_name: string;
+  reporter_school_id: string;
+  reporter_role: string;
+  reporter_email: string;
+  claim_id: number | '';
+  claim_status: string;
+  claimed_at: string;
+  claimant_name: string;
+  claimant_school_id: string;
+  claimant_email: string;
+  claim_proof_image_url: string;
+}
+
+export interface AdminAnalyticsExportResponse {
+  filters: {
+    date_from: string;
+    date_to: string;
+    category: string;
+    timeframe: 'week' | 'month' | 'year';
+  };
+  rows: AdminAnalyticsExportRow[];
+}
+
 const ADMIN_ANALYTICS_URL = `${API_URL}/admin/analytics/`;
+const ADMIN_ANALYTICS_EXPORT_DATA_URL = `${API_URL}/admin/analytics/export-data/`;
 
 export const fetchAdminAnalytics = async (params?: {
   date_from?: string;
@@ -893,6 +927,32 @@ export const fetchAdminAnalytics = async (params?: {
 
   if (!response.ok) {
     throw new Error('Failed to fetch admin analytics');
+  }
+  return response.json();
+};
+
+export const fetchAdminAnalyticsExportData = async (params?: {
+  date_from?: string;
+  date_to?: string;
+  category?: string;
+  timeframe?: 'week' | 'month' | 'year';
+}): Promise<AdminAnalyticsExportResponse> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('Authentication required');
+
+  const url = new URL(ADMIN_ANALYTICS_EXPORT_DATA_URL, window.location.origin);
+  if (params?.date_from) url.searchParams.set('date_from', params.date_from);
+  if (params?.date_to) url.searchParams.set('date_to', params.date_to);
+  if (params?.category) url.searchParams.set('category', params.category);
+  if (params?.timeframe) url.searchParams.set('timeframe', params.timeframe);
+
+  const response = await fetch(url.toString(), {
+    credentials: 'include',
+    headers: { 'X-CSRFToken': csrfToken },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch export data');
   }
   return response.json();
 };

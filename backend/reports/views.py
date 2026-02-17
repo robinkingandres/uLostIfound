@@ -1067,6 +1067,118 @@ class AdminAnalyticsView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
+class AdminAnalyticsExportDataView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request, format=None):
+        timeframe = request.query_params.get('timeframe', 'month').lower()
+        if timeframe not in ['week', 'month', 'year']:
+            timeframe = 'month'
+
+        date_from_param = request.query_params.get('date_from')
+        date_to_param = request.query_params.get('date_to')
+        category = request.query_params.get('category', 'all')
+        today = timezone.localdate()
+
+        try:
+            if date_from_param:
+                date_from = datetime.strptime(date_from_param, '%Y-%m-%d').date()
+            else:
+                default_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 365)
+                date_from = today - timedelta(days=default_days - 1)
+        except ValueError:
+            fallback_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 365)
+            date_from = today - timedelta(days=fallback_days - 1)
+
+        try:
+            date_to = datetime.strptime(date_to_param, '%Y-%m-%d').date() if date_to_param else today
+        except ValueError:
+            date_to = today
+
+        if date_from > date_to:
+            date_from, date_to = date_to, date_from
+
+        reports = (
+            Report.objects
+            .select_related('reporter')
+            .prefetch_related('claims__claimant')
+            .filter(date_reported__date__range=(date_from, date_to))
+            .order_by('-date_reported')
+        )
+
+        if category and category.lower() != 'all':
+            reports = reports.filter(category=category)
+
+        rows = []
+        for report in reports:
+            reporter = report.reporter
+            reporter_name = f"{reporter.first_name} {reporter.last_name}".strip() or reporter.username
+            report_image_url = request.build_absolute_uri(report.image.url) if report.image else ''
+            claims = list(report.claims.all())
+
+            if not claims:
+                rows.append({
+                    'date_reported': report.date_reported.strftime('%Y-%m-%d'),
+                    'record_type': report.type,
+                    'report_id': report.id,
+                    'item_name': report.item_name,
+                    'category': report.category,
+                    'location': report.location,
+                    'report_status': report.status,
+                    'report_description': report.description,
+                    'item_image_url': report_image_url,
+                    'reporter_name': reporter_name,
+                    'reporter_school_id': reporter.school_id,
+                    'reporter_role': reporter.role,
+                    'reporter_email': reporter.email,
+                    'claim_id': '',
+                    'claim_status': '',
+                    'claimed_at': '',
+                    'claimant_name': '',
+                    'claimant_school_id': '',
+                    'claimant_email': '',
+                    'claim_proof_image_url': '',
+                })
+                continue
+
+            for claim in claims:
+                claimant = claim.claimant
+                claimant_name = f"{claimant.first_name} {claimant.last_name}".strip() or claimant.username
+                claim_proof_image_url = request.build_absolute_uri(claim.proof_image.url) if claim.proof_image else ''
+                rows.append({
+                    'date_reported': report.date_reported.strftime('%Y-%m-%d'),
+                    'record_type': report.type,
+                    'report_id': report.id,
+                    'item_name': report.item_name,
+                    'category': report.category,
+                    'location': report.location,
+                    'report_status': report.status,
+                    'report_description': report.description,
+                    'item_image_url': report_image_url,
+                    'reporter_name': reporter_name,
+                    'reporter_school_id': reporter.school_id,
+                    'reporter_role': reporter.role,
+                    'reporter_email': reporter.email,
+                    'claim_id': claim.id,
+                    'claim_status': claim.status,
+                    'claimed_at': claim.date_created.strftime('%Y-%m-%d'),
+                    'claimant_name': claimant_name,
+                    'claimant_school_id': claimant.school_id,
+                    'claimant_email': claimant.email,
+                    'claim_proof_image_url': claim_proof_image_url,
+                })
+
+        return Response({
+            'filters': {
+                'date_from': date_from.isoformat(),
+                'date_to': date_to.isoformat(),
+                'category': category,
+                'timeframe': timeframe,
+            },
+            'rows': rows,
+        }, status=status.HTTP_200_OK)
+
+
 # --- COMPREHENSIVE LOST & FOUND DASHBOARD API ---
 class LostFoundDashboardView(APIView):
     permission_classes = [IsAdmin]
