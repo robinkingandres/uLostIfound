@@ -59,6 +59,12 @@ class Claim(models.Model):
 
     class Meta:
         ordering = ['-date_created']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['report', 'claimant'],
+                name='unique_claim_per_user_per_report',
+            ),
+        ]
 
     def __str__(self):
         return f"Claim for {self.report.item_name} by {self.claimant.username}"

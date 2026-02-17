@@ -30,6 +30,7 @@ import ReportFoundSuccess from './pages/user/ReportFoundSuccess';
 import UserProfile from './pages/user/Profile';
 import Matches from './pages/user/Matches';
 import ForgotPassword from './pages/user/ForgotPassword';
+import ActivityPage from './pages/user/Activity';
 
 function App() {
   return (
@@ -98,6 +99,12 @@ function App() {
           <Route path="/matches" element={
             <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
               <Matches />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/activity" element={
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
+              <ActivityPage />
             </ProtectedRoute>
           } />
 

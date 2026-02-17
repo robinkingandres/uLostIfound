@@ -94,6 +94,13 @@ class ClaimSerializer(serializers.ModelSerializer):
         if report and request and request.user == report.reporter:
             raise serializers.ValidationError("You cannot claim an item you reported.")
 
+        # Block duplicate claims for the same user/report pair before DB save.
+        if self.instance is None and report and request:
+            if Claim.objects.filter(report=report, claimant=request.user).exists():
+                raise serializers.ValidationError(
+                    "You already submitted a claim for this item."
+                )
+
         settings_obj = SiteSettings.get_solo()
         proof_image = attrs.get('proof_image')
         if settings_obj.claim_require_proof_image and not proof_image:

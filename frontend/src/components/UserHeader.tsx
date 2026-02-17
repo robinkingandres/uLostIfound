@@ -90,7 +90,7 @@ export default function UserHeader() {
         } else if (msg.includes('review') || msg.includes('submitted') || msg.includes('pending')) {
            navigate('/matches?category=Pending'); 
         } else if (msg.includes('rejected')) {
-           navigate('/profile');
+           navigate('/activity');
         }
 
         await markNotificationRead(notif.id);
@@ -278,7 +278,15 @@ export default function UserHeader() {
                           )}
                       </div>
                       <div className="bg-gray-50 px-4 py-2 text-center border-t border-gray-100">
-                        <button className="text-[10px] text-gray-500 hover:text-cyan-600 font-medium transition-colors">View All Activity</button>
+                        <button
+                          onClick={() => {
+                            setIsNotifOpen(false);
+                            navigate('/activity');
+                          }}
+                          className="text-[10px] text-gray-500 hover:text-cyan-600 font-medium transition-colors"
+                        >
+                          View All Activity
+                        </button>
                       </div>
                   </div>
               )}
