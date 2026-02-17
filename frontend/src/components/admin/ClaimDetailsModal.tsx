@@ -13,6 +13,7 @@ type Props = {
 export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange }: Props) {
   const titleId = useId();
   const [imgError, setImgError] = useState(false);
+  const [reportImgError, setReportImgError] = useState(false);
   
   // State for rejection logic
   const [showRejectInput, setShowRejectInput] = useState(false);
@@ -32,6 +33,7 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
   // Reset state when opening a different claim
   useEffect(() => {
     setImgError(false);
+    setReportImgError(false);
     setShowRejectInput(false);
     setRejectReason("");
   }, [claim?.id, open]);
@@ -65,6 +67,8 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
     (claim.proofImageBase64 as string | undefined) ||
     "";
 
+  const reportImgSrc = claim.reportImage || "";
+
   return (
     <div className="fixed inset-0 z-50 bg-black/40 p-4 flex items-center justify-center" onClick={onClose}>
       <div
@@ -94,6 +98,9 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
             <div className="rounded-xl border border-gray-100 p-4">
               <div className="text-xs font-semibold text-gray-500">Item</div>
               <div className="mt-1 text-lg font-bold text-gray-900">{claim.itemName}</div>
+              <div className="mt-1 text-xs text-gray-500">
+                {claim.reportType || "Report"} • {claim.reportCategory || "Uncategorized"}
+              </div>
 
               <div className="mt-4 text-xs font-semibold text-gray-500">Status</div>
               <div className="mt-1">
@@ -109,8 +116,60 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
               <div className="text-xs text-gray-500 italic">{claim.claimantRole}</div>
             </div>
 
+            <div className="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+              <div className="text-xs font-semibold text-blue-700">Reported Item Details</div>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div className="text-xs text-gray-500">Reported by</div>
+                  <div className="font-semibold text-gray-900">{claim.reporterName || "Unknown reporter"}</div>
+                  <div className="text-xs text-gray-500">{claim.reporterRole || "N/A"} • {claim.reporterSchoolId || "N/A"}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Location</div>
+                  <div className="font-semibold text-gray-900">{claim.reportLocation || "Unspecified"}</div>
+                  <div className="text-xs text-gray-500">Status: {claim.reportStatus || "N/A"}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Date Lost/Found</div>
+                  <div className="font-semibold text-gray-900">{claim.reportDate || "N/A"}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Date Reported</div>
+                  <div className="font-semibold text-gray-900">{claim.reportDateReported || "N/A"}</div>
+                </div>
+              </div>
+              <p className="mt-3 text-sm text-gray-700 whitespace-pre-wrap">
+                {claim.reportDescription || "No report description provided."}
+              </p>
+            </div>
+
             {/* Proof image */}
-            <div className="md:col-span-2 rounded-xl border border-gray-100 p-4">
+            <div className="md:col-span-1 rounded-xl border border-gray-100 p-4">
+              <div className="text-xs font-semibold text-gray-500 mb-2">Reported Item Image</div>
+
+              {!reportImgSrc ? (
+                <div className="text-sm text-gray-500 italic">No report image uploaded.</div>
+              ) : reportImgError ? (
+                <div className="text-sm text-red-600 font-semibold">
+                  Failed to load report image.
+                </div>
+              ) : (
+                <a href={reportImgSrc} target="_blank" rel="noreferrer" className="block group relative">
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-xl" />
+                  <img
+                    src={reportImgSrc}
+                    alt="Reported item"
+                    className="w-full max-h-80 object-contain rounded-xl border border-gray-200 bg-gray-50"
+                    onError={() => setReportImgError(true)}
+                  />
+                  <div className="hidden group-hover:block absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                    Click to expand
+                  </div>
+                </a>
+              )}
+            </div>
+
+            <div className="md:col-span-1 rounded-xl border border-gray-100 p-4">
               <div className="text-xs font-semibold text-gray-500 mb-2">Proof Image</div>
 
               {!proofImgSrc ? (

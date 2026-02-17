@@ -55,6 +55,18 @@ class ClaimSerializer(serializers.ModelSerializer):
     claimantName = serializers.SerializerMethodField(read_only=True)
     claimantRole = serializers.CharField(source='claimant.role', read_only=True)
     date = serializers.DateTimeField(source='date_created', format="%Y-%m-%d", read_only=True)
+    reportRecordId = serializers.IntegerField(source='report.id', read_only=True)
+    reportType = serializers.CharField(source='report.type', read_only=True)
+    reportCategory = serializers.CharField(source='report.category', read_only=True)
+    reportLocation = serializers.CharField(source='report.location', read_only=True)
+    reportStatus = serializers.CharField(source='report.status', read_only=True)
+    reportDescription = serializers.CharField(source='report.description', read_only=True)
+    reportDate = serializers.DateField(source='report.date_lost_or_found', format="%Y-%m-%d", read_only=True)
+    reportDateReported = serializers.DateTimeField(source='report.date_reported', format="%Y-%m-%d", read_only=True)
+    reportImage = serializers.SerializerMethodField(read_only=True)
+    reporterName = serializers.SerializerMethodField(read_only=True)
+    reporterRole = serializers.CharField(source='report.reporter.role', read_only=True)
+    reporterSchoolId = serializers.CharField(source='report.reporter.school_id', read_only=True)
     
     # Input field mapping
     proofDescription = serializers.CharField(source='proof_description', required=True)
@@ -68,7 +80,10 @@ class ClaimSerializer(serializers.ModelSerializer):
         model = Claim
         fields = [
             'id', 'reportId', 'itemName', 'claimantName', 
-            'claimantRole', 'proofDescription', 'proofImage', 'proof_image', 'status', 'date','rejection_reason'
+            'claimantRole', 'proofDescription', 'proofImage', 'proof_image', 'status', 'date', 'rejection_reason',
+            'reportRecordId', 'reportType', 'reportCategory', 'reportLocation', 'reportStatus',
+            'reportDescription', 'reportDate', 'reportDateReported', 'reportImage',
+            'reporterName', 'reporterRole', 'reporterSchoolId'
         ]
         read_only_fields = ['id', 'itemName', 'claimantName', 'claimantRole', 'date']
 
@@ -84,6 +99,19 @@ class ClaimSerializer(serializers.ModelSerializer):
         if request:
             return request.build_absolute_uri(obj.proof_image.url)
         return obj.proof_image.url
+
+    def get_reportImage(self, obj):
+        if not obj.report.image:
+            return None
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(obj.report.image.url)
+        return obj.report.image.url
+
+    def get_reporterName(self, obj):
+        user = obj.report.reporter
+        full_name = f"{user.first_name} {user.last_name}".strip()
+        return full_name if full_name else user.username
     
     def validate(self, attrs):
         # Get the report object from the input data

@@ -305,11 +305,12 @@ class ClaimViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         report_id = self.request.query_params.get('report_id')
+        base_qs = Claim.objects.select_related('claimant', 'report', 'report__reporter')
         # Allow Admin AND Guidance to see all claims
         if user.role in ['Admin', 'Guidance'] or user.is_superuser:
-            queryset = Claim.objects.all()
+            queryset = base_qs
         else:
-            queryset = Claim.objects.filter(claimant=user)
+            queryset = base_qs.filter(claimant=user)
 
         if report_id:
             queryset = queryset.filter(report_id=report_id)

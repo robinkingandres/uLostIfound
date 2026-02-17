@@ -14,4 +14,16 @@ export interface Claim {
   date: string;
   status: ClaimStatus;
   rejection_reason?: string; 
+  reportRecordId?: number;
+  reportType?: 'Lost' | 'Found';
+  reportCategory?: string;
+  reportLocation?: string;
+  reportStatus?: string;
+  reportDescription?: string;
+  reportDate?: string;
+  reportDateReported?: string;
+  reportImage?: string | null;
+  reporterName?: string;
+  reporterRole?: string;
+  reporterSchoolId?: string;
 }
