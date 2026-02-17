@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, User } from 'lucide-react';
-import { updateProfile } from '../services/api';
+import { updateProfile, updateUser } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
 interface EditProfileModalProps {
@@ -14,9 +14,9 @@ export default function EditProfileModal({ isOpen, onClose, onUpdate }: EditProf
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [yearLevel, setYearLevel] = useState('');
-  const [room, setRoom] = useState('');
   const [gender, setGender] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -27,11 +27,9 @@ export default function EditProfileModal({ isOpen, onClose, onUpdate }: EditProf
       setFirstName(nameParts[0] || '');
       setLastName(nameParts.slice(1).join(' ') || '');
       setEmail(user.email || '');
-      
-      // Handle both camelCase and snake_case for robust initial loading
-      setYearLevel(user.yearLevel || (user as any).year_level || '');
-      setRoom(user.room || '');
       setGender(user.gender || '');
+      setNewPassword('');
+      setConfirmPassword('');
       setError('');
     }
   }, [isOpen, user]);
@@ -44,16 +42,39 @@ export default function EditProfileModal({ isOpen, onClose, onUpdate }: EditProf
     setLoading(true);
     setError('');
 
+    const trimmedPassword = newPassword.trim();
+    const trimmedConfirm = confirmPassword.trim();
+
+    if (trimmedPassword || trimmedConfirm) {
+      if (!trimmedPassword || !trimmedConfirm) {
+        setLoading(false);
+        setError('Please fill in both password fields.');
+        return;
+      }
+      if (trimmedPassword.length < 8) {
+        setLoading(false);
+        setError('New password must be at least 8 characters.');
+        return;
+      }
+      if (trimmedPassword !== trimmedConfirm) {
+        setLoading(false);
+        setError('New password and confirm password do not match.');
+        return;
+      }
+    }
+
     try {
       // Backend expects snake_case keys
       await updateProfile(user.id, {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim(),
-        year_level: yearLevel,
-        room: room.trim(),
         gender: gender,
       });
+
+      if (trimmedPassword) {
+        await updateUser(user.id, { password: trimmedPassword });
+      }
       
       // Trigger parent refresh
       await onUpdate();
@@ -102,24 +123,6 @@ export default function EditProfileModal({ isOpen, onClose, onUpdate }: EditProf
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Year Level</label>
-              <select className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#29b6f6] outline-none" value={yearLevel} onChange={(e) => setYearLevel(e.target.value)}>
-                <option value="">Select Year Level</option>
-                <option value="Grade 7">Grade 7</option>
-                <option value="Grade 8">Grade 8</option>
-                <option value="Grade 9">Grade 9</option>
-                <option value="Grade 10">Grade 10</option>
-                <option value="Grade 11">Grade 11</option>
-                <option value="Grade 12">Grade 12</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Room</label>
-              <input type="text" className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#29b6f6] outline-none" placeholder="e.g. Room 101" value={room} onChange={(e) => setRoom(e.target.value)} />
-            </div>
-
-            <div>
               <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Gender</label>
               <div className="grid grid-cols-3 gap-2">
                 {['Male', 'Female', 'Prefer not to say'].map((option) => (
@@ -136,6 +139,34 @@ export default function EditProfileModal({ isOpen, onClose, onUpdate }: EditProf
                     {option === 'Prefer not to say' ? 'Secret' : option}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-gray-200">
+              <p className="text-xs font-bold text-gray-600 uppercase mb-3">Change Password (Optional)</p>
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1">New Password</label>
+                  <input
+                    type="password"
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#29b6f6] outline-none"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    minLength={8}
+                    placeholder="Minimum 8 characters"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Confirm New Password</label>
+                  <input
+                    type="password"
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#29b6f6] outline-none"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    minLength={8}
+                    placeholder="Re-enter new password"
+                  />
+                </div>
               </div>
             </div>
           </div>

@@ -65,6 +65,9 @@ export default function UserManagement() {
         ...u,
         userId: u.userId || '',
         name: u.name || u.username,
+        yearLevel: u.yearLevel || u.year_level || '',
+        room: u.room || '',
+        gender: u.gender || '',
       }));
       setUsers(mappedData);
     } catch (err) {
@@ -141,16 +144,26 @@ export default function UserManagement() {
       email: r.email,
       role: r.role,
       avatar: r.avatar,
+      yearLevel: r.yearLevel || r.year_level || '',
+      room: r.room || '',
+      gender: r.gender || '',
     };
     setUsers((prev) => [...prev, mapped]);
   };
 
   const handleUpdateUser = async (id: number, data: Partial<User> | any) => {
     const apiPayload: any = {};
-    if (data.name !== undefined) apiPayload.username = data.name;
+    if (data.name !== undefined) {
+      const fullName = String(data.name || '').trim();
+      const [firstName, ...rest] = fullName.split(/\s+/);
+      apiPayload.first_name = firstName || '';
+      apiPayload.last_name = rest.join(' ');
+    }
     if (data.email !== undefined) apiPayload.email = data.email;
     if (data.role !== undefined) apiPayload.role = data.role;
     if (data.userId !== undefined) apiPayload.school_id = data.userId;
+    if (data.yearLevel !== undefined) apiPayload.year_level = data.yearLevel;
+    if (data.room !== undefined) apiPayload.room = data.room;
     if (data.password) apiPayload.password = data.password;
 
     const updatedUser = await updateUser(id, apiPayload);
@@ -161,6 +174,9 @@ export default function UserManagement() {
             ...updatedUser,
             userId: updatedUser.userId ?? u.userId,
             name: updatedUser.name || updatedUser.username || u.name,
+            yearLevel: updatedUser.yearLevel || updatedUser.year_level || u.yearLevel,
+            room: updatedUser.room ?? u.room,
+            gender: updatedUser.gender ?? u.gender,
           }
         : u
     );
