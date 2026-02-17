@@ -26,6 +26,8 @@ class User(AbstractUser):
     
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
 
+    REQUIRED_FIELDS = ['email', 'school_id']
+
     def __str__(self):
         return f"{self.school_id} - {self.username}"
 
