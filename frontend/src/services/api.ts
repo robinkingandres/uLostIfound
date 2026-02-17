@@ -3,6 +3,8 @@ import type { Claim, ClaimStatus } from '../types/claim'; // Ensure Claim/ClaimS
 // FIX: Ensure correct import of fetchCsrfToken from authApi.ts
 import { fetchCsrfToken } from './authApi'; 
 
+export type { Report };
+
 const API_URL = 'http://localhost:8000/api'; // <-- FIXED HOSTNAME
 const REPORT_URL = `${API_URL}/reports/`;
 const CLAIM_URL = `${API_URL}/claims/`; // <-- NEW CLAIM URL
@@ -144,7 +146,10 @@ export const fetchClaims = async (): Promise<Claim[]> => {
   if (!response.ok) {
     throw new Error('Failed to fetch claims');
   }
-  return response.json();
+  const data = await response.json();
+  if (Array.isArray(data)) return data;
+  if (data?.results && Array.isArray(data.results)) return data.results;
+  return [];
 };
 
 // --- NEW: Update claim status (Approve/Reject) ---
@@ -241,8 +246,10 @@ export const fetchReports = async (type?: ReportType, status?: ReportStatus): Pr
   if (!response.ok) {
     throw new Error('Failed to fetch reports');
   }
-
-  return response.json();
+  const data = await response.json();
+  if (Array.isArray(data)) return data;
+  if (data?.results && Array.isArray(data.results)) return data.results;
+  return [];
 };
 
 
@@ -632,7 +639,10 @@ export const fetchAIMatches = async (status?: string): Promise<AIMatch[]> => {
   if (!response.ok) {
     throw new Error('Failed to fetch AI matches');
   }
-  return response.json();
+  const data = await response.json();
+  if (Array.isArray(data)) return data;
+  if (data?.results && Array.isArray(data.results)) return data.results;
+  return [];
 };
 
 /**
@@ -677,22 +687,29 @@ export const updateAIMatchStatus = async (id: number, status: 'Approved' | 'Reje
 export const triggerAIScan = async (minScore: number = 50): Promise<{ status: string; message: string; matches_created: number }> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
+  const scanEndpoints = [`${AI_MATCH_URL}scan_all/`, `${API_URL}/ai/scan/`];
+  let lastError = '';
 
-  const response = await fetch(`${AI_MATCH_URL}scan_all/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken,
-    },
-    body: JSON.stringify({ min_score: minScore }),
-    credentials: 'include',
-  });
+  for (const endpoint of scanEndpoints) {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+      body: JSON.stringify({ min_score: minScore }),
+      credentials: 'include',
+    });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(JSON.stringify(errorData));
+    if (response.ok) return response.json();
+
+    const errorText = await response.text();
+    lastError = errorText || `HTTP ${response.status}`;
+
+    // Try fallback only when endpoint is not available.
+    if (![404, 405].includes(response.status)) break;
   }
-  return response.json();
+  throw new Error(lastError || 'Failed to trigger AI scan');
 };
 
 /**
@@ -811,4 +828,169 @@ export const fetchLostFoundDashboard = async (): Promise<LostFoundDashboardData>
     throw new Error('Failed to fetch lost & found dashboard data');
   }
   return response.json();
+};
+
+export interface AdminAnalyticsResponse {
+  filters: {
+    date_from: string;
+    date_to: string;
+    category: string;
+  };
+  kpis: {
+    total_reports: number;
+    reports_today: number;
+    claims_submitted: number;
+    claims_today: number;
+    claims_resolved: number;
+    resolution_rate: number;
+    ai_matches_generated: number;
+    ai_matches_today: number;
+    avg_resolution_time_days: number;
+    pending_claims: number;
+    overdue_claims: number;
+  };
+  trends: Array<{ month: string; lost: number; found: number; claims: number; ai: number }>;
+  due_claims_monthly: Array<{ month: string; count: number }>;
+  pending_claims_monthly: Array<{ month: string; count: number }>;
+  categories: Array<{ name: string; count: number }>;
+  status_breakdown: Record<string, number>;
+  locations: Array<{ name: string; count: number }>;
+}
+
+const ADMIN_ANALYTICS_URL = `${API_URL}/admin/analytics/`;
+
+export const fetchAdminAnalytics = async (params?: {
+  date_from?: string;
+  date_to?: string;
+  category?: string;
+}): Promise<AdminAnalyticsResponse> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('Authentication required');
+
+  const url = new URL(ADMIN_ANALYTICS_URL, window.location.origin);
+  if (params?.date_from) url.searchParams.set('date_from', params.date_from);
+  if (params?.date_to) url.searchParams.set('date_to', params.date_to);
+  if (params?.category) url.searchParams.set('category', params.category);
+
+  const response = await fetch(url.toString(), {
+    credentials: 'include',
+    headers: { 'X-CSRFToken': csrfToken },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch admin analytics');
+  }
+  return response.json();
+};
+
+export interface SettingsCategory {
+  id: number;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface SiteSettings {
+  id: number;
+  org_name: string;
+  org_tagline: string;
+  org_logo: string | null;
+  org_logo_url: string | null;
+  default_new_report_status: 'Pending' | 'Verified' | 'Claimed' | 'Rejected';
+  home_visible_report_statuses: string[];
+  claim_require_proof_image: boolean;
+  ai_min_score: number;
+  ai_matching_enabled: boolean;
+  user_home_chatbot_visible: boolean;
+  user_home_chat_notification_dot: boolean;
+  email_master_enabled: boolean;
+  email_notify_verified_reports: boolean;
+  email_notify_claim_results: boolean;
+  categories: SettingsCategory[];
+  updated_at: string;
+}
+
+const SETTINGS_URL = `${API_URL}/settings/`;
+const SETTINGS_CATEGORIES_URL = `${API_URL}/categories/`;
+
+export const fetchSiteSettings = async (): Promise<SiteSettings> => {
+  const response = await fetch(SETTINGS_URL, { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error('Failed to fetch settings');
+  }
+  return response.json();
+};
+
+export const updateSiteSettings = async (payload: Partial<SiteSettings> | FormData): Promise<SiteSettings> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('Authentication required');
+
+  const isForm = payload instanceof FormData;
+  const response = await fetch(SETTINGS_URL, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: isForm ? { 'X-CSRFToken': csrfToken } : {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: isForm ? payload : JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to update settings');
+  }
+  return response.json();
+};
+
+export const fetchSettingsCategories = async (): Promise<SettingsCategory[]> => {
+  const response = await fetch(SETTINGS_CATEGORIES_URL, { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error('Failed to fetch categories');
+  }
+  const data = await response.json();
+  if (Array.isArray(data)) return data;
+  if (data?.results && Array.isArray(data.results)) return data.results;
+  return [];
+};
+
+export const createSettingsCategory = async (payload: Pick<SettingsCategory, 'name' | 'sort_order' | 'is_active'>): Promise<SettingsCategory> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('Authentication required');
+  const response = await fetch(SETTINGS_CATEGORIES_URL, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to create category');
+  return response.json();
+};
+
+export const updateSettingsCategory = async (id: number, payload: Partial<SettingsCategory>): Promise<SettingsCategory> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('Authentication required');
+  const response = await fetch(`${SETTINGS_CATEGORIES_URL}${id}/`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to update category');
+  return response.json();
+};
+
+export const deleteSettingsCategory = async (id: number): Promise<void> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('Authentication required');
+  const response = await fetch(`${SETTINGS_CATEGORIES_URL}${id}/`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'X-CSRFToken': csrfToken },
+  });
+  if (!response.ok) throw new Error('Failed to delete category');
 };

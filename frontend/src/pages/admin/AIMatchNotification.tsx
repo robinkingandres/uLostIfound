@@ -4,31 +4,45 @@ import StatCard from '../../components/admin/StatCard';
 import { fetchAIMatches, fetchAIMatchStats, updateAIMatchStatus, triggerAIScan } from '../../services/api';
 import type { AIMatch, AIMatchStats } from '../../services/api';
 
-type TabStatus = 'Verified' | 'Pending' | 'Rejected';
+type TabStatus = 'All' | 'Verified' | 'Pending' | 'Rejected';
 
 const API_BASE = 'http://localhost:8000';
 
 export default function AIMatchNotification() {
   const [matches, setMatches] = useState<AIMatch[]>([]);
   const [stats, setStats] = useState<AIMatchStats>({ total: 0, pending: 0, approved: 0, rejected: 0 });
-  const [activeTab, setActiveTab] = useState<TabStatus>('Pending');
+  const [activeTab, setActiveTab] = useState<TabStatus>('All');
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    try {
-      const [matchesData, statsData] = await Promise.all([
-        fetchAIMatches(),
-        fetchAIMatchStats()
-      ]);
-      setMatches(matchesData);
-      setStats(statsData);
-    } catch (err) {
-      console.error('Failed to load AI matches:', err);
-    } finally {
-      setLoading(false);
+    const [matchesResult, statsResult] = await Promise.allSettled([
+      fetchAIMatches(),
+      fetchAIMatchStats(),
+    ]);
+
+    if (matchesResult.status === 'fulfilled') {
+      console.log('AI matches loaded:', matchesResult.value.length);
+      setMatches(matchesResult.value);
+    } else {
+      console.error('Failed to load AI matches:', matchesResult.reason);
+      setMatches([]);
     }
+
+    if (statsResult.status === 'fulfilled') {
+      setStats(statsResult.value);
+    } else {
+      console.error('Failed to load AI stats:', statsResult.reason);
+      const loaded = matchesResult.status === 'fulfilled' ? matchesResult.value : [];
+      setStats({
+        total: loaded.length,
+        pending: loaded.filter((m) => m.status === 'Pending').length,
+        approved: loaded.filter((m) => m.status === 'Approved').length,
+        rejected: loaded.filter((m) => m.status === 'Rejected').length,
+      });
+    }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -37,6 +51,7 @@ export default function AIMatchNotification() {
 
   // Filter matches based on the active tab
   const filteredMatches = matches.filter(m => {
+    if (activeTab === 'All') return true;
     if (activeTab === 'Verified') return m.status === 'Approved';
     return m.status === activeTab;
   });
@@ -44,17 +59,7 @@ export default function AIMatchNotification() {
   const handleAction = async (id: number, newStatus: 'Approved' | 'Rejected') => {
     try {
       await updateAIMatchStatus(id, newStatus);
-      // Update local state
-      setMatches(prev => prev.map(m => 
-        m.id === id ? { ...m, status: newStatus } : m
-      ));
-      // Update stats
-      setStats(prev => ({
-        ...prev,
-        pending: prev.pending - 1,
-        approved: newStatus === 'Approved' ? prev.approved + 1 : prev.approved,
-        rejected: newStatus === 'Rejected' ? prev.rejected + 1 : prev.rejected,
-      }));
+      await loadData();
     } catch (err) {
       console.error('Failed to update match status:', err);
       alert('Failed to update match status. Please try again.');
@@ -64,7 +69,10 @@ export default function AIMatchNotification() {
   const handleScanAll = async () => {
     setScanning(true);
     try {
-      const result = await triggerAIScan(50);
+      const minScore = 30;
+      console.log(`Starting AI scan with min_score=${minScore}`);
+      const result = await triggerAIScan(minScore);
+      console.log('AI scan result:', result);
       alert(`${result.message}`);
       // Reload data after scan
       await loadData();
@@ -139,7 +147,7 @@ export default function AIMatchNotification() {
         {/* Tabs Navigation */}
         <div className="flex items-center gap-6 mb-6 border-b border-gray-200 pb-2">
           <h2 className="text-xl font-bold text-gray-900 mr-4">AI Match Results</h2>
-          {(['Verified', 'Pending', 'Rejected'] as const).map((tab) => (
+          {(['All', 'Verified', 'Pending', 'Rejected'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}

@@ -1,14 +1,16 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import UserViewSet, LoginView, LogoutView, RequestPasswordResetView, ResetPasswordView
+from .views import UserViewSet, LoginView, LogoutView, RequestPasswordResetView, ResetPasswordView, SettingsView, CategoryViewSet
 
 
 # Create a router and register our viewsets with it.
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
+router.register(r'categories', CategoryViewSet, basename='categories')
 
 # The API URLs are now determined automatically by the router.
 urlpatterns = [
+    path('settings/', SettingsView.as_view(), name='site-settings'),
     # New Authentication Endpoints
     path('auth/login/', LoginView.as_view(), name='api_login'), # /api/auth/login/
     path('auth/logout/', LogoutView.as_view(), name='api_logout'), # /api/auth/logout/

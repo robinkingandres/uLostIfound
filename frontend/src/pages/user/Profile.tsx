@@ -277,7 +277,7 @@ export default function Profile() {
       </div>
 
       {/* Chatbot Component */}
-      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
+      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} reports={myReports} />
 
       {/* Edit Profile Modal */}
       <EditProfileModal

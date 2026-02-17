@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.conf import settings
-from .models import User
+from .models import User, SiteSettings, Category
 
 class UserSerializer(serializers.ModelSerializer):
     # Map backend fields to frontend expected keys
@@ -96,3 +96,49 @@ class UserSerializer(serializers.ModelSerializer):
         instance.userId = instance.school_id # Note: This is Python-side manipulation for the response
         
         return instance
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'sort_order', 'is_active']
+
+
+class SiteSettingsSerializer(serializers.ModelSerializer):
+    categories = serializers.SerializerMethodField()
+    org_logo_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SiteSettings
+        fields = [
+            'id',
+            'org_name',
+            'org_tagline',
+            'org_logo',
+            'org_logo_url',
+            'default_new_report_status',
+            'home_visible_report_statuses',
+            'claim_require_proof_image',
+            'ai_min_score',
+            'ai_matching_enabled',
+            'user_home_chatbot_visible',
+            'user_home_chat_notification_dot',
+            'email_master_enabled',
+            'email_notify_verified_reports',
+            'email_notify_claim_results',
+            'categories',
+            'updated_at',
+        ]
+        read_only_fields = ['updated_at', 'categories', 'org_logo_url']
+
+    def get_categories(self, _obj):
+        categories = Category.objects.filter(is_active=True).order_by('sort_order', 'name')
+        return CategorySerializer(categories, many=True).data
+
+    def get_org_logo_url(self, obj):
+        if not obj.org_logo:
+            return None
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(obj.org_logo.url)
+        return f"http://localhost:8000{settings.MEDIA_URL}{obj.org_logo}"

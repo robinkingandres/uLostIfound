@@ -4,7 +4,7 @@ import { ArrowLeft, Clock, CheckCircle, PackageCheck, TrendingUp, MapPin, Calend
 import UserHeader from '../../components/UserHeader';
 import Chatbot from '../../components/Chatbot';
 import EditReportModal from '../../components/EditReportModal';
-import { fetchMyReports, fetchClaims, fetchMyAIMatches, updateReport, deleteReport } from '../../services/api';
+import { fetchMyReports, fetchClaims, fetchMyAIMatches, deleteReport } from '../../services/api';
 import type { Report } from '../../types/report';
 import type { Claim } from '../../types/claim';
 import type { AIMatch } from '../../services/api';
@@ -473,7 +473,7 @@ export default function Matches() {
         </button>
       </div>
 
-      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
+      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} reports={reports} />
 
       {/* Match Details Modal */}
       {selectedMatch && (

@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Hand, Upload, ImageIcon } from 'lucide-react';
-import { createClaim } from '../services/api';
+import { createClaim, fetchSiteSettings } from '../services/api';
 
 interface ClaimModalProps {
   reportId: number;
@@ -14,8 +14,15 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
   const [proofImage, setProofImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [requireProofImage, setRequireProofImage] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchSiteSettings()
+      .then((s) => setRequireProofImage(!!s.claim_require_proof_image))
+      .catch(() => setRequireProofImage(false));
+  }, []);
 
   if (!isOpen) return null;
 
@@ -53,6 +60,11 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
 
     if (!description.trim()) {
       setError('Please provide a description.');
+      setLoading(false);
+      return;
+    }
+    if (requireProofImage && !proofImage) {
+      setError('Proof image is required by current claim settings.');
       setLoading(false);
       return;
     }
@@ -110,7 +122,7 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
           {/* Image Upload Section */}
           <div className="mb-4">
             <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
-              Upload Proof Image (Optional)
+              Upload Proof Image ({requireProofImage ? 'Required' : 'Optional'})
             </label>
             
             <input

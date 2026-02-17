@@ -25,6 +25,7 @@ import {
   createReport,
   type ReportPayload,
   fetchReports,
+  fetchSiteSettings,
 } from '../../services/api';
 import type { Report } from '../../types/report';
 import { useAuth } from '../../contexts/AuthContext';
@@ -36,6 +37,8 @@ export default function ReportLost() {
 
   // --- STATE ---
   const [dbReports, setDbReports] = useState<Report[]>([]);
+  const [categories, setCategories] = useState<string[]>(['Phone', 'Wallet', 'ID', 'Electronics', 'Others']);
+  const [showChatbot, setShowChatbot] = useState(true);
   
   const [formData, setFormData] = useState({
     itemTitle: '',
@@ -78,8 +81,18 @@ export default function ReportLost() {
     if (user) {
       const loadReportsForChatbot = async () => {
         try {
-          const reportsData = await fetchReports();
+          const [reportsData, siteSettings] = await Promise.all([
+            fetchReports(),
+            fetchSiteSettings(),
+          ]);
           setDbReports(reportsData);
+          const dynamicCategories = siteSettings.categories?.map((c) => c.name) || [];
+          if (dynamicCategories.length > 0) {
+            setCategories(dynamicCategories);
+            setFormData((prev) => ({ ...prev, category: dynamicCategories[0] }));
+          }
+          setShowChatbot(siteSettings.user_home_chatbot_visible);
+          setHasChatNotification(siteSettings.user_home_chat_notification_dot);
         } catch (err) {
           console.error("Error loading reports for chatbot", err);
         }
@@ -243,11 +256,9 @@ export default function ReportLost() {
                       onChange={handleInputChange} 
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm appearance-none bg-gray-50/50 cursor-pointer focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none focus:bg-white transition-all"
                     >
-                      <option value="Phone">Phone</option>
-                      <option value="Wallet">Wallet</option>
-                      <option value="ID">ID</option>
-                      <option value="Electronics">Electronics</option>
-                      <option value="Others">Others</option>
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
@@ -390,7 +401,7 @@ export default function ReportLost() {
       </main>
 
       {/* Floating Chatbot */}
-      {!isGuidanceReporter && (
+      {!isGuidanceReporter && showChatbot && (
         <>
           <div className="fixed bottom-6 right-6 z-50">
             <button

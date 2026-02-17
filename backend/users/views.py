@@ -6,8 +6,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import authenticate, login, logout, get_user_model 
 from django.middleware.csrf import get_token 
-from .serializers import UserSerializer
-from .models import PasswordResetCode # Import the new model
+from .serializers import UserSerializer, SiteSettingsSerializer, CategorySerializer
+from .models import PasswordResetCode, SiteSettings, Category # Import the new model
 from core.permissions import IsAdmin
 
 # Load the custom user model once
@@ -122,6 +122,43 @@ class UserViewSet(viewsets.ModelViewSet):
         
         return super().update(request, *args, **kwargs)
 
+
+class SettingsView(APIView):
+    """
+    Public GET for user-facing config; admin PATCH for system settings.
+    """
+    permission_classes = ()  # public GET handled explicitly
+
+    def get(self, request):
+        settings_obj = SiteSettings.get_solo()
+        serializer = SiteSettingsSerializer(settings_obj, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        user = request.user
+        if not user.is_authenticated or (user.role != 'Admin' and not user.is_superuser):
+            return Response({"detail": "Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+        settings_obj = SiteSettings.get_solo()
+        serializer = SiteSettingsSerializer(
+            settings_obj,
+            data=request.data,
+            partial=True,
+            context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    queryset = Category.objects.all().order_by('sort_order', 'name')
+    serializer_class = CategorySerializer
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        return [IsAdmin()]
+
 class RequestPasswordResetView(APIView):
     permission_classes = () # Allow unauthenticated access
 
@@ -131,6 +168,13 @@ class RequestPasswordResetView(APIView):
             return Response({"detail": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
+            site_settings = SiteSettings.get_solo()
+            if not site_settings.email_master_enabled:
+                return Response(
+                    {"detail": "Email notifications are currently disabled by the administrator."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+
             user = User.objects.get(email=email)
             
             # Generate 6-digit code

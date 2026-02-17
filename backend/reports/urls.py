@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ReportViewSet, ClaimViewSet, NotificationViewSet, DashboardStatsView, ActivityFeedView, AIMatchViewSet, AnalyticsView, LostFoundDashboardView
+from .views import ReportViewSet, ClaimViewSet, NotificationViewSet, DashboardStatsView, ActivityFeedView, AIMatchViewSet, AnalyticsView, LostFoundDashboardView, AdminAnalyticsView
 
 
 # Create a router and register our viewsets with it.
@@ -13,6 +13,7 @@ router.register(r'ai-matches', AIMatchViewSet, basename='ai-matches')
 # The API URLs are now determined automatically by the router.
 # e.g., /api/reports/ and /api/reports/{id}/
 urlpatterns = [
+    path('admin/analytics/', AdminAnalyticsView.as_view(), name='admin-analytics'),
     path('dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
     path('dashboard/activity/', ActivityFeedView.as_view(), name='dashboard-activity'),
     path('analytics/', AnalyticsView.as_view(), name='analytics'),

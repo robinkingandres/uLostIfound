@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Report, Claim, Notification, AIMatch
+from users.models import SiteSettings
 
 class ReportSerializer(serializers.ModelSerializer):
     # ... (Keep existing ReportSerializer code unchanged) ...
@@ -83,6 +84,11 @@ class ClaimSerializer(serializers.ModelSerializer):
         # Check if the claimant is the same as the reporter
         if report and request and request.user == report.reporter:
             raise serializers.ValidationError("You cannot claim an item you reported.")
+
+        settings_obj = SiteSettings.get_solo()
+        proof_image = attrs.get('proof_image')
+        if settings_obj.claim_require_proof_image and not proof_image:
+            raise serializers.ValidationError("Proof image is required by current claim settings.")
             
         return attrs
     

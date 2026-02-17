@@ -9,9 +9,11 @@ const ROUTE_HEADERS: Record<string, { title: string; subtitle: string }> = {
   "/admin/reports": { title: "Manage Reports", subtitle: "Review and manage lost and found reports" },
   "/admin/claims": { title: "Claim Management", subtitle: "Review and process item claims" },
   "/admin/ai-matches": { title: "AI Matches", subtitle: "Review AI-suggested matches between lost and found items" },
+  "/admin/analytics-dashboard": { title: "Lost & Found Analytics", subtitle: "Single-page interactive dashboard with trends, heatmaps, and anomalies" },
   "/admin/analytics": { title: "Lost & Found Analytics", subtitle: "Single-page interactive dashboard with trends, heatmaps, and anomalies" },
   "/admin/lost-found-dashboard": { title: "Lost & Found Analytics", subtitle: "Single-page interactive dashboard with trends, heatmaps, and anomalies" },
-  "/admin/account-settings": { title: "Account Settings", subtitle: "Manage your account and security" },
+  "/admin/settings": { title: "Settings", subtitle: "Manage account and system configuration" },
+  "/admin/account-settings": { title: "Settings", subtitle: "Manage account and system configuration" },
   "/guidance/dashboard": { title: "Dashboard", subtitle: "Welcome back! Here's what's happening today." },
   "/guidance/claims": { title: "Claim Review", subtitle: "Review and process claims" },
   "/report-lost": { title: "Report Lost", subtitle: "Submit details for a lost item" },
@@ -23,6 +25,12 @@ function getRouteHeader(pathname: string): { title: string; subtitle: string } {
   const segment = pathname.split("/").filter(Boolean).pop() || "Dashboard";
   const title = segment.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   return { title, subtitle: "" };
+}
+
+function resolveAvatarSrc(avatar?: string) {
+  if (!avatar) return null;
+  if (avatar.startsWith("http://") || avatar.startsWith("https://")) return avatar;
+  return `http://localhost:8000${avatar}`;
 }
 
 export default function DashboardHeader() {
@@ -73,6 +81,7 @@ export default function DashboardHeader() {
     }
     return [title];
   }, [location.pathname, title, user?.role]);
+  const avatarSrc = resolveAvatarSrc(user?.avatar);
 
   return (
     <div className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center shrink-0">
@@ -97,10 +106,14 @@ export default function DashboardHeader() {
           aria-expanded={open}
           className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-50 transition-colors"
         >
-          <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center">
-            <span className="text-white text-sm font-semibold">
-              {user?.username?.charAt(0).toUpperCase() || "L"}
-            </span>
+          <div className="w-8 h-8 bg-gray-800 rounded-full overflow-hidden flex items-center justify-center">
+            {avatarSrc ? (
+              <img src={avatarSrc} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-white text-sm font-semibold">
+                {user?.username?.charAt(0).toUpperCase() || "L"}
+              </span>
+            )}
           </div>
 
           <div className="text-left">
@@ -120,11 +133,11 @@ export default function DashboardHeader() {
           >
             <button
               role="menuitem"
-              onClick={() => go("/admin/account-settings")}
+              onClick={() => go("/admin/settings")}
               className="w-full flex items-center gap-2 px-4 py-3 text-sm text-gray-800 hover:bg-gray-50"
             >
               <Settings className="w-4 h-4 text-gray-500" />
-              Account Settings
+              Settings
             </button>
 
             {/* Add more items here later if you want */}

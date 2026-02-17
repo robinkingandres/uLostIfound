@@ -26,12 +26,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { 
   createReport, 
   fetchReports, 
+  fetchSiteSettings,
   type ReportPayload, 
   type Report 
 } from '../../services/api';
 
-// --- CONSTANTS ---
-const CATEGORIES = ['Phone', 'Wallet', 'ID', 'Electronics', 'Clothing', 'Others'];
 const LOCATIONS = ['Room 101', 'Room 102', 'Library', 'Cafeteria', 'Gym', 'School Grounds'];
 
 export default function ReportFound() {
@@ -43,6 +42,8 @@ export default function ReportFound() {
   
   // 1. Chatbot Database State
   const [reports, setReports] = useState<Report[]>([]);
+  const [categories, setCategories] = useState<string[]>(['Phone', 'Wallet', 'ID', 'Electronics', 'Clothing', 'Others']);
+  const [showChatbot, setShowChatbot] = useState(true);
 
   // 2. Form State
   const [formData, setFormData] = useState({
@@ -76,8 +77,18 @@ export default function ReportFound() {
   useEffect(() => {
     const loadReportsForChatbot = async () => {
       try {
-        const data = await fetchReports();
+        const [data, siteSettings] = await Promise.all([
+          fetchReports(),
+          fetchSiteSettings(),
+        ]);
         setReports(data);
+        const dynamicCategories = siteSettings.categories?.map((c) => c.name) || [];
+        if (dynamicCategories.length > 0) {
+          setCategories(dynamicCategories);
+          setFormData((prev) => ({ ...prev, category: dynamicCategories[0] }));
+        }
+        setShowChatbot(siteSettings.user_home_chatbot_visible);
+        setHasChatNotification(siteSettings.user_home_chat_notification_dot);
       } catch (err) {
         console.error("Failed to load reports for chatbot:", err);
       }
@@ -265,7 +276,7 @@ export default function ReportFound() {
                       onChange={handleInputChange} 
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm appearance-none bg-gray-50/50 cursor-pointer focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none focus:bg-white transition-all"
                     >
-                      {CATEGORIES.map(cat => (
+                      {categories.map(cat => (
                         <option key={cat} value={cat}>{cat}</option>
                       ))}
                     </select>
@@ -408,7 +419,7 @@ export default function ReportFound() {
       </main>
 
       {/* Floating Chatbot */}
-      {!isGuidanceReporter && (
+      {!isGuidanceReporter && showChatbot && (
         <>
           <div className="fixed bottom-6 right-6 z-50">
             <button

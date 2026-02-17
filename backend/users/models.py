@@ -40,3 +40,68 @@ class PasswordResetCode(models.Model):
     def is_valid(self):
         # Code expires after 15 minutes (900 seconds)
         return (timezone.now() - self.created_at).total_seconds() < 900
+
+
+class SiteSettings(models.Model):
+    org_name = models.CharField(max_length=255, default='San Isidro National High School')
+    org_tagline = models.CharField(max_length=255, blank=True, default='Verified Lost & Found')
+    org_logo = models.ImageField(upload_to='site/', null=True, blank=True)
+
+    # Reports
+    default_new_report_status = models.CharField(max_length=16, default='Pending')
+    home_visible_report_statuses = models.JSONField(default=list, blank=True)
+
+    # Claims
+    claim_require_proof_image = models.BooleanField(default=False)
+
+    # AI
+    ai_min_score = models.FloatField(default=50.0)
+    ai_matching_enabled = models.BooleanField(default=True)
+
+    # User Home
+    user_home_chatbot_visible = models.BooleanField(default=True)
+    user_home_chat_notification_dot = models.BooleanField(default=True)
+
+    # Email controls
+    email_master_enabled = models.BooleanField(default=True)
+    email_notify_verified_reports = models.BooleanField(default=True)
+    email_notify_claim_results = models.BooleanField(default=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Site Settings'
+        verbose_name_plural = 'Site Settings'
+
+    def save(self, *args, **kwargs):
+        if not self.home_visible_report_statuses:
+            self.home_visible_report_statuses = ['Verified']
+        self.ai_min_score = max(0.0, min(100.0, float(self.ai_min_score or 0.0)))
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(
+            id=1,
+            defaults={'home_visible_report_statuses': ['Verified']},
+        )
+        if not obj.home_visible_report_statuses:
+            obj.home_visible_report_statuses = ['Verified']
+            obj.save(update_fields=['home_visible_report_statuses'])
+        return obj
+
+    def __str__(self):
+        return 'Global Site Settings'
+
+
+class Category(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name_plural = 'Categories'
+
+    def __str__(self):
+        return self.name

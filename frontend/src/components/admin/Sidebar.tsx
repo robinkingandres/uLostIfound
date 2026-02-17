@@ -8,7 +8,7 @@ const navItems = [
   { icon: Users, label: 'User Management', path: '/admin/users' },
   { icon: ShoppingCart, label: 'Claim management', path: '/admin/claims' },
   { icon: Sparkles, label: 'Ai Matches', path: '/admin/ai-matches' },
-  { icon: BarChart3, label: 'Lost & Found Analytics', path: '/admin/analytics' },
+  { icon: BarChart3, label: 'Lost & Found Analytics', path: '/admin/analytics-dashboard' },
 ];
 
 export default function Sidebar() {

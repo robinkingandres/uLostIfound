@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { X, Upload, ChevronDown } from 'lucide-react';
 import { updateReport } from '../services/api';
 import type { Report } from '../types/report';

@@ -140,7 +140,6 @@ export default function UserHeader() {
                   background: "conic-gradient(#0059ff95, #f6a51f, #0059ff95)",
                   WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
                   WebkitMaskComposite: "xor",
-                  WebkitMaskComposite: "xor",
                   maskComposite: "exclude",
                 }}
               ></div>

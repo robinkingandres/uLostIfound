@@ -10,7 +10,7 @@ import {
   Clock,
   ChevronRight
 } from 'lucide-react';
-import { fetchReports } from '../../services/api';
+import { fetchReports, fetchSiteSettings, type SiteSettings } from '../../services/api';
 import type { Report } from '../../types/report';
 import ClaimModal from '../../components/ClaimModal';
 import UserHeader from '../../components/UserHeader';
@@ -26,6 +26,7 @@ export default function UserHome() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
     
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,6 +65,19 @@ export default function UserHome() {
     loadReports();
   }, [loadReports]);
 
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const settings = await fetchSiteSettings();
+        setSiteSettings(settings);
+        setHasChatNotification(settings.user_home_chat_notification_dot);
+      } catch (err) {
+        console.error('Failed to load site settings:', err);
+      }
+    };
+    loadSettings();
+  }, []);
+
   const handleClaimClick = (report: Report) => {
     setSelectedReport(report);
     setIsClaimModalOpen(true);
@@ -84,6 +98,17 @@ export default function UserHome() {
 
     return matchesSearch && matchesType && matchesCategory;
   });
+
+  const categoryOptions = siteSettings?.categories?.map((c) => c.name) || [
+    'Phone',
+    'Wallet',
+    'ID',
+    'Electronics',
+    'Documents',
+    'Clothing',
+    'Accessories',
+    'Others',
+  ];
   
   const getTypeColor = (type: string) => {
     return type === 'Lost' ? 'bg-red-500' : 'bg-blue-500';
@@ -123,8 +148,8 @@ export default function UserHome() {
         {/* Header Section */}
         <div className="text-center mb-10">
           <h1 className="text-2xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
-            San Isidro National High School <br />
-            <span className="text-blue-600">Verified Lost & Found</span>
+            {(siteSettings?.org_name || 'San Isidro National High School')} <br />
+            <span className="text-blue-600">{siteSettings?.org_tagline || 'Verified Lost & Found'}</span>
           </h1>
           <p className="text-slate-500 text-sm md:text-base mt-4">
             Welcome back, <span className="text-slate-900 font-bold">{user?.name || 'Student'}</span>!
@@ -180,15 +205,9 @@ export default function UserHome() {
                 className="w-full pl-4 pr-10 py-3 bg-slate-50 border-none rounded-xl text-sm text-slate-700 appearance-none focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
               >
                 <option>All Categories</option>
-                <option value="Phone">Phone</option>
-                <option value="Wallet">Wallet</option>
-                <option value="ID">ID</option>
-                <option value="Electronics">Electronics</option>
-                <option value="Documents">Documents</option>
-                <option value="Clothing">Clothing</option>
-                <option value="Accessories">Accessories</option>
-                {/* Updated Others to match "Others" value in ReportLost */}
-                <option value="Others">Others</option>
+                {categoryOptions.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
               </select>
               <Tag className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             </div>
@@ -289,31 +308,35 @@ export default function UserHome() {
         </div>
       </main>
 
-      {/* Floating Chatbot */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <button
-          onClick={handleOpenChatbot}
-          className="relative group transition-transform duration-300 hover:scale-110 active:scale-95 outline-none"
-        >
-          <img
-            src={chatbotIcon}
-            alt="Chatbot"
-            className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md"
-          />
-          {hasChatNotification && (
-            <div className="absolute top-1 right-1 flex h-4 w-4">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
-            </div>
-          )}
-        </button>
-      </div>
+      {siteSettings?.user_home_chatbot_visible !== false && (
+        <>
+          {/* Floating Chatbot */}
+          <div className="fixed bottom-6 right-6 z-50">
+            <button
+              onClick={handleOpenChatbot}
+              className="relative group transition-transform duration-300 hover:scale-110 active:scale-95 outline-none"
+            >
+              <img
+                src={chatbotIcon}
+                alt="Chatbot"
+                className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md"
+              />
+              {hasChatNotification && siteSettings?.user_home_chat_notification_dot !== false && (
+                <div className="absolute top-1 right-1 flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
+                </div>
+              )}
+            </button>
+          </div>
 
-      <Chatbot
-        isOpen={isChatbotOpen}
-        onClose={() => setIsChatbotOpen(false)}
-        reports={reports} 
-      />
+          <Chatbot
+            isOpen={isChatbotOpen}
+            onClose={() => setIsChatbotOpen(false)}
+            reports={reports}
+          />
+        </>
+      )}
 
       {selectedReport && (
         <ClaimModal

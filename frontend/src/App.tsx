@@ -13,7 +13,7 @@ import AdminDashboard from './pages/admin/Dashboard';
 import ManageReports from './pages/admin/Reports';
 import UserManagement from './pages/UserManagement';
 import ClaimManagement from './pages/ClaimManagement';
-import LostFoundAnalyticsDashboard from './pages/LostFoundAnalyticsDashboard';
+import Analytics from './pages/Analytics';
 import AIMatchNotification from './pages/admin/AIMatchNotification';
 import AccountSettings from "./pages/admin/AccountSettings";
 
@@ -115,9 +115,11 @@ function App() {
             <Route path="users" element={<UserManagement />} />
             <Route path="claims" element={<ClaimManagement />} />
             <Route path="ai-matches" element={<AIMatchNotification />} />
-            <Route path="analytics" element={<LostFoundAnalyticsDashboard />} />
-            <Route path="lost-found-dashboard" element={<Navigate to="/admin/analytics" replace />} />
-            <Route path="account-settings" element={<AccountSettings />} />
+            <Route path="analytics-dashboard" element={<Analytics />} />
+            <Route path="analytics" element={<Navigate to="/admin/analytics-dashboard" replace />} />
+            <Route path="lost-found-dashboard" element={<Navigate to="/admin/analytics-dashboard" replace />} />
+            <Route path="settings" element={<AccountSettings />} />
+            <Route path="account-settings" element={<Navigate to="/admin/settings" replace />} />
 
           </Route>
 

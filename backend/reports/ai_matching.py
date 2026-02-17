@@ -4,18 +4,36 @@ This service compares Lost and Found reports to find potential matches.
 """
 
 import os
-import torch
-import numpy as np
-from PIL import Image
+from typing import Any, Optional
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 from io import BytesIO
-import requests
+try:
+    import requests
+except ImportError:
+    requests = None
 from difflib import SequenceMatcher
 from django.conf import settings
+
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    torch = None
+    TORCH_AVAILABLE = False
 
 # CLIP imports - using transformers library
 try:
     from transformers import CLIPProcessor, CLIPModel
-    CLIP_AVAILABLE = True
+    CLIP_AVAILABLE = TORCH_AVAILABLE
 except ImportError:
     CLIP_AVAILABLE = False
     print("WARNING: CLIP not available. Install transformers and torch for image matching.")
@@ -62,10 +80,14 @@ class AIMatchingService:
                 return False
         return True
     
-    def _load_image(self, image_path_or_url: str) -> Image.Image:
+    def _load_image(self, image_path_or_url: str) -> Any:
         """Load image from file path or URL."""
+        if Image is None:
+            return None
         try:
             if image_path_or_url.startswith(('http://', 'https://')):
+                if requests is None:
+                    return None
                 response = requests.get(image_path_or_url, timeout=10)
                 image = Image.open(BytesIO(response.content))
             else:
@@ -83,8 +105,10 @@ class AIMatchingService:
             print(f"Failed to load image {image_path_or_url}: {e}")
             return None
     
-    def get_image_embedding(self, image_path: str) -> np.ndarray:
+    def get_image_embedding(self, image_path: str):
         """Get CLIP embedding for an image."""
+        if np is None:
+            return None
         if not self._load_model():
             return None
             
@@ -108,8 +132,10 @@ class AIMatchingService:
             print(f"Failed to get image embedding: {e}")
             return None
     
-    def get_text_embedding(self, text: str) -> np.ndarray:
+    def get_text_embedding(self, text: str):
         """Get CLIP embedding for text."""
+        if np is None:
+            return None
         if not self._load_model():
             return None
         
@@ -177,7 +203,7 @@ class AIMatchingService:
         
         # Method 3: CLIP text embeddings (if available)
         clip_score = 0
-        if CLIP_AVAILABLE:
+        if CLIP_AVAILABLE and np is not None:
             emb1 = self.get_text_embedding(text1)
             emb2 = self.get_text_embedding(text2)
             if emb1 is not None and emb2 is not None:
@@ -267,13 +293,20 @@ class AIMatchingService:
         }
 
 
-def find_potential_matches(min_score: float = 50.0):
+def find_potential_matches(min_score: Optional[float] = None):
     """
     Find potential matches between all Lost and Found reports.
     Creates AIMatch entries for pairs above the minimum score threshold.
     """
     from .models import Report, AIMatch
+    from users.models import SiteSettings
     
+    settings_obj = SiteSettings.get_solo()
+    if not settings_obj.ai_matching_enabled:
+        return []
+    if min_score is None:
+        min_score = float(settings_obj.ai_min_score)
+
     service = AIMatchingService()
     
     # Get all verified Lost and Found reports
@@ -313,9 +346,14 @@ def process_new_report(report):
     Called when a new Lost or Found report is created.
     """
     from .models import Report, AIMatch
+    from users.models import SiteSettings
     
+    settings_obj = SiteSettings.get_solo()
+    if not settings_obj.ai_matching_enabled:
+        return []
+
     service = AIMatchingService()
-    min_score = 50.0
+    min_score = float(settings_obj.ai_min_score)
     
     new_matches = []
     

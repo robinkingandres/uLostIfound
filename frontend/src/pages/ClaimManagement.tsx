@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  ClipboardList,
   CheckCircle,
   XCircle,
   Check,
@@ -79,37 +78,35 @@ export default function ClaimManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Claim Management</h1>
-        <p className="text-gray-600 mt-1">Verify ownership proofs and manage claim requests.</p>
-      </div>
-
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
           title="Pending Review"
           value={claims.filter((c) => c.status === "Pending").length}
           icon={Clock}
-          color="bg-yellow-500"
+          bgColor="bg-white"
+          iconBg="bg-yellow-500"
         />
         <StatCard
           title="To Be Claimed"
           value={claims.filter((c) => c.status === "Approved").length}
           icon={CheckCircle}
-          color="bg-green-500"
+          bgColor="bg-white"
+          iconBg="bg-green-500"
         />
         <StatCard
           title="Completed"
           value={claims.filter((c) => c.status === "Claimed").length}
           icon={PackageCheck}
-          color="bg-blue-500"
+          bgColor="bg-white"
+          iconBg="bg-blue-500"
         />
         <StatCard
           title="Rejected"
           value={claims.filter((c) => c.status === "Rejected").length}
           icon={XCircle}
-          color="bg-red-500"
+          bgColor="bg-white"
+          iconBg="bg-red-500"
         />
       </div>
 
@@ -181,7 +178,7 @@ export default function ClaimManagement() {
                       <div className="text-xs text-gray-500">{claim.claimantRole}</div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {new Date(claim.createdAt).toLocaleDateString()}
+                      {new Date(claim.createdAt || claim.date).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(claim.status)}`}>

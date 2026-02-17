@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q, Count, Avg, F, Sum
 from django.db.models.functions import TruncMonth, TruncDay, TruncWeek, TruncYear, TruncHour
 from django.utils import timezone
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, date
 import calendar
 from itertools import chain # Add this import if not present, though we can do list concatenation easily
 from operator import itemgetter
@@ -18,6 +18,7 @@ from .serializers import ReportSerializer, ClaimSerializer, NotificationSerializ
 
 # Import the new shared permission
 from core.permissions import IsAdmin, IsGuidance
+from users.models import SiteSettings
 
 # Load the custom user model once
 User = get_user_model() 
@@ -167,7 +168,11 @@ class ReportViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         # Automatically set the reporter and enforce role-based initial status.
         user = self.request.user
-        initial_status = 'Verified' if user.role == 'Guidance' else 'Pending'
+        site_settings = SiteSettings.get_solo()
+        configured_status = site_settings.default_new_report_status or 'Pending'
+        if configured_status not in ['Pending', 'Verified', 'Claimed', 'Rejected']:
+            configured_status = 'Pending'
+        initial_status = 'Verified' if user.role == 'Guidance' else configured_status
         report = serializer.save(reporter=user, status=initial_status)
 
         # Guidance reports publish immediately, while others require review.
@@ -183,12 +188,13 @@ class ReportViewSet(viewsets.ModelViewSet):
         )
         
         # Trigger AI matching for the new report (run in background)
-        try:
-            from .ai_matching import process_new_report
-            process_new_report(report)
-        except Exception as e:
-            # Don't fail the report creation if AI matching fails
-            print(f"AI matching failed for report {report.id}: {e}")
+        if site_settings.ai_matching_enabled:
+            try:
+                from .ai_matching import process_new_report
+                process_new_report(report)
+            except Exception as e:
+                # Don't fail the report creation if AI matching fails
+                print(f"AI matching failed for report {report.id}: {e}")
 
     def check_report_owner_pending(self, instance):
         """Allow reporter to update/delete only their own Pending reports."""
@@ -251,7 +257,7 @@ class ReportViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = self.queryset
-        if self.detail:
+        if getattr(self, 'action', None) in ['retrieve', 'update', 'partial_update', 'destroy']:
             return queryset
             
         report_type = self.request.query_params.get('type')
@@ -263,7 +269,9 @@ class ReportViewSet(viewsets.ModelViewSet):
         )
 
         if not is_admin:
-            queryset = queryset.filter(status='Verified')
+            site_settings = SiteSettings.get_solo()
+            visible_statuses = site_settings.home_visible_report_statuses or ['Verified']
+            queryset = queryset.filter(status__in=visible_statuses)
 
         if report_type:
             queryset = queryset.filter(type=report_type)
@@ -536,8 +544,15 @@ class AIMatchViewSet(viewsets.ModelViewSet):
         Admin only.
         """
         try:
+            site_settings = SiteSettings.get_solo()
+            if not site_settings.ai_matching_enabled:
+                return Response({
+                    'status': 'disabled',
+                    'message': 'AI matching is disabled in system settings.',
+                    'matches_created': 0
+                }, status=status.HTTP_200_OK)
             from .ai_matching import find_potential_matches
-            min_score = float(request.data.get('min_score', 50.0))
+            min_score = float(request.data.get('min_score', site_settings.ai_min_score))
             new_matches = find_potential_matches(min_score=min_score)
             return Response({
                 'status': 'success',
@@ -821,6 +836,190 @@ class AnalyticsView(APIView):
             'dateFormat': date_format,
         }
         
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class AdminAnalyticsView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request, format=None):
+        date_from_param = request.query_params.get('date_from')
+        date_to_param = request.query_params.get('date_to')
+        category = request.query_params.get('category', 'all')
+
+        now = timezone.now()
+        today = timezone.localdate()
+
+        try:
+            date_from = datetime.strptime(date_from_param, '%Y-%m-%d').date() if date_from_param else (today - timedelta(days=365))
+        except ValueError:
+            date_from = today - timedelta(days=365)
+
+        try:
+            date_to = datetime.strptime(date_to_param, '%Y-%m-%d').date() if date_to_param else today
+        except ValueError:
+            date_to = today
+
+        if date_from > date_to:
+            date_from, date_to = date_to, date_from
+
+        reports_qs = Report.objects.filter(date_reported__date__range=(date_from, date_to))
+        claims_qs = Claim.objects.filter(date_created__date__range=(date_from, date_to))
+        matches_qs = AIMatch.objects.filter(date_created__date__range=(date_from, date_to))
+
+        if category and category.lower() != 'all':
+            reports_qs = reports_qs.filter(category=category)
+            claims_qs = claims_qs.filter(report__category=category)
+            matches_qs = matches_qs.filter(Q(lost_report__category=category) | Q(found_report__category=category))
+
+        reports_today = reports_qs.filter(date_reported__date=today).count()
+        total_reports = reports_qs.count()
+
+        claims_today = claims_qs.filter(date_created__date=today).count()
+        total_claims = claims_qs.count()
+
+        resolved_claims = claims_qs.filter(status__in=['Approved', 'Rejected', 'Claimed']).count()
+        resolution_rate = (resolved_claims / total_claims * 100) if total_claims else 0
+
+        ai_matches_generated = matches_qs.count()
+        ai_matches_today = matches_qs.filter(date_created__date=today).count()
+
+        pending_claims = claims_qs.filter(status='Pending').count()
+        overdue_cutoff = now - timedelta(days=7)
+        overdue_claims = claims_qs.filter(status='Pending', date_created__lt=overdue_cutoff).count()
+
+        resolved_for_time = claims_qs.filter(status__in=['Approved', 'Rejected', 'Claimed']).select_related('report')
+        resolution_days = []
+        for claim in resolved_for_time:
+            report_date = claim.report.date_reported
+            claim_date = claim.date_created
+            if report_date and claim_date:
+                delta_days = (claim_date.date() - report_date.date()).days
+                if delta_days >= 0:
+                    resolution_days.append(delta_days)
+        avg_resolution_time_days = (sum(resolution_days) / len(resolution_days)) if resolution_days else 0
+
+        monthly_reports = (
+            reports_qs
+            .annotate(month=TruncMonth('date_reported'))
+            .values('month')
+            .annotate(
+                lost=Count('id', filter=Q(type='Lost')),
+                found=Count('id', filter=Q(type='Found')),
+            )
+            .order_by('month')
+        )
+        monthly_claims = (
+            claims_qs
+            .annotate(month=TruncMonth('date_created'))
+            .values('month')
+            .annotate(
+                claims=Count('id'),
+                pending=Count('id', filter=Q(status='Pending')),
+                due=Count('id', filter=Q(status='Pending', date_created__lt=overdue_cutoff)),
+            )
+            .order_by('month')
+        )
+        monthly_matches = (
+            matches_qs
+            .annotate(month=TruncMonth('date_created'))
+            .values('month')
+            .annotate(ai=Count('id'))
+            .order_by('month')
+        )
+
+        month_cursor = date(date_from.year, date_from.month, 1)
+        month_end = date(date_to.year, date_to.month, 1)
+        month_list = []
+        while month_cursor <= month_end:
+            month_list.append(month_cursor)
+            if month_cursor.month == 12:
+                month_cursor = date(month_cursor.year + 1, 1, 1)
+            else:
+                month_cursor = date(month_cursor.year, month_cursor.month + 1, 1)
+
+        report_map = {entry['month'].date() if hasattr(entry['month'], 'date') else entry['month']: entry for entry in monthly_reports}
+        claim_map = {entry['month'].date() if hasattr(entry['month'], 'date') else entry['month']: entry for entry in monthly_claims}
+        match_map = {entry['month'].date() if hasattr(entry['month'], 'date') else entry['month']: entry for entry in monthly_matches}
+
+        trends = []
+        due_claims_monthly = []
+        pending_claims_monthly = []
+        for month_start in month_list:
+            report_entry = report_map.get(month_start, {})
+            claim_entry = claim_map.get(month_start, {})
+            match_entry = match_map.get(month_start, {})
+
+            month_label = month_start.strftime('%b')
+            trends.append({
+                'month': month_label,
+                'lost': report_entry.get('lost', 0),
+                'found': report_entry.get('found', 0),
+                'claims': claim_entry.get('claims', 0),
+                'ai': match_entry.get('ai', 0),
+            })
+            due_claims_monthly.append({'month': month_label, 'count': claim_entry.get('due', 0)})
+            pending_claims_monthly.append({'month': month_label, 'count': claim_entry.get('pending', 0)})
+
+        category_counts = (
+            reports_qs
+            .values('category')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+        categories = [
+            {'name': item['category'] or 'Uncategorized', 'count': item['count']}
+            for item in category_counts
+        ]
+
+        report_status_counts = (
+            reports_qs
+            .values('status')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+        status_breakdown = {
+            (item['status'] or 'Unknown').lower(): item['count']
+            for item in report_status_counts
+        }
+
+        location_counts = (
+            reports_qs
+            .values('location')
+            .annotate(count=Count('id'))
+            .order_by('-count')[:8]
+        )
+        locations = [
+            {'name': item['location'] or 'Unspecified', 'count': item['count']}
+            for item in location_counts
+        ]
+
+        data = {
+            'filters': {
+                'date_from': date_from.isoformat(),
+                'date_to': date_to.isoformat(),
+                'category': category,
+            },
+            'kpis': {
+                'total_reports': total_reports,
+                'reports_today': reports_today,
+                'claims_submitted': total_claims,
+                'claims_today': claims_today,
+                'claims_resolved': resolved_claims,
+                'resolution_rate': round(resolution_rate, 1),
+                'ai_matches_generated': ai_matches_generated,
+                'ai_matches_today': ai_matches_today,
+                'avg_resolution_time_days': round(avg_resolution_time_days, 1),
+                'pending_claims': pending_claims,
+                'overdue_claims': overdue_claims,
+            },
+            'trends': trends,
+            'due_claims_monthly': due_claims_monthly,
+            'pending_claims_monthly': pending_claims_monthly,
+            'categories': categories,
+            'status_breakdown': status_breakdown,
+            'locations': locations,
+        }
         return Response(data, status=status.HTTP_200_OK)
 
 
