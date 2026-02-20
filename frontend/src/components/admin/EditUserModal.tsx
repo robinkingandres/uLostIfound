@@ -58,7 +58,7 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
     if (isOpen) {
       if (user) {
         setFormData({
-          username: user.name || '',
+          username: user.username || user.name || '',
           email: user.email || '',
           role: user.role,
           userId: user.userId || '',
@@ -101,7 +101,7 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
         });
       } else if (user && !isAddMode) {
         await onSave(user.id, {
-          name: formData.username,
+          username: formData.username,
           email: formData.email,
           role: formData.role,
           userId: formData.userId,
@@ -135,7 +135,7 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {isAddMode ? 'Username' : 'Full Name'}
+              Username
             </label>
             <input
               type="text"

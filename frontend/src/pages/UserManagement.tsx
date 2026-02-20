@@ -63,6 +63,7 @@ export default function UserManagement() {
       const data = await fetchUsers();
       const mappedData: User[] = data.map((u: any) => ({
         ...u,
+        username: u.username || '',
         userId: u.userId || '',
         name: u.name || u.username,
         yearLevel: u.yearLevel || u.year_level || '',
@@ -140,6 +141,7 @@ export default function UserManagement() {
     const mapped: User = {
       id: r.id,
       name: r.name || r.username,
+      username: r.username || '',
       userId: r.userId || r.school_id || '',
       email: r.email,
       role: r.role,
@@ -153,11 +155,9 @@ export default function UserManagement() {
 
   const handleUpdateUser = async (id: number, data: Partial<User> | any) => {
     const apiPayload: any = {};
-    if (data.name !== undefined) {
-      const fullName = String(data.name || '').trim();
-      const [firstName, ...rest] = fullName.split(/\s+/);
-      apiPayload.first_name = firstName || '';
-      apiPayload.last_name = rest.join(' ');
+    if (data.username !== undefined) apiPayload.username = data.username;
+    if (data.name !== undefined && data.username === undefined) {
+      apiPayload.username = data.name;
     }
     if (data.email !== undefined) apiPayload.email = data.email;
     if (data.role !== undefined) apiPayload.role = data.role;
@@ -172,6 +172,7 @@ export default function UserManagement() {
         ? {
             ...u,
             ...updatedUser,
+            username: updatedUser.username ?? u.username,
             userId: updatedUser.userId ?? u.userId,
             name: updatedUser.name || updatedUser.username || u.name,
             yearLevel: updatedUser.yearLevel || updatedUser.year_level || u.yearLevel,
