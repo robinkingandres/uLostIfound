@@ -254,11 +254,11 @@ class ReportViewSet(viewsets.ModelViewSet):
         status_filter = self.request.query_params.get('status')
         user = self.request.user
         
-        is_admin = user.is_authenticated and (
-            user.role == 'Admin' or user.is_superuser
+        is_admin_or_guidance = user.is_authenticated and (
+            user.role in ['Admin', 'Guidance'] or user.is_superuser
         )
 
-        if not is_admin:
+        if not is_admin_or_guidance:
             site_settings = SiteSettings.get_solo()
             visible_statuses = site_settings.home_visible_report_statuses or ['Verified']
             queryset = queryset.filter(status__in=visible_statuses)

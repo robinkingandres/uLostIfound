@@ -3,8 +3,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { ClipboardList, Search, PackageCheck, X, Download, Printer } from 'lucide-react';
 import DashboardHeader from '../../components/admin/DashboardHeader'; 
 import StatCard from '../../components/admin/StatCard'; 
-import { fetchReports } from '../../services/api';
+import { fetchClaims, fetchReports } from '../../services/api';
 import type { Report } from '../../types/report';
+import type { Claim } from '../../types/claim';
 
 type StageKey = 'pending' | 'awaiting' | 'released';
 type StatusFilter = 'all' | 'Pending' | 'Verified' | 'Claimed';
@@ -14,7 +15,13 @@ function toDateInputValue(v: Date): string {
   return v.toISOString().slice(0, 10);
 }
 
-function downloadAndOpenRecords(records: Report[], contextLabel: string) {
+function getDisplayStatus(record: Report, claimedReportIds: Set<number>) {
+  if (record.status === 'Claimed' || claimedReportIds.has(record.id)) return 'Claimed';
+  if (record.status === 'Verified') return 'Awaiting Match';
+  return record.status;
+}
+
+function downloadAndOpenRecords(records: Report[], contextLabel: string, claimedReportIds: Set<number>) {
   const generatedAt = new Date();
   const rows = records.map((r) => `
     <tr>
@@ -23,7 +30,7 @@ function downloadAndOpenRecords(records: Report[], contextLabel: string) {
       <td>${r.type}</td>
       <td>${r.category}</td>
       <td>${r.location}</td>
-      <td>${r.status === 'Verified' ? 'Awaiting Match' : r.status}</td>
+      <td>${getDisplayStatus(r, claimedReportIds)}</td>
       <td>${r.date}</td>
       <td>${r.reporterName || r.reporterUsername || 'N/A'}</td>
     </tr>
@@ -79,6 +86,7 @@ function downloadAndOpenRecords(records: Report[], contextLabel: string) {
 
 export default function GuidanceDashboard() {
   const [reports, setReports] = useState<Report[]>([]);
+  const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRecordsModalOpen, setIsRecordsModalOpen] = useState(false);
   const [stage, setStage] = useState<StageKey>('pending');
@@ -88,22 +96,57 @@ export default function GuidanceDashboard() {
   const [dateTo, setDateTo] = useState(toDateInputValue(new Date()));
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadData = async () => {
       try {
-        const data = await fetchReports();
-        setReports(data);
+        const [reportsData, claimsData] = await Promise.all([
+          fetchReports(),
+          fetchClaims(),
+        ]);
+        if (isMounted) {
+          setReports(reportsData);
+          setClaims(claimsData);
+        }
       } catch (err) {
         console.error(err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
+
+    const handleFocusRefresh = () => {
+      loadData();
+    };
+
     loadData();
+
+    // Keep dashboard metrics in sync with claim actions done in other pages/tabs.
+    const refreshTimer = window.setInterval(loadData, 15000);
+    window.addEventListener('focus', handleFocusRefresh);
+    document.addEventListener('visibilitychange', handleFocusRefresh);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(refreshTimer);
+      window.removeEventListener('focus', handleFocusRefresh);
+      document.removeEventListener('visibilitychange', handleFocusRefresh);
+    };
   }, []);
+
+  const claimedReportIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const claim of claims) {
+      if (claim.status === 'Claimed' && claim.reportRecordId) {
+        ids.add(claim.reportRecordId);
+      }
+    }
+    return ids;
+  }, [claims]);
 
   const pending = reports.filter((r) => r.status === 'Pending').length;
   const approved = reports.filter((r) => r.status === 'Verified').length;
-  const claimed = reports.filter((r) => r.status === 'Claimed').length;
+  const claimed = claimedReportIds.size;
 
   const modalStatusFromStage: Record<StageKey, StatusFilter> = {
     pending: 'Pending',
@@ -113,7 +156,12 @@ export default function GuidanceDashboard() {
 
   const modalRecords = useMemo(() => {
     const filtered = reports.filter((r) => {
-      const statusMatches = statusFilter === 'all' ? true : r.status === statusFilter;
+      const statusMatches =
+        statusFilter === 'all'
+          ? true
+          : statusFilter === 'Claimed'
+            ? (r.status === 'Claimed' || claimedReportIds.has(r.id))
+            : r.status === statusFilter;
       const typeMatches = typeFilter === 'all' ? true : r.type === typeFilter;
       const dateVal = new Date(r.date).getTime();
       const fromVal = dateFrom ? new Date(dateFrom).getTime() : Number.NEGATIVE_INFINITY;
@@ -122,7 +170,7 @@ export default function GuidanceDashboard() {
     });
 
     return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [reports, statusFilter, typeFilter, dateFrom, dateTo]);
+  }, [reports, statusFilter, typeFilter, dateFrom, dateTo, claimedReportIds]);
 
   const openModalFromCard = (nextStage: StageKey) => {
     setStage(nextStage);
@@ -290,14 +338,14 @@ export default function GuidanceDashboard() {
                 </div>
                 <div className="flex items-end gap-2">
                   <button
-                    onClick={() => downloadAndOpenRecords(modalRecords, modalTitle)}
+                    onClick={() => downloadAndOpenRecords(modalRecords, modalTitle, claimedReportIds)}
                     className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 text-white px-3 py-2 text-sm hover:bg-emerald-700"
                   >
                     <Printer className="w-4 h-4" />
                     Print
                   </button>
                   <button
-                    onClick={() => downloadAndOpenRecords(modalRecords, modalTitle)}
+                    onClick={() => downloadAndOpenRecords(modalRecords, modalTitle, claimedReportIds)}
                     className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white text-gray-700 px-3 py-2 text-sm hover:bg-gray-50"
                   >
                     <Download className="w-4 h-4" />
@@ -331,7 +379,7 @@ export default function GuidanceDashboard() {
                           <td className="px-4 py-3 text-sm text-gray-700">#{record.id}</td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{record.itemName}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{record.type}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{record.status === 'Verified' ? 'Awaiting Match' : record.status}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{getDisplayStatus(record, claimedReportIds)}</td>
                           <td className="px-4 py-3 text-sm text-gray-500">{new Date(record.date).toLocaleDateString()}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{record.reporterName || record.reporterUsername || 'N/A'}</td>
                         </tr>

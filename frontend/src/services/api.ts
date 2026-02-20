@@ -276,7 +276,10 @@ export const fetchReports = async (type?: ReportType, status?: ReportStatus): Pr
   }
 
   // Credentials must be included even for GET to maintain session/authentication checks
-  const response = await fetch(url, { credentials: 'include' }); 
+  const response = await fetch(url, {
+    credentials: 'include',
+    cache: 'no-store',
+  }); 
   
   if (!response.ok) {
     throw new Error('Failed to fetch reports');
