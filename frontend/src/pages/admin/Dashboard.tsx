@@ -70,33 +70,39 @@ export default function AdminDashboard() {
   if (error) return <div className="p-8 text-center text-red-500 font-semibold">{error}</div>;
 
   return (
-    <div className="p-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-gray-100/60">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <StatCard
             title="Total Lost Items"
             value={stats.totalLostItems}
             icon={Package}
-            bgColor="bg-red-100"
+            bgColor="bg-white"
             iconBg="bg-red-500"
           />
           <StatCard
             title="Total Found Items"
             value={stats.totalFoundItems}
             icon={PackageCheck}
-            bgColor="bg-green-100"
+            bgColor="bg-white"
             iconBg="bg-green-500"
           />
           <StatCard
             title="Total Claimed items"
             value={stats.totalClaimedItems}
             icon={CheckCircle}
-            bgColor="bg-gray-100"
-            iconBg="bg-green-500"
+            bgColor="bg-white"
+            iconBg="bg-blue-500"
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <InfoCard title="Pending reports" value={stats.pendingReports} />
+          <InfoCard title="Registered users" value={stats.totalUsers} />
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
+          <div className="xl:col-span-8 h-full">
             {/* Pass the real data to the chart with filters */}
             <TotalReportsChart 
               data={stats.reportsByMonth} 
@@ -106,7 +112,7 @@ export default function AdminDashboard() {
               onStatusFilterChange={setStatusFilter}
             />
           </div>
-          <div>
+          <div className="xl:col-span-4 h-full">
             {/* Pass claimed and unclaimed counts as props */}
             <ClaimedUnclaimedChart 
               claimed={stats.totalClaimedItems} 
@@ -115,11 +121,12 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <InfoCard title="Pending reports" value={stats.pendingReports} />
-          <InfoCard title="Registered users" value={stats.totalUsers} />
-          <ActivityFeed />
+        <div className="grid grid-cols-1 gap-5">
+          <div className="w-full">
+            <ActivityFeed />
+          </div>
         </div>
       </div>
+    </div>
   );
 }

@@ -38,7 +38,7 @@ export default function TotalReportsChart({
   };
 
   return (
-    <div className="bg-gray-100 rounded-2xl p-6 shadow-md">
+    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-full min-h-[420px] flex flex-col">
       <div className="flex justify-between items-start mb-6">
         <div>
           <h3 className="text-xl font-bold text-gray-900 mb-1">Total Reports</h3>
@@ -83,7 +83,7 @@ export default function TotalReportsChart({
       </div>
 
       {/* Bar Graph Container */}
-      <div className="flex items-end justify-between h-48 gap-2">
+      <div className="flex-1 flex items-end justify-between min-h-[220px] gap-2">
         {data.map((item) => (
           <div key={item.month} className="flex-1 flex flex-col items-center gap-2 group">
              {/* Tooltip (optional hover effect) */}

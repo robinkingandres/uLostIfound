@@ -17,10 +17,10 @@ export default function ClaimedUnclaimedChart({ claimed, unclaimed }: ClaimedUnc
   const unclaimedDegrees = (unclaimedPercentage / 100) * 360;
 
   return (
-    <div className="bg-gray-100 rounded-2xl p-6 shadow-md">
+    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-full min-h-[420px] flex flex-col">
       <h3 className="text-xl font-bold text-gray-900 mb-6">Claimed & Unclaimed</h3>
 
-      <div className="flex items-center justify-between">
+      <div className="flex-1 flex flex-col sm:flex-row items-center justify-between gap-6">
         <div className="relative w-40 h-40">
           <svg viewBox="0 0 100 100" className="transform -rotate-90">
             {/* Background Circle (Optional, for empty state) */}
