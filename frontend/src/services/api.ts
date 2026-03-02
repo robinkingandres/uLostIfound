@@ -267,9 +267,11 @@ export const createReport = async (data: ReportPayload, imageFile: File | null):
 export const fetchReports = async (type?: ReportType, status?: ReportStatus): Promise<Report[]> => {
   let url = REPORT_URL;
   const params = new URLSearchParams();
+  const normalizedType = (type ?? '').toString().trim().toLowerCase();
+  const normalizedStatus = (status ?? '').toString().trim().toLowerCase();
 
-  if (type) params.append('type', type);
-  if (status) params.append('status', status);
+  if (normalizedType && normalizedType !== 'all') params.append('type', type as string);
+  if (normalizedStatus && normalizedStatus !== 'all') params.append('status', status as string);
 
   if (params.toString()) {
     url += `?${params.toString()}`;

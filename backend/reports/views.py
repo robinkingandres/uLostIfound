@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, filters, status, exceptions
+﻿from rest_framework import viewsets, permissions, filters, status, exceptions
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -167,9 +167,8 @@ class ReportViewSet(viewsets.ModelViewSet):
     ordering_fields = ['date_reported', 'type', 'status']
 
     def perform_create(self, serializer):
-        # All new reports must start as Pending and require admin verification.
         user = self.request.user
-        initial_status = 'Pending'
+        initial_status = 'Verified' if (user.role == 'Guidance' or user.is_superuser) else 'Pending'
         report = serializer.save(reporter=user, status=initial_status)
 
         if report.type == 'Found':
@@ -178,6 +177,8 @@ class ReportViewSet(viewsets.ModelViewSet):
                 "Please surrender the item to the Guidance Office at the Ground Floor, Main Building, "
                 "beside the Principal's Office."
             )
+        elif initial_status == 'Verified':
+            message = f"Your report for '{report.item_name}' has been posted and is now visible on the feed."
         else:
             message = f"Your report for '{report.item_name}' has been submitted and is under review."
         Notification.objects.create(
@@ -197,6 +198,10 @@ class ReportViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         user = request.user
         is_admin = (user.role == 'Admin' or user.is_superuser)
+        if instance.status in ['Verified', 'Rejected']:
+            raise exceptions.PermissionDenied(
+                "This report is finalized and can no longer be edited."
+            )
         # Non-admins can only update their own Pending reports
         if not is_admin:
             self.check_report_owner_pending(instance)
@@ -246,14 +251,15 @@ class ReportViewSet(viewsets.ModelViewSet):
                 )
 
     def get_queryset(self):
-        queryset = self.queryset
+        # Always clone base queryset per request to avoid stale queryset caching.
+        queryset = self.queryset.all()
         if getattr(self, 'action', None) in ['retrieve', 'update', 'partial_update', 'destroy']:
             return queryset
-            
-        report_type = self.request.query_params.get('type')
-        status_filter = self.request.query_params.get('status')
+
+        report_type_raw = self.request.query_params.get('type')
+        status_filter_raw = self.request.query_params.get('status')
         user = self.request.user
-        
+
         is_admin_or_guidance = user.is_authenticated and (
             user.role in ['Admin', 'Guidance'] or user.is_superuser
         )
@@ -263,14 +269,19 @@ class ReportViewSet(viewsets.ModelViewSet):
             visible_statuses = site_settings.home_visible_report_statuses or ['Verified']
             queryset = queryset.filter(status__in=visible_statuses)
 
-        if report_type:
-            queryset = queryset.filter(type=report_type)
-            
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-            
+        report_type = (report_type_raw or '').strip().lower()
+        status_filter = (status_filter_raw or '').strip().lower()
+
+        # Treat "all" (any case) as no filter.
+        if report_type and report_type != 'all':
+            normalized_type = report_type.capitalize()
+            queryset = queryset.filter(type=normalized_type)
+
+        if status_filter and status_filter != 'all':
+            normalized_status = status_filter.capitalize()
+            queryset = queryset.filter(status=normalized_status)
+
         return queryset
-    
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def my_reports(self, request):
         queryset = Report.objects.filter(reporter=request.user)

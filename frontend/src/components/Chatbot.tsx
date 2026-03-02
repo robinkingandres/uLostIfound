@@ -134,7 +134,7 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
           // Determine icon/label based on type
           const isFound = item.type === 'Found';
           const badge = isFound ? '🟢 FOUND' : '🔴 LOST';
-          return `• ${badge}: **${item.itemName}**\n  └ ${item.location || 'Unknown loc'}\n`;
+          return `• ${badge}: **${item.itemName}**\n  AT: ${item.location || 'Unknown loc'}\n`;
         };
 
         if (foundToday.length > 0) {
@@ -153,7 +153,7 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
           if (foundOlder.length > 3) response += `...and ${foundOlder.length - 3} more.\n`;
         }
         
-        response += `\n💡 **Tip:** Close this chat and check the **Main Feed** to see photos and claim them!`;
+        response += `\n💡 **Tip:** Close this chat and check the **Main Feed** to see the details and claim them!`;
         return response;
       }
       
@@ -197,7 +197,7 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
         .replace('Posted Today', 'Nai-post Ngayon')
         .replace('Older Records', 'Mas Lumang Rekord')
         .replace('Tip:', 'Tip:')
-        .replace('Close this chat and check the **Main Feed** to see photos and claim them!', 'Isara ang chat at tingnan ang **Main Feed** para makita ang mga larawan at mag-claim.');
+        .replace('Close this chat and check the **Main Feed** to see the details and claim them!', 'Isara ang chat at tingnan ang **Main Feed** para makita ang mga larawan at mag-claim.');
     }
 
     const fallback = text

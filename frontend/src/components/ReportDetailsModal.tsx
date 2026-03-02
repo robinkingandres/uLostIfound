@@ -17,6 +17,7 @@ export default function ReportDetailsModal({
   onReject,
 }: ReportDetailsModalProps) {
   const [showAIMatches, setShowAIMatches] = useState(false);
+  const canModerate = report.status === 'Pending';
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Pending':
@@ -105,14 +106,24 @@ export default function ReportDetailsModal({
           <div className="flex gap-3">
             <button
               onClick={() => onVerify(report.id)}
-              className="flex-1 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors"
+              disabled={!canModerate}
+              className={`flex-1 px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors ${
+                canModerate
+                  ? 'bg-green-500 hover:bg-green-600 text-white'
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              }`}
             >
               <Check className="w-4 h-4" />
               Verify Report
             </button>
             <button
               onClick={() => onReject(report.id)}
-              className="flex-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors"
+              disabled={!canModerate}
+              className={`flex-1 px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors ${
+                canModerate
+                  ? 'bg-red-500 hover:bg-red-600 text-white'
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              }`}
             >
               <XCircle className="w-4 h-4" />
               Reject Report
@@ -125,6 +136,11 @@ export default function ReportDetailsModal({
               View AI Matches
             </button>
           </div>
+          {!canModerate && (
+            <p className="text-xs text-gray-500 mt-2">
+              This report is finalized and can no longer be edited.
+            </p>
+          )}
         </div>
       </div>
 
