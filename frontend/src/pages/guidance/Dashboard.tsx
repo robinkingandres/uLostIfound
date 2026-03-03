@@ -1,99 +1,101 @@
-// frontend/src/pages/guidance/Dashboard.tsx
 import { useState, useEffect, useMemo } from 'react';
-import { ClipboardList, Search, PackageCheck, X, Download, Printer } from 'lucide-react';
-import DashboardHeader from '../../components/admin/DashboardHeader'; 
-import StatCard from '../../components/admin/StatCard'; 
-import { fetchClaims, fetchReports } from '../../services/api';
-import type { Report } from '../../types/report';
+import { Download, Search, X } from 'lucide-react';
+import DashboardHeader from '../../components/admin/DashboardHeader';
+import { claimFoundItemAsClaimed, fetchClaims, fetchReports, updateReportStatus } from '../../services/api';
+import type { Report, ReportStatus } from '../../types/report';
 import type { Claim } from '../../types/claim';
 
-type StageKey = 'pending' | 'awaiting' | 'released';
-type StatusFilter = 'all' | 'Pending' | 'Verified' | 'Claimed';
-type TypeFilter = 'all' | 'Lost' | 'Found';
+type FeedFilter = 'All' | 'Lost' | 'Found' | 'Claimed' | 'Matched';
 
-function toDateInputValue(v: Date): string {
-  return v.toISOString().slice(0, 10);
-}
+const MONTH_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'all', label: 'All months' },
+  { value: '1', label: 'January' },
+  { value: '2', label: 'February' },
+  { value: '3', label: 'March' },
+  { value: '4', label: 'April' },
+  { value: '5', label: 'May' },
+  { value: '6', label: 'June' },
+  { value: '7', label: 'July' },
+  { value: '8', label: 'August' },
+  { value: '9', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+];
+
+type FoundClaimForm = {
+  fullName: string;
+  studentId: string;
+  courseYear: string;
+  contactNumber: string;
+  dateLost: string;
+  dateClaimed: string;
+  locationLost: string;
+  detailedDescription: string;
+  proofImage: File | null;
+};
 
 function getDisplayStatus(record: Report, claimedReportIds: Set<number>) {
   if (record.status === 'Claimed' || claimedReportIds.has(record.id)) return 'Claimed';
+  if (record.status === 'Matched') return 'Matched';
   if (record.status === 'Verified') return 'Awaiting Match';
   return record.status;
 }
 
-function downloadAndOpenRecords(records: Report[], contextLabel: string, claimedReportIds: Set<number>) {
-  const generatedAt = new Date();
-  const rows = records.map((r) => `
-    <tr>
-      <td>${r.id}</td>
-      <td>${r.itemName}</td>
-      <td>${r.type}</td>
-      <td>${r.category}</td>
-      <td>${r.location}</td>
-      <td>${getDisplayStatus(r, claimedReportIds)}</td>
-      <td>${r.date}</td>
-      <td>${r.reporterName || r.reporterUsername || 'N/A'}</td>
-    </tr>
-  `).join('');
+function getFeedStatusBadge(status: string) {
+  switch (status) {
+    case 'Matched':
+      return 'bg-emerald-100 text-emerald-700';
+    case 'Claimed':
+      return 'bg-blue-100 text-blue-700';
+    case 'Awaiting Match':
+      return 'bg-yellow-100 text-yellow-700';
+    case 'Pending':
+      return 'bg-amber-100 text-amber-700';
+    case 'Rejected':
+      return 'bg-red-100 text-red-700';
+    default:
+      return 'bg-slate-100 text-slate-700';
+  }
+}
 
-  const printHtml = `
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>Guidance Records PDF</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
-          h1 { margin: 0 0 8px 0; }
-          .meta { color: #4b5563; font-size: 12px; margin-bottom: 16px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-          th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; font-size: 12px; }
-          th { background: #f3f4f6; }
-        </style>
-      </head>
-      <body>
-        <h1>Guidance Records Export</h1>
-        <div class="meta">Context: ${contextLabel} | Generated: ${generatedAt.toLocaleString()} | Total: ${records.length}</div>
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Item</th>
-              <th>Type</th>
-              <th>Category</th>
-              <th>Location</th>
-              <th>Status</th>
-              <th>Date</th>
-              <th>Reporter</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </body>
-    </html>
-  `;
+function parseDate(value: string) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) return;
-  printWindow.document.open();
-  printWindow.document.write(printHtml);
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => {
-    printWindow.print();
-  }, 300);
+function escapeCsvCell(value: unknown) {
+  const asText = String(value ?? '');
+  if (/[",\n]/.test(asText)) {
+    return `"${asText.replace(/"/g, '""')}"`;
+  }
+  return asText;
 }
 
 export default function GuidanceDashboard() {
   const [reports, setReports] = useState<Report[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isRecordsModalOpen, setIsRecordsModalOpen] = useState(false);
-  const [stage, setStage] = useState<StageKey>('pending');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
-  const [dateFrom, setDateFrom] = useState(toDateInputValue(new Date(new Date().setMonth(new Date().getMonth() - 1))));
-  const [dateTo, setDateTo] = useState(toDateInputValue(new Date()));
+
+  const [feedSearch, setFeedSearch] = useState('');
+  const [feedFilter, setFeedFilter] = useState<FeedFilter>('All');
+  const [monthFilter, setMonthFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState('all');
+  const [updatingReportId, setUpdatingReportId] = useState<number | null>(null);
+  const [feedError, setFeedError] = useState('');
+  const [claimingReport, setClaimingReport] = useState<Report | null>(null);
+  const [claimModalError, setClaimModalError] = useState('');
+  const [claimForm, setClaimForm] = useState<FoundClaimForm>({
+    fullName: '',
+    studentId: '',
+    courseYear: '',
+    contactNumber: '',
+    dateLost: '',
+    dateClaimed: new Date().toISOString().slice(0, 10),
+    locationLost: '',
+    detailedDescription: '',
+    proofImage: null,
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -121,7 +123,6 @@ export default function GuidanceDashboard() {
 
     loadData();
 
-    // Keep dashboard metrics in sync with claim actions done in other pages/tabs.
     const refreshTimer = window.setInterval(loadData, 15000);
     window.addEventListener('focus', handleFocusRefresh);
     document.addEventListener('visibilitychange', handleFocusRefresh);
@@ -144,48 +145,168 @@ export default function GuidanceDashboard() {
     return ids;
   }, [claims]);
 
-  const pending = reports.filter((r) => r.status === 'Pending').length;
-  const approved = reports.filter((r) => r.status === 'Verified').length;
-  const claimed = claimedReportIds.size;
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    for (const report of reports) {
+      const parsedDate = parseDate(report.date);
+      if (parsedDate) years.add(parsedDate.getFullYear());
+    }
+    return Array.from(years).sort((a, b) => b - a);
+  }, [reports]);
 
-  const modalStatusFromStage: Record<StageKey, StatusFilter> = {
-    pending: 'Pending',
-    awaiting: 'Verified',
-    released: 'Claimed',
-  };
+  const feedRecords = useMemo(() => {
+    const q = feedSearch.trim().toLowerCase();
+    const selectedYear = yearFilter === 'all' ? null : Number(yearFilter);
+    const selectedMonth = monthFilter === 'all' ? null : Number(monthFilter);
 
-  const modalRecords = useMemo(() => {
-    const filtered = reports.filter((r) => {
-      const statusMatches =
-        statusFilter === 'all'
-          ? true
-          : statusFilter === 'Claimed'
-            ? (r.status === 'Claimed' || claimedReportIds.has(r.id))
-            : r.status === statusFilter;
-      const typeMatches = typeFilter === 'all' ? true : r.type === typeFilter;
-      const dateVal = new Date(r.date).getTime();
-      const fromVal = dateFrom ? new Date(dateFrom).getTime() : Number.NEGATIVE_INFINITY;
-      const toVal = dateTo ? new Date(dateTo).getTime() + 86399999 : Number.POSITIVE_INFINITY;
-      return statusMatches && typeMatches && dateVal >= fromVal && dateVal <= toVal;
+    return reports
+      .filter((r) => {
+        const displayStatus = getDisplayStatus(r, claimedReportIds);
+
+        const filterMatches =
+          feedFilter === 'All'
+            ? true
+            : feedFilter === 'Lost'
+              ? r.type === 'Lost' && displayStatus !== 'Matched'
+              : feedFilter === 'Found'
+                ? r.type === 'Found' && displayStatus !== 'Claimed'
+                : feedFilter === 'Claimed'
+                  ? displayStatus === 'Claimed'
+                  : displayStatus === 'Matched';
+
+        if (!filterMatches) return false;
+
+        const reportDate = parseDate(r.date);
+        if (selectedYear !== null && (!reportDate || reportDate.getFullYear() !== selectedYear)) return false;
+        if (selectedMonth !== null && (!reportDate || reportDate.getMonth() + 1 !== selectedMonth)) return false;
+
+        if (!q) return true;
+        const haystack = [
+          r.id.toString(),
+          r.itemName,
+          r.description,
+          r.location,
+          r.category,
+          r.type,
+          displayStatus,
+          r.reporterName,
+          r.reporterUsername,
+          r.reporterSchoolId,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return haystack.includes(q);
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [reports, feedFilter, feedSearch, monthFilter, yearFilter, claimedReportIds]);
+
+  const exportFeedToExcel = () => {
+    const headers = ['Report ID', 'Item', 'Type', 'Status', 'Reporter', 'School ID', 'Category', 'Location', 'Date', 'Description'];
+    const rows = feedRecords.map((report) => {
+      const parsedDate = parseDate(report.date);
+      return [
+        `#${report.id}`,
+        report.itemName,
+        report.type,
+        getDisplayStatus(report, claimedReportIds),
+        report.reporterName || report.reporterUsername || 'N/A',
+        report.reporterSchoolId || 'N/A',
+        report.category,
+        report.location,
+        parsedDate ? parsedDate.toLocaleDateString() : report.date,
+        report.description,
+      ].map(escapeCsvCell).join(',');
     });
 
-    return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [reports, statusFilter, typeFilter, dateFrom, dateTo, claimedReportIds]);
+    const csvContent = ['\ufeff' + headers.map(escapeCsvCell).join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const fileUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    const monthLabel = monthFilter === 'all'
+      ? 'all-months'
+      : (MONTH_OPTIONS.find((option) => option.value === monthFilter)?.label || 'month')
+        .toLowerCase()
+        .replace(/\s+/g, '-');
+    const yearLabel = yearFilter === 'all' ? 'all-years' : yearFilter;
 
-  const openModalFromCard = (nextStage: StageKey) => {
-    setStage(nextStage);
-    setStatusFilter(modalStatusFromStage[nextStage]);
-    setTypeFilter('all');
-    setDateFrom(toDateInputValue(new Date(new Date().setMonth(new Date().getMonth() - 1))));
-    setDateTo(toDateInputValue(new Date()));
-    setIsRecordsModalOpen(true);
+    anchor.href = fileUrl;
+    anchor.download = `guidance_lost_found_feed_${yearLabel}_${monthLabel}_${new Date().toISOString().slice(0, 10)}.xls`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(fileUrl);
   };
 
-  const modalTitle = stage === 'pending'
-    ? 'Pending Reviews Records'
-    : stage === 'awaiting'
-      ? 'Awaiting Match Records'
-      : 'Released to Owners Records';
+  const handleGuidanceStatusUpdate = async (report: Report, targetStatus: ReportStatus) => {
+    setFeedError('');
+    setUpdatingReportId(report.id);
+    try {
+      const updated = await updateReportStatus(report.id, targetStatus);
+      setReports((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    } catch (err) {
+      console.error(err);
+      setFeedError(`Failed to update report #${report.id}. Make sure it is Verified before changing status.`);
+    } finally {
+      setUpdatingReportId(null);
+    }
+  };
+
+  const openClaimModal = (report: Report) => {
+    setClaimingReport(report);
+    setClaimModalError('');
+    setClaimForm({
+      fullName: '',
+      studentId: '',
+      courseYear: '',
+      contactNumber: '',
+      dateLost: '',
+      dateClaimed: new Date().toISOString().slice(0, 10),
+      locationLost: report.location || '',
+      detailedDescription: report.description || '',
+      proofImage: null,
+    });
+  };
+
+  const closeClaimModal = () => {
+    setClaimingReport(null);
+    setClaimModalError('');
+  };
+
+  const handleClaimFormChange = (field: keyof FoundClaimForm, value: string | File | null) => {
+    setClaimForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const submitClaimDetails = async () => {
+    if (!claimingReport) return;
+
+    setClaimModalError('');
+    setUpdatingReportId(claimingReport.id);
+    try {
+      const result = await claimFoundItemAsClaimed(
+        claimingReport.id,
+        {
+          fullName: claimForm.fullName,
+          studentId: claimForm.studentId,
+          courseYear: claimForm.courseYear,
+          contactNumber: claimForm.contactNumber,
+          dateLost: claimForm.dateLost,
+          dateClaimed: claimForm.dateClaimed,
+          locationLost: claimForm.locationLost,
+          detailedDescription: claimForm.detailedDescription,
+        },
+        claimForm.proofImage
+      );
+      setReports((prev) => prev.map((r) => (r.id === result.report.id ? result.report : r)));
+      closeClaimModal();
+    } catch (err) {
+      console.error(err);
+      setClaimModalError(err instanceof Error ? err.message : 'Failed to save claim details.');
+    } finally {
+      setUpdatingReportId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -202,9 +323,8 @@ export default function GuidanceDashboard() {
   return (
     <div className="flex-1 overflow-auto bg-[#F8FAFC]">
       <DashboardHeader />
-      
+
       <main className="p-8 max-w-7xl mx-auto">
-        {/* Welcome Section */}
         <div className="mb-10">
           <span className="text-emerald-600 font-bold text-xs uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
             Guidance Management System
@@ -217,177 +337,238 @@ export default function GuidanceDashboard() {
           </p>
         </div>
 
-        {/* Enhanced Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          
-          {/* Card 1: Pending Reviews */}
-          <div className="group relative">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-3xl blur opacity-10 group-hover:opacity-30 transition duration-300"></div>
-            <button
-              type="button"
-              onClick={() => openModalFromCard('pending')}
-              className="w-full text-left relative bg-white border border-slate-100 rounded-[2rem] p-2 transition-all duration-300 group-hover:translate-y-[-4px] group-hover:shadow-xl group-hover:shadow-amber-100"
-            >
-              <StatCard 
-                title="Pending Reviews" 
-                value={pending} 
-                icon={ClipboardList} 
-                bgColor="transparent" 
-                iconBg="bg-amber-500" 
-              />
-              <div className="px-5 pb-5 pt-0">
-                <div className="h-px bg-slate-50 w-full mb-4" />
-                <p className="text-sm text-slate-500 leading-snug">
-                  Reports currently being <span className="font-bold text-slate-800 underline decoration-amber-200 uppercase text-[10px] tracking-wide">reviewed and verified</span> by administration.
-                </p>
-              </div>
-            </button>
+        <section className="bg-white border border-slate-200 rounded-2xl shadow-sm">
+          <div className="p-6 border-b border-slate-100">
+            <h2 className="text-xl font-bold text-slate-900">Lost & Found Feed</h2>
+            <p className="text-sm text-slate-500 mt-1">Search reports, filter by status/type, and update workflow status.</p>
           </div>
 
-          {/* Card 2: Awaiting Match */}
-          <div className="group relative">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-3xl blur opacity-10 group-hover:opacity-30 transition duration-300"></div>
-            <button
-              type="button"
-              onClick={() => openModalFromCard('awaiting')}
-              className="w-full text-left relative bg-white border border-slate-100 rounded-[2rem] p-2 transition-all duration-300 group-hover:translate-y-[-4px] group-hover:shadow-xl group-hover:shadow-emerald-100"
-            >
-              <StatCard 
-                title="Awaiting Match" 
-                value={approved} 
-                icon={Search} 
-                bgColor="transparent" 
-                iconBg="bg-emerald-500" 
-              />
-              <div className="px-5 pb-5 pt-0">
-                <div className="h-px bg-slate-50 w-full mb-4" />
-                <p className="text-sm text-slate-500 leading-snug">
-                  Looking for the <span className="font-bold text-slate-800 underline decoration-emerald-200 uppercase text-[10px] tracking-wide">rightful owner</span> or locating items in storage.
-                </p>
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={feedSearch}
+                  onChange={(e) => setFeedSearch(e.target.value)}
+                  placeholder="Search by item, description, location, reporter, school ID, or report #"
+                  className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
               </div>
-            </button>
-          </div>
-
-          {/* Card 3: Released to Owners */}
-          <div className="group relative">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-3xl blur opacity-10 group-hover:opacity-30 transition duration-300"></div>
-            <button
-              type="button"
-              onClick={() => openModalFromCard('released')}
-              className="w-full text-left relative bg-white border border-slate-100 rounded-[2rem] p-2 transition-all duration-300 group-hover:translate-y-[-4px] group-hover:shadow-xl group-hover:shadow-blue-100"
-            >
-              <StatCard 
-                title="Released to Owners" 
-                value={claimed} 
-                icon={PackageCheck} 
-                bgColor="transparent" 
-                iconBg="bg-blue-500" 
-              />
-              <div className="px-5 pb-5 pt-0">
-                <div className="h-px bg-slate-50 w-full mb-4" />
-                <p className="text-sm text-slate-500 leading-snug">
-                  Successfully <span className="font-bold text-slate-800 underline decoration-blue-200 uppercase text-[10px] tracking-wide">handed over</span> to students and logged.
-                </p>
+              <div className="flex flex-wrap gap-2">
+                {(['All', 'Lost', 'Found', 'Claimed', 'Matched'] as FeedFilter[]).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setFeedFilter(option)}
+                    className={`px-3 py-2 text-sm rounded-lg border transition ${
+                      feedFilter === option
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
               </div>
-            </button>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={monthFilter}
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                >
+                  {MONTH_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={yearFilter}
+                  onChange={(e) => setYearFilter(e.target.value)}
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                >
+                  <option value="all">All years</option>
+                  {availableYears.map((year) => (
+                    <option key={year} value={year.toString()}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-slate-500">
+                  {feedRecords.length} record{feedRecords.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={feedRecords.length === 0}
+                onClick={exportFeedToExcel}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="w-4 h-4" />
+                Export to Excel
+              </button>
+            </div>
+
+            {feedError ? <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{feedError}</div> : null}
+
+            <div className="border border-slate-100 rounded-xl overflow-auto">
+              <table className="w-full text-left min-w-[900px]">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">ID</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Item</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Type</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Status</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Reporter</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Location</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Date</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {feedRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-500">No reports match your search and filters.</td>
+                    </tr>
+                  ) : (
+                    feedRecords.map((report) => {
+                      const displayStatus = getDisplayStatus(report, claimedReportIds);
+                      const canMarkMatched = report.type === 'Lost' && report.status === 'Verified';
+                      const canMarkClaimed = report.type === 'Found' && displayStatus !== 'Claimed' && report.status === 'Verified';
+                      const isBusy = updatingReportId === report.id;
+
+                      return (
+                        <tr key={report.id} className="hover:bg-slate-50/70">
+                          <td className="px-4 py-3 text-sm text-slate-700">#{report.id}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-slate-900">
+                            <p>{report.itemName}</p>
+                            <p className="text-xs text-slate-500 truncate max-w-[220px]">{report.category}</p>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-700">{report.type}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getFeedStatusBadge(displayStatus)}`}>
+                              {displayStatus}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-700">
+                            <p className="font-medium text-slate-900">{report.reporterName || report.reporterUsername || 'N/A'}</p>
+                            <p className="text-xs text-slate-500">{report.reporterSchoolId || 'N/A'}</p>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-700">{report.location}</td>
+                          <td className="px-4 py-3 text-sm text-slate-500">{new Date(report.date).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 text-sm text-right">
+                            {canMarkMatched ? (
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => handleGuidanceStatusUpdate(report, 'Matched')}
+                                className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                              >
+                                {isBusy ? 'Updating...' : 'Mark Matched'}
+                              </button>
+                            ) : canMarkClaimed ? (
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => openClaimModal(report)}
+                                className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                              >
+                                {isBusy ? 'Updating...' : 'Mark Claimed'}
+                              </button>
+                            ) : (
+                              <span className="text-xs text-slate-400 italic">No action</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-
-        </div>
-
+        </section>
       </main>
 
-      {isRecordsModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setIsRecordsModalOpen(false)}>
-          <div className="w-full max-w-6xl bg-white rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      {claimingReport && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={closeClaimModal}>
+          <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">{modalTitle}</h3>
-                <p className="text-xs text-gray-500 mt-1">View, filter by date and type, and print/download all records.</p>
+                <h3 className="text-lg font-bold text-gray-900">Claimant Details</h3>
+                <p className="text-xs text-gray-500 mt-1">Complete claimant information before marking this found item as Claimed.</p>
               </div>
-              <button onClick={() => setIsRecordsModalOpen(false)} className="p-2 rounded-lg hover:bg-gray-100">
+              <button type="button" onClick={closeClaimModal} className="p-2 rounded-lg hover:bg-gray-100">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="text-sm text-gray-700">
+                <span className="font-semibold">Item:</span> {claimingReport.itemName}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-gray-600">Status</label>
-                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
-                    <option value="all">All statuses</option>
-                    <option value="Pending">Pending Reviews</option>
-                    <option value="Verified">Awaiting Match</option>
-                    <option value="Claimed">Released to Owners</option>
-                  </select>
+                  <label className="text-xs font-semibold text-gray-600">Full Name</label>
+                  <input type="text" value={claimForm.fullName} onChange={(e) => handleClaimFormChange('fullName', e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-600">Type</label>
-                  <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as TypeFilter)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
-                    <option value="all">All types</option>
-                    <option value="Lost">Lost</option>
-                    <option value="Found">Found</option>
-                  </select>
+                  <label className="text-xs font-semibold text-gray-600">Student ID</label>
+                  <input type="text" value={claimForm.studentId} onChange={(e) => handleClaimFormChange('studentId', e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-600">Date From</label>
-                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  <label className="text-xs font-semibold text-gray-600">Course/Year</label>
+                  <input type="text" value={claimForm.courseYear} onChange={(e) => handleClaimFormChange('courseYear', e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-600">Date To</label>
-                  <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  <label className="text-xs font-semibold text-gray-600">Contact Number</label>
+                  <input type="text" value={claimForm.contactNumber} onChange={(e) => handleClaimFormChange('contactNumber', e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
-                <div className="flex items-end gap-2">
-                  <button
-                    onClick={() => downloadAndOpenRecords(modalRecords, modalTitle, claimedReportIds)}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 text-white px-3 py-2 text-sm hover:bg-emerald-700"
-                  >
-                    <Printer className="w-4 h-4" />
-                    Print
-                  </button>
-                  <button
-                    onClick={() => downloadAndOpenRecords(modalRecords, modalTitle, claimedReportIds)}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white text-gray-700 px-3 py-2 text-sm hover:bg-gray-50"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download All
-                  </button>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600">Date Lost</label>
+                  <input type="date" value={claimForm.dateLost} onChange={(e) => handleClaimFormChange('dateLost', e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600">Date Claimed</label>
+                  <input type="date" value={claimForm.dateClaimed} onChange={(e) => handleClaimFormChange('dateClaimed', e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>
 
-              <div className="text-xs text-gray-500">Total records: {modalRecords.length}</div>
-
-              <div className="max-h-[420px] overflow-auto border border-gray-100 rounded-xl">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-50 border-b border-gray-100 sticky top-0">
-                    <tr>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">ID</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Item</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Type</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Date</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Reporter</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {modalRecords.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No records match the selected filters.</td>
-                      </tr>
-                    ) : (
-                      modalRecords.map((record) => (
-                        <tr key={record.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-700">#{record.id}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{record.itemName}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{record.type}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{getDisplayStatus(record, claimedReportIds)}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{new Date(record.date).toLocaleDateString()}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{record.reporterName || record.reporterUsername || 'N/A'}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+              <div>
+                <label className="text-xs font-semibold text-gray-600">Location Lost</label>
+                <input type="text" value={claimForm.locationLost} onChange={(e) => handleClaimFormChange('locationLost', e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600">Detailed Description</label>
+                <textarea value={claimForm.detailedDescription} onChange={(e) => handleClaimFormChange('detailedDescription', e.target.value)} rows={4} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-y" />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600">Upload Proof (optional)</label>
+                <input type="file" accept="image/*" onChange={(e) => handleClaimFormChange('proofImage', e.target.files?.[0] || null)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" />
+              </div>
+
+              {claimModalError ? <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{claimModalError}</div> : null}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
+              <button type="button" onClick={closeClaimModal} className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={updatingReportId === claimingReport.id}
+                onClick={submitClaimDetails}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
+              >
+                {updatingReportId === claimingReport.id ? 'Saving...' : 'Save and Mark Claimed'}
+              </button>
             </div>
           </div>
         </div>

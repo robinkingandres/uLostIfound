@@ -24,7 +24,7 @@ const buildDefaultSettings = (): SiteSettings => ({
   org_logo: null,
   org_logo_url: null,
   default_new_report_status: 'Pending',
-  home_visible_report_statuses: ['Verified'],
+  home_visible_report_statuses: ['Verified', 'Matched', 'Claimed'],
   claim_require_proof_image: false,
   ai_min_score: 75,
   ai_matching_enabled: true,

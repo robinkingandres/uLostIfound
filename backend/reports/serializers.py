@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Report, Claim, Notification, AIMatch
+from .models import Report, Claim, Notification, AIMatch, FoundClaimRecord
 from users.models import SiteSettings
 
 class ReportSerializer(serializers.ModelSerializer):
@@ -54,6 +54,9 @@ class ClaimSerializer(serializers.ModelSerializer):
     itemName = serializers.CharField(source='report.item_name', read_only=True)
     claimantName = serializers.SerializerMethodField(read_only=True)
     claimantRole = serializers.CharField(source='claimant.role', read_only=True)
+    claimantSchoolId = serializers.CharField(source='claimant.school_id', read_only=True)
+    claimantEmail = serializers.EmailField(source='claimant.email', read_only=True)
+    claimantUsername = serializers.CharField(source='claimant.username', read_only=True)
     date = serializers.DateTimeField(source='date_created', format="%Y-%m-%d", read_only=True)
     reportRecordId = serializers.IntegerField(source='report.id', read_only=True)
     reportType = serializers.CharField(source='report.type', read_only=True)
@@ -80,7 +83,8 @@ class ClaimSerializer(serializers.ModelSerializer):
         model = Claim
         fields = [
             'id', 'reportId', 'itemName', 'claimantName', 
-            'claimantRole', 'proofDescription', 'proofImage', 'proof_image', 'status', 'date', 'rejection_reason',
+            'claimantRole', 'claimantSchoolId', 'claimantEmail', 'claimantUsername',
+            'proofDescription', 'proofImage', 'proof_image', 'status', 'date', 'rejection_reason',
             'reportRecordId', 'reportType', 'reportCategory', 'reportLocation', 'reportStatus',
             'reportDescription', 'reportDate', 'reportDateReported', 'reportImage',
             'reporterName', 'reporterRole', 'reporterSchoolId'
@@ -140,6 +144,58 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ['id', 'message', 'is_read', 'created_at', 'report']
+
+
+class FoundClaimRecordSerializer(serializers.ModelSerializer):
+    reportId = serializers.IntegerField(source='report.id', read_only=True)
+    itemName = serializers.CharField(source='report.item_name', read_only=True)
+    fullName = serializers.CharField(source='full_name')
+    studentId = serializers.CharField(source='student_id')
+    courseYear = serializers.CharField(source='course_year')
+    contactNumber = serializers.CharField(source='contact_number')
+    dateLost = serializers.DateField(source='date_lost')
+    dateClaimed = serializers.DateField(source='date_claimed')
+    locationLost = serializers.CharField(source='location_lost')
+    detailedDescription = serializers.CharField(source='detailed_description')
+    proofImage = serializers.ImageField(source='proof_image', required=False, allow_null=True)
+    proofImageUrl = serializers.SerializerMethodField(read_only=True)
+    guidanceOfficerName = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = FoundClaimRecord
+        fields = [
+            'id',
+            'reportId',
+            'itemName',
+            'fullName',
+            'studentId',
+            'courseYear',
+            'contactNumber',
+            'dateLost',
+            'dateClaimed',
+            'locationLost',
+            'detailedDescription',
+            'proofImage',
+            'proofImageUrl',
+            'guidanceOfficerName',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']
+
+    def get_proofImageUrl(self, obj):
+        if not obj.proof_image:
+            return None
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(obj.proof_image.url)
+        return obj.proof_image.url
+
+    def get_guidanceOfficerName(self, obj):
+        officer = obj.guidance_officer
+        if not officer:
+            return 'N/A'
+        full_name = f"{officer.first_name} {officer.last_name}".strip()
+        return full_name if full_name else officer.username
 
 
 # --- AI MATCH SERIALIZER ---

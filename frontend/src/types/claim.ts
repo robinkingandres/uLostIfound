@@ -5,6 +5,9 @@ export interface Claim {
   itemName: string;
   claimantName: string;
   claimantRole: string;
+  claimantSchoolId?: string;
+  claimantEmail?: string;
+  claimantUsername?: string;
   proofDescription: string;
   createdAt?: string;
   proofImage?: string | null;

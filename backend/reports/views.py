@@ -13,9 +13,15 @@ from itertools import chain # Add this import if not present, though we can do l
 from operator import itemgetter
 
 # Import models
-from .models import Report, Claim, Notification, AIMatch
+from .models import Report, Claim, Notification, AIMatch, FoundClaimRecord
 # Import serializers
-from .serializers import ReportSerializer, ClaimSerializer, NotificationSerializer, AIMatchSerializer
+from .serializers import (
+    ReportSerializer,
+    ClaimSerializer,
+    NotificationSerializer,
+    AIMatchSerializer,
+    FoundClaimRecordSerializer,
+)
 
 # Import the new shared permission
 from core.permissions import IsAdmin, IsGuidance
@@ -199,13 +205,17 @@ class ReportViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         user = request.user
-        is_admin = (user.role == 'Admin' or user.is_superuser)
-        if instance.status in ['Verified', 'Rejected']:
+        is_admin_or_guidance = user.role in ['Admin', 'Guidance'] or user.is_superuser
+        status_change_requested = 'status' in request.data
+
+        # Verified/Rejected records are locked for content edits, but privileged users
+        # may still perform workflow status transitions.
+        if instance.status in ['Verified', 'Rejected'] and not (status_change_requested and is_admin_or_guidance):
             raise exceptions.PermissionDenied(
                 "This report is finalized and can no longer be edited."
             )
-        # Non-admins can only update their own Pending reports
-        if not is_admin:
+
+        if not is_admin_or_guidance:
             self.check_report_owner_pending(instance)
         return super().update(request, *args, **kwargs)
 
@@ -220,14 +230,24 @@ class ReportViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         user = self.request.user
         is_admin = (user.role == 'Admin' or user.is_superuser)
+        is_guidance = (user.role == 'Guidance' and not user.is_superuser)
 
-        # RBAC Check: Prevent non-admins from changing the status
         if 'status' in serializer.validated_data:
             new_status_req = serializer.validated_data['status']
             instance = self.get_object()
-            
-            if instance.status != new_status_req and not is_admin:
-                raise exceptions.PermissionDenied("Only Admins can change the report status.")
+
+            if instance.status != new_status_req and not (is_admin or is_guidance):
+                raise exceptions.PermissionDenied("Only Admins or Guidance can change the report status.")
+
+            if is_guidance and instance.status != new_status_req:
+                if instance.type == 'Lost':
+                    if not (instance.status == 'Verified' and new_status_req == 'Matched'):
+                        raise exceptions.PermissionDenied("Guidance can only set Lost reports from Verified to Matched.")
+                elif instance.type == 'Found':
+                    if not (instance.status == 'Verified' and new_status_req == 'Claimed'):
+                        raise exceptions.PermissionDenied("Guidance can only set Found reports from Verified to Claimed.")
+                else:
+                    raise exceptions.PermissionDenied("Invalid report type.")
 
         instance = self.get_object()
         old_status = instance.status
@@ -240,6 +260,8 @@ class ReportViewSet(viewsets.ModelViewSet):
             message = ""
             if new_status == 'Verified':
                 message = f"Good news! Your report for '{updated_report.item_name}' has been Verified by the admin."
+            elif new_status == 'Matched':
+                message = f"Good news! Your lost item '{updated_report.item_name}' has been successfully matched."
             elif new_status == 'Rejected':
                 message = f"Update: Your report for '{updated_report.item_name}' was Rejected. Please follow the guidelines to avoid being rejected."
             elif new_status == 'Claimed':
@@ -268,7 +290,14 @@ class ReportViewSet(viewsets.ModelViewSet):
 
         if not is_admin_or_guidance:
             site_settings = SiteSettings.get_solo()
-            visible_statuses = site_settings.home_visible_report_statuses or ['Verified']
+            configured_statuses = site_settings.home_visible_report_statuses or []
+            # Keep existing configurable behavior but always expose matched/claimed on feed.
+            visible_statuses = list({
+                *configured_statuses,
+                'Verified',
+                'Matched',
+                'Claimed',
+            })
             queryset = queryset.filter(status__in=visible_statuses)
 
         report_type = (report_type_raw or '').strip().lower()
@@ -293,6 +322,85 @@ class ReportViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def found_claim_records(self, request):
+        user = request.user
+        is_admin_or_guidance = user.role in ['Admin', 'Guidance'] or user.is_superuser
+
+        if not is_admin_or_guidance:
+            return Response(
+                {"detail": "You do not have permission to view found claim records."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        queryset = FoundClaimRecord.objects.select_related('report', 'guidance_officer').all()
+        serializer = FoundClaimRecordSerializer(queryset, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def claim_found_item(self, request, pk=None):
+        report = self.get_object()
+        user = request.user
+        is_admin_or_guidance = user.role in ['Admin', 'Guidance'] or user.is_superuser
+
+        if not is_admin_or_guidance:
+            return Response(
+                {"detail": "Only Admin or Guidance can complete found-item claiming."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if report.type != 'Found':
+            return Response(
+                {"detail": "This action is only allowed for Found reports."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if report.status == 'Claimed':
+            return Response(
+                {"detail": "This found item has already been marked as Claimed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if report.status != 'Verified':
+            return Response(
+                {"detail": "Only Verified found reports can be marked as Claimed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if FoundClaimRecord.objects.filter(report=report).exists():
+            return Response(
+                {"detail": "Claim details already exist for this report."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = FoundClaimRecordSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save(report=report, guidance_officer=user)
+
+        report.status = 'Claimed'
+        report.save(update_fields=['status'])
+
+        AIMatch.objects.filter(
+            Q(lost_report=report) | Q(found_report=report)
+        ).exclude(status='Rejected').update(
+            match_score=100.0,
+            status='Approved'
+        )
+
+        Notification.objects.create(
+            recipient=report.reporter,
+            message=f"Success! Your found item '{report.item_name}' has been successfully Claimed.",
+            report=report
+        )
+
+        return Response(
+            {
+                'report': ReportSerializer(report, context={'request': request}).data,
+                'claimRecord': serializer.data,
+            },
+            status=status.HTTP_200_OK
+        )
 
 # --- CLAIM VIEWSET ---
 # backend/reports/views.py

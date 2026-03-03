@@ -77,7 +77,7 @@ class SiteSettings(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.home_visible_report_statuses:
-            self.home_visible_report_statuses = ['Verified']
+            self.home_visible_report_statuses = ['Verified', 'Matched', 'Claimed']
         self.ai_min_score = max(0.0, min(100.0, float(self.ai_min_score or 0.0)))
         super().save(*args, **kwargs)
 
@@ -85,10 +85,10 @@ class SiteSettings(models.Model):
     def get_solo(cls):
         obj, _ = cls.objects.get_or_create(
             id=1,
-            defaults={'home_visible_report_statuses': ['Verified']},
+            defaults={'home_visible_report_statuses': ['Verified', 'Matched', 'Claimed']},
         )
         if not obj.home_visible_report_statuses:
-            obj.home_visible_report_statuses = ['Verified']
+            obj.home_visible_report_statuses = ['Verified', 'Matched', 'Claimed']
             obj.save(update_fields=['home_visible_report_statuses'])
         return obj
 

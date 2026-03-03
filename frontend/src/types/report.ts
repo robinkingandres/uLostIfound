@@ -1,4 +1,4 @@
-export type ReportStatus = 'Pending' | 'Verified' | 'Claimed' | 'Rejected';
+export type ReportStatus = 'Pending' | 'Verified' | 'Matched' | 'Claimed' | 'Rejected';
 export type ReportType = 'Lost' | 'Found';
 
 export interface Report {

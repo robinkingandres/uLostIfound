@@ -45,6 +45,34 @@ export interface ReportPayload {
   date: string;
 }
 
+export interface FoundClaimPayload {
+  fullName: string;
+  studentId: string;
+  courseYear: string;
+  contactNumber: string;
+  dateLost: string;
+  dateClaimed: string;
+  locationLost: string;
+  detailedDescription: string;
+}
+
+export interface FoundClaimRecord {
+  id: number;
+  reportId: number;
+  itemName: string;
+  fullName: string;
+  studentId: string;
+  courseYear: string;
+  contactNumber: string;
+  dateLost: string;
+  dateClaimed: string;
+  locationLost: string;
+  detailedDescription: string;
+  proofImageUrl: string | null;
+  guidanceOfficerName: string;
+  created_at: string;
+}
+
 // =================================================================
 //                      REPORT API FUNCTIONS
 // =================================================================
@@ -376,6 +404,74 @@ export const updateReportStatus = async (id: number, newStatus: ReportStatus): P
   }
   
   return response.json();
+};
+
+export const claimFoundItemAsClaimed = async (
+  reportId: number,
+  payload: FoundClaimPayload,
+  proofImage?: File | null
+): Promise<{ report: Report; claimRecord: any }> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
+
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    formData.append(key, value);
+  });
+  if (proofImage) {
+    formData.append('proofImage', proofImage);
+  }
+
+  const response = await fetch(`${REPORT_URL}${reportId}/claim_found_item/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': csrfToken,
+    },
+    body: formData,
+    credentials: 'include',
+  });
+
+  const parseResponseBody = async () => {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return response.json();
+    }
+    const text = await response.text();
+    return { detail: text || `HTTP ${response.status}` };
+  };
+
+  if (!response.ok) {
+    const errorData = await parseResponseBody();
+    const detail = errorData?.detail || 'Failed to complete claim';
+    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(errorData));
+  }
+
+  const data = await parseResponseBody();
+  if (!data?.report) {
+    throw new Error('Claim completed but server returned an unexpected response.');
+  }
+  return data;
+};
+
+export const fetchFoundClaimRecords = async (): Promise<FoundClaimRecord[]> => {
+  const response = await fetch(`${REPORT_URL}found_claim_records/`, {
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const errorData = await response.json();
+      throw new Error(errorData?.detail || 'Failed to fetch found claim records');
+    }
+    const errorText = await response.text();
+    throw new Error(errorText || 'Failed to fetch found claim records');
+  }
+
+  const data = await response.json();
+  if (Array.isArray(data)) return data;
+  if (data?.results && Array.isArray(data.results)) return data.results;
+  return [];
 };
 
 
@@ -1010,7 +1106,7 @@ export interface SiteSettings {
   org_tagline: string;
   org_logo: string | null;
   org_logo_url: string | null;
-  default_new_report_status: 'Pending' | 'Verified' | 'Claimed' | 'Rejected';
+  default_new_report_status: 'Pending' | 'Verified' | 'Matched' | 'Claimed' | 'Rejected';
   home_visible_report_statuses: string[];
   claim_require_proof_image: boolean;
   ai_min_score: number;

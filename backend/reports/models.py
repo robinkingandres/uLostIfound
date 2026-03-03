@@ -1,11 +1,13 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 class Report(models.Model):
     # ... (Keep existing Report code unchanged) ...
     REPORT_STATUS_CHOICES = (
         ('Pending', 'Pending'),
         ('Verified', 'Verified'),
+        ('Matched', 'Matched'),
         ('Claimed', 'Claimed'),
         ('Rejected', 'Rejected'),
     )
@@ -82,6 +84,33 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"Notification for {self.recipient.username}: {self.message[:20]}..."
+
+
+class FoundClaimRecord(models.Model):
+    report = models.OneToOneField(Report, on_delete=models.CASCADE, related_name='found_claim_record')
+    guidance_officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='processed_found_claim_records'
+    )
+    full_name = models.CharField(max_length=255)
+    student_id = models.CharField(max_length=50)
+    course_year = models.CharField(max_length=100)
+    contact_number = models.CharField(max_length=30)
+    date_lost = models.DateField()
+    date_claimed = models.DateField(default=timezone.localdate)
+    location_lost = models.CharField(max_length=255)
+    detailed_description = models.TextField()
+    proof_image = models.ImageField(upload_to='claim_proofs/', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Found claim record for {self.report.item_name} by {self.full_name}"
 
 
 # --- AI MATCH MODEL ---

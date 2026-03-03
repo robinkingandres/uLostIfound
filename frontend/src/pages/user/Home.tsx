@@ -95,7 +95,15 @@ export default function UserHome() {
       report.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.description.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesType = statusFilter === 'All Status' || report.type === statusFilter;
+    const reportType = (report.type || '').toString().trim().toLowerCase();
+    const reportStatus = (report.status || '').toString().trim().toLowerCase();
+
+    const matchesType =
+      statusFilter === 'All Status' ||
+      (statusFilter === 'Lost' && reportType === 'lost' && reportStatus !== 'matched') ||
+      (statusFilter === 'Found' && reportType === 'found' && reportStatus !== 'claimed') ||
+      (statusFilter === 'Matched' && reportStatus === 'matched') ||
+      (statusFilter === 'Claimed' && reportStatus === 'claimed');
     const matchesCategory = categoryFilter === 'All Categories' || report.category === categoryFilter;
 
     return matchesSearch && matchesType && matchesCategory;
@@ -112,8 +120,18 @@ export default function UserHome() {
     'Others',
   ];
   
-  const getTypeColor = (type: string) => {
-    return type === 'Lost' ? 'bg-red-500' : 'bg-blue-500';
+  const getBadge = (report: Report) => {
+    const status = (report.status || '').toString().trim().toLowerCase();
+    const type = (report.type || '').toString().trim().toLowerCase();
+    if (status === 'matched') {
+      return { label: 'Matched', color: 'bg-emerald-600' };
+    }
+    if (status === 'claimed') {
+      return { label: 'Claimed', color: 'bg-green-700' };
+    }
+    return type === 'lost'
+      ? { label: 'Lost', color: 'bg-red-500' }
+      : { label: 'Found', color: 'bg-blue-500' };
   };
 
   if (loading) {
@@ -197,6 +215,8 @@ export default function UserHome() {
                 <option>All Status</option>
                 <option value="Lost">Lost</option>
                 <option value="Found">Found</option>
+                <option value="Matched">Matched</option>
+                <option value="Claimed">Claimed</option>
               </select>
               <Filter className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             </div>
@@ -220,6 +240,7 @@ export default function UserHome() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredReports.map((report) => {
             const isOwner = isReportOwner(report);
+            const badge = getBadge(report);
 
             return (
               <div
@@ -240,8 +261,8 @@ export default function UserHome() {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                     />
                   </button>
-                  <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg ${getTypeColor(report.type)}`}>
-                    {report.type}
+                  <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg ${badge.color}`}>
+                    {badge.label}
                   </div>
                 </div>
 

@@ -50,7 +50,15 @@ export default function LandingFeed() {
       report.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.description.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesType = statusFilter === 'All Status' || report.type === statusFilter;
+    const reportType = (report.type || '').toString().trim().toLowerCase();
+    const reportStatus = (report.status || '').toString().trim().toLowerCase();
+
+    const matchesType =
+      statusFilter === 'All Status' ||
+      (statusFilter === 'Lost' && reportType === 'lost' && reportStatus !== 'matched') ||
+      (statusFilter === 'Found' && reportType === 'found' && reportStatus !== 'claimed') ||
+      (statusFilter === 'Matched' && reportStatus === 'matched') ||
+      (statusFilter === 'Claimed' && reportStatus === 'claimed');
     const matchesCategory = categoryFilter === 'All Categories' || report.category === categoryFilter;
 
     return matchesSearch && matchesType && matchesCategory;
@@ -67,8 +75,18 @@ export default function LandingFeed() {
     'Others',
   ];
 
-  const getTypeColor = (type: string) => {
-    return type === 'Lost' ? 'bg-red-500' : 'bg-blue-500';
+  const getBadge = (report: Report) => {
+    const status = (report.status || '').toString().trim().toLowerCase();
+    const type = (report.type || '').toString().trim().toLowerCase();
+    if (status === 'matched') {
+      return { label: 'Matched', color: 'bg-emerald-600' };
+    }
+    if (status === 'claimed') {
+      return { label: 'Claimed', color: 'bg-green-700' };
+    }
+    return type === 'lost'
+      ? { label: 'Lost', color: 'bg-red-500' }
+      : { label: 'Found', color: 'bg-blue-500' };
   };
 
   if (loading) {
@@ -140,6 +158,8 @@ export default function LandingFeed() {
                 <option>All Status</option>
                 <option value="Lost">Lost</option>
                 <option value="Found">Found</option>
+                <option value="Matched">Matched</option>
+                <option value="Claimed">Claimed</option>
               </select>
               <Filter className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             </div>
@@ -162,15 +182,17 @@ export default function LandingFeed() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredReports.map((report) => (
+          {filteredReports.map((report) => {
+            const badge = getBadge(report);
+            return (
             <article
               key={report.id}
               className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg transition-all overflow-hidden"
             >
               <div className="relative h-52 w-full bg-slate-200 overflow-hidden">
                 <img src={report.image} alt={report.itemName} className="w-full h-full object-cover" />
-                <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${getTypeColor(report.type)}`}>
-                  {report.type}
+                <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${badge.color}`}>
+                  {badge.label}
                 </div>
               </div>
 
@@ -197,7 +219,8 @@ export default function LandingFeed() {
                 </div>
               </div>
             </article>
-          ))}
+          );
+          })}
 
           {filteredReports.length === 0 && (
             <div className="col-span-full text-center py-12">
