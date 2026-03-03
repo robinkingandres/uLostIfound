@@ -168,6 +168,8 @@ class ReportViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
+        if user.role == 'Student':
+            raise exceptions.PermissionDenied("Students are not allowed to create reports.")
         initial_status = 'Verified' if (user.role == 'Guidance' or user.is_superuser) else 'Pending'
         report = serializer.save(reporter=user, status=initial_status)
 

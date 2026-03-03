@@ -35,8 +35,12 @@ export default function UserLogin() {
         navigate('/admin/dashboard');
       } else if (loggedInUser.role === 'Guidance') {
         navigate('/guidance/dashboard');
-      } else {
+      } else if (loggedInUser.role === 'Teacher') {
         navigate('/home');
+      } else if (loggedInUser.role === 'Student') {
+        setError('Student login is disabled. Please use the public landing feed.');
+      } else {
+        setError('This account role is not allowed to sign in.');
       }
     } else {
       setError('Invalid username or password.');

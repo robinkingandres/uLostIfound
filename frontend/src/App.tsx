@@ -31,6 +31,7 @@ import UserProfile from './pages/user/Profile';
 import Matches from './pages/user/Matches';
 import ForgotPassword from './pages/user/ForgotPassword';
 import ActivityPage from './pages/user/Activity';
+import LandingFeed from './pages/LandingFeed';
 
 function App() {
   return (
@@ -38,7 +39,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           {/* --- PUBLIC ROUTES --- */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<LandingFeed />} />
           <Route path="/login" element={<UserLogin />} />
           {/* Redirect old admin login to the unified login */}
           <Route path="/admin/login" element={<Navigate to="/login" replace />} />
@@ -59,51 +60,51 @@ function App() {
             <Route path="account-settings" element={<Navigate to="/guidance/settings" replace />} />
           </Route>
 
-          {/* --- PROTECTED USER ROUTES (Access: Student, Teacher, Admin) --- */}
+          {/* --- PROTECTED USER ROUTES --- */}
           <Route path="/home" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Teacher', 'Admin']}>
               <UserHome />
             </ProtectedRoute>
           } />
           
           <Route path="/report-lost" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
+            <ProtectedRoute allowedRoles={['Teacher', 'Admin', 'Guidance']}>
               <ReportLost />
             </ProtectedRoute>
           } />
 
           <Route path="/report-found" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
+            <ProtectedRoute allowedRoles={['Teacher', 'Admin', 'Guidance']}>
               <ReportFound />
             </ProtectedRoute>
           } />
 
           <Route path="/report-success" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
+            <ProtectedRoute allowedRoles={['Teacher', 'Admin', 'Guidance']}>
               <ReportSuccess />
             </ProtectedRoute>
           } />
 
           <Route path="/report-found-success" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
+            <ProtectedRoute allowedRoles={['Teacher', 'Admin', 'Guidance']}>
               <ReportFoundSuccess />
             </ProtectedRoute>
           } />
 
           <Route path="/profile" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Teacher', 'Admin']}>
               <UserProfile />
             </ProtectedRoute>
           } />
 
           <Route path="/matches" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Teacher', 'Admin']}>
               <Matches />
             </ProtectedRoute>
           } />
 
           <Route path="/activity" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
+            <ProtectedRoute allowedRoles={['Teacher', 'Admin', 'Guidance']}>
               <ActivityPage />
             </ProtectedRoute>
           } />
@@ -134,7 +135,7 @@ function App() {
           </Route>
 
           {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
           
         </Routes>
       </BrowserRouter>

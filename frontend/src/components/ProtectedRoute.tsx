@@ -21,8 +21,12 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     // Redirect to appropriate dashboard based on role if they try to access unauthorized page
     if (user.role === 'Admin') {
       return <Navigate to="/admin/dashboard" replace />;
-    } else {
+    } else if (user.role === 'Guidance') {
+      return <Navigate to="/guidance/dashboard" replace />;
+    } else if (user.role === 'Teacher') {
       return <Navigate to="/home" replace />;
+    } else {
+      return <Navigate to="/" replace />;
     }
   }
 

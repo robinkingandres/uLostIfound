@@ -24,6 +24,11 @@ class LoginView(APIView):
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
+            if user.role == 'Student':
+                return Response(
+                    {"detail": "Student login is disabled. Use the public feed instead."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
             # User found and session established
             login(request, user)
             
