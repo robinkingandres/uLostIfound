@@ -1,4 +1,4 @@
-import { LayoutDashboard, ClipboardCheck, FileSearch, Search } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, Sparkles, FileSearch, Search } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import logoImg from '../../assets/logo.png';
 
@@ -55,6 +55,18 @@ export default function GuidanceSidebar() {
         >
           <ClipboardCheck className="w-5 h-5" />
           <span className="text-sm">Review Claims</span>
+        </NavLink>
+
+        <NavLink
+          to="/guidance/ai-matches"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 group ${
+              isActive ? 'bg-white text-emerald-900 shadow-lg font-bold' : 'text-emerald-100 hover:bg-emerald-800/60 hover:translate-x-1'
+            }`
+          }
+        >
+          <Sparkles className="w-5 h-5" />
+          <span className="text-sm">AI Matches</span>
         </NavLink>
 
         <div className="pt-6 pb-2">

@@ -14,6 +14,7 @@ const ROUTE_HEADERS: Record<string, { title: string; subtitle: string }> = {
   "/admin/account-settings": { title: "Account Settings", subtitle: "Manage your account and security" },
   "/guidance/dashboard": { title: "Dashboard", subtitle: "Welcome back! Here's what's happening today." },
   "/guidance/claims": { title: "Review Claims", subtitle: "" },
+  "/guidance/ai-matches": { title: "AI Matches", subtitle: "Review AI-suggested matches between lost and found items" },
   "/guidance/settings": { title: "Account Settings", subtitle: "Manage your guidance account details and security" },
   "/report-lost": { title: "Report Lost", subtitle: "Submit details for a lost item" },
   "/report-found": { title: "Report Found", subtitle: "Submit details for a found item" },

@@ -11,22 +11,24 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { isAuthenticated, user } = useAuth();
   const location = useLocation();
+  const normalizedRole = String(user?.role ?? '').trim().toLowerCase();
+  const normalizedAllowedRoles = allowedRoles?.map((role) => String(role).trim().toLowerCase());
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // RBAC Check
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  if (normalizedAllowedRoles && !normalizedAllowedRoles.includes(normalizedRole)) {
     // Redirect to appropriate dashboard based on role if they try to access unauthorized page
-    if (user.role === 'Admin') {
+    if (normalizedRole === 'admin') {
       return <Navigate to="/admin/dashboard" replace />;
-    } else if (user.role === 'Guidance') {
+    } else if (normalizedRole === 'guidance') {
       return <Navigate to="/guidance/dashboard" replace />;
-    } else if (user.role === 'Teacher') {
+    } else if (normalizedRole === 'teacher' || normalizedRole === 'student') {
       return <Navigate to="/home" replace />;
     } else {
-      return <Navigate to="/" replace />;
+      return <Navigate to="/login" state={{ from: location }} replace />;
     }
   }
 

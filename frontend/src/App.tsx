@@ -7,6 +7,7 @@ import GuidanceLayout from './layouts/GuidanceLayout';
 import GuidanceDashboard from './pages/guidance/Dashboard';
 import GuidanceClaims from './pages/guidance/ClaimReview';
 import GuidanceAccountSettings from './pages/guidance/AccountSettings';
+import GuidanceAIMatches from './pages/guidance/AIMatches';
 
 // Admin Imports
 import AdminLayout from './layouts/AdminLayout';
@@ -56,8 +57,10 @@ function App() {
             <Route index element={<Navigate to="/guidance/dashboard" replace />} />
             <Route path="dashboard" element={<GuidanceDashboard />} />
             <Route path="claims" element={<GuidanceClaims />} />
+            <Route path="ai-matches" element={<GuidanceAIMatches />} />
             <Route path="settings" element={<GuidanceAccountSettings />} />
             <Route path="account-settings" element={<Navigate to="/guidance/settings" replace />} />
+            <Route path="*" element={<Navigate to="/guidance/dashboard" replace />} />
           </Route>
 
           {/* --- PROTECTED USER ROUTES --- */}
@@ -131,6 +134,7 @@ function App() {
             <Route path="lost-found-dashboard" element={<Navigate to="/admin/analytics-dashboard" replace />} />
             <Route path="settings" element={<AccountSettings />} />
             <Route path="account-settings" element={<Navigate to="/admin/settings" replace />} />
+            <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
 
           </Route>
 
