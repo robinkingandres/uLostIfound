@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
             name='AIMatch',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('visual_score', models.FloatField(default=0, help_text='Image similarity score from CLIP (0-100)')),
+                ('visual_score', models.FloatField(default=0, help_text='Image similarity score from TensorFlow Lite MobileNetV3 (0-100)')),
                 ('text_score', models.FloatField(default=0, help_text='Text/description similarity score (0-100)')),
                 ('match_score', models.FloatField(default=0, help_text='Combined overall match score (0-100)')),
                 ('status', models.CharField(choices=[('Pending', 'Pending'), ('Approved', 'Approved'), ('Rejected', 'Rejected')], default='Pending', max_length=10)),

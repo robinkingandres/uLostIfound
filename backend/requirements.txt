@@ -6,9 +6,9 @@ django-cors-headers>=4.3
 # Database
 pillow>=10.0
 
-# AI/ML for CLIP matching
-torch>=2.0
-transformers>=4.35
+# AI/ML for TensorFlow Lite + MobileNetV3 matching
+tensorflow>=2.16
+tflite-runtime>=2.14; platform_system != "Windows"
 numpy>=1.24
 
 # HTTP requests

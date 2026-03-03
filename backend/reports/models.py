@@ -135,7 +135,10 @@ class AIMatch(models.Model):
     )
     
     # Match scores (0-100)
-    visual_score = models.FloatField(default=0, help_text="Image similarity score from CLIP (0-100)")
+    visual_score = models.FloatField(
+        default=0,
+        help_text="Image similarity score from TensorFlow Lite MobileNetV3 (0-100)",
+    )
     text_score = models.FloatField(default=0, help_text="Text/description similarity score (0-100)")
     match_score = models.FloatField(default=0, help_text="Combined overall match score (0-100)")
     
