@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Users,
   GraduationCap,
-  PcCase,
   ShieldAlert,
   Search,
   Pencil,
@@ -22,10 +21,9 @@ import { fetchUsers, deleteUser, updateUser, createUser } from '../services/api'
 
 const ROLE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'All roles' },
-  { value: 'Student', label: 'Student' },
-  { value: 'Teacher', label: 'Teacher' },
-  { value: 'Admin', label: 'Admin' },
+  { value: 'StudentTeacher', label: 'Student/Teacher' },
   { value: 'Guidance', label: 'Guidance' },
+  { value: 'Admin', label: 'Admin' },
 ];
 
 export default function UserManagement() {
@@ -90,18 +88,18 @@ export default function UserManagement() {
           (u.userId || '').toLowerCase().includes(q)
       );
     }
-    if (roleFilter) list = list.filter((u) => u.role === roleFilter);
+    if (roleFilter) list = list.filter((u) => roleFilter === 'StudentTeacher' ? (u.role === 'Student' || u.role === 'Teacher') : u.role === roleFilter);
     return list;
   }, [users, searchQuery, roleFilter]);
 
   const stats = useMemo(
     () => ({
-      total: filteredUsers.length,
-      students: filteredUsers.filter((u) => u.role === 'Student').length,
-      teachers: filteredUsers.filter((u) => u.role === 'Teacher').length,
-      admins: filteredUsers.filter((u) => u.role === 'Admin').length,
+      total: users.length,
+      students: users.filter((u) => u.role === 'Student' || u.role === 'Teacher').length,
+      guidance: users.filter((u) => u.role === 'Guidance').length,
+      admins: users.filter((u) => u.role === 'Admin').length,
     }),
-    [filteredUsers]
+    [users]
   );
 
   const handleDeleteClick = (u: User) => setDeleteTarget(u);
@@ -137,6 +135,12 @@ export default function UserManagement() {
   };
 
   const handleCreateUser = async (data: AddUserFormData) => {
+    const schoolIdToCreate = (data.school_id || '').trim().toLowerCase();
+    const alreadyExists = users.some((u) => (u.userId || '').trim().toLowerCase() === schoolIdToCreate);
+    if (schoolIdToCreate && alreadyExists) {
+      throw new Error(JSON.stringify({ school_id: ['School ID already exists. Try another one.'] }));
+    }
+
     const r = await createUser(data);
     const mapped: User = {
       id: r.id,
@@ -200,10 +204,18 @@ export default function UserManagement() {
   return (
     <div className="p-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard title="Total Users" value={stats.total} icon={Users} bgColor="bg-blue-50" iconBg="bg-blue-500" />
-          <StatCard title="Students" value={stats.students} icon={GraduationCap} bgColor="bg-green-50" iconBg="bg-green-500" />
-          <StatCard title="Teachers" value={stats.teachers} icon={PcCase} bgColor="bg-yellow-50" iconBg="bg-yellow-500" />
-          <StatCard title="Admins" value={stats.admins} icon={ShieldAlert} bgColor="bg-red-50" iconBg="bg-red-500" />
+          <div className={`transition-all duration-300 ${!roleFilter ? 'scale-[1.02] ring-2 ring-blue-300 rounded-2xl animate-[pulse_900ms_ease-in-out_2]' : ''}`}> 
+            <StatCard title="Total Users" value={stats.total} icon={Users} bgColor="bg-blue-50" iconBg="bg-blue-500" />
+          </div>
+          <div className={`transition-all duration-300 ${roleFilter === 'StudentTeacher' ? 'scale-[1.02] ring-2 ring-green-300 rounded-2xl animate-[pulse_900ms_ease-in-out_2]' : ''}`}>
+            <StatCard title="Students" value={stats.students} icon={GraduationCap} bgColor="bg-green-50" iconBg="bg-green-500" />
+          </div>
+          <div className={`transition-all duration-300 ${roleFilter === 'Guidance' ? 'scale-[1.02] ring-2 ring-yellow-300 rounded-2xl animate-[pulse_900ms_ease-in-out_2]' : ''}`}>
+            <StatCard title="Guidance" value={stats.guidance} icon={UserCircle} bgColor="bg-yellow-50" iconBg="bg-yellow-500" />
+          </div>
+          <div className={`transition-all duration-300 ${roleFilter === 'Admin' ? 'scale-[1.02] ring-2 ring-red-300 rounded-2xl animate-[pulse_900ms_ease-in-out_2]' : ''}`}>
+            <StatCard title="Admins" value={stats.admins} icon={ShieldAlert} bgColor="bg-red-50" iconBg="bg-red-500" />
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -215,7 +227,7 @@ export default function UserManagement() {
                   onClick={() => setRoleFilterOpen((v) => !v)}
                   className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
                 >
-                  <span className="text-gray-500">Filter by role</span>
+                  <span className={roleFilter ? "text-gray-700" : "text-gray-500"}>{ROLE_FILTER_OPTIONS.find((opt) => opt.value === roleFilter)?.label || "Filter by role"}</span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${roleFilterOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {roleFilterOpen && (
@@ -236,15 +248,6 @@ export default function UserManagement() {
                   </div>
                 )}
               </div>
-              {(searchQuery || roleFilter) && (
-                <button
-                  type="button"
-                  onClick={() => { setSearchQuery(''); setRoleFilter(''); setRoleFilterOpen(false); }}
-                  className="text-sm text-indigo-600 hover:underline"
-                >
-                  Clear filters
-                </button>
-              )}
               <button
                 type="button"
                 onClick={handleAddUser}
@@ -351,3 +354,11 @@ export default function UserManagement() {
     </div>
   );
 }
+
+
+
+
+
+
+
+

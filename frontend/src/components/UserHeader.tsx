@@ -124,15 +124,15 @@ export default function UserHeader() {
 
   return (
     <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200/50 shadow-sm font-sans transition-all duration-300">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+      <div className="max-w-6xl mx-auto px-0 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-20 sm:h-16">
         
           {/* LOGO AREA */}
           <div 
-            className="flex items-center gap-3 cursor-pointer group"
+            className="flex items-center gap-3 cursor-pointer group ml-2 sm:ml-0"
             onClick={() => navigate('/home')}
           >
-            <div className="relative w-12 h-12 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
+            <div className="relative w-14 h-14 sm:w-12 sm:h-12 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
               <div
                 className="absolute inset-0 rounded-full animate-spin-slow"
                 style={{
@@ -143,7 +143,7 @@ export default function UserHeader() {
                   maskComposite: "exclude",
                 }}
               ></div>
-              <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center bg-white shadow-sm">
+              <div className="w-11 h-11 sm:w-9 sm:h-9 rounded-full overflow-hidden flex items-center justify-center bg-white shadow-sm">
                 <img 
                   src={logoImg} 
                   alt="uLostiFound Logo" 
@@ -181,9 +181,9 @@ export default function UserHeader() {
             <div className="relative" ref={notifRef}>
               <button 
                   onClick={() => setIsNotifOpen(!isNotifOpen)}
-                  className={`relative p-2 rounded-full transition-all duration-200 ${isNotifOpen ? 'bg-cyan-50 text-cyan-600' : 'text-gray-500 hover:bg-gray-100 hover:text-cyan-600'}`}
+                  className={`relative p-2.5 sm:p-2 rounded-full transition-all duration-200 ${isNotifOpen ? 'bg-cyan-50 text-cyan-600' : 'text-gray-500 hover:bg-gray-100 hover:text-cyan-600'}`}
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-6 h-6 sm:w-5 sm:h-5" />
                 {unreadCount > 0 && (
                   <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -296,17 +296,17 @@ export default function UserHeader() {
             <div className="relative" ref={menuRef}>
               <button 
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`flex items-center gap-2.5 h-11 pl-3.5 pr-1.5 rounded-full transition-all duration-200 border active:scale-[0.98] ${
+                className={`flex items-center gap-3 h-12 sm:h-11 pl-4 sm:pl-3.5 pr-2 sm:pr-1.5 rounded-full transition-all duration-200 border active:scale-[0.98] ${
                   isMenuOpen 
                     ? 'bg-white border-blue-200 shadow-md ring-4 ring-blue-50' 
                     : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
                 }`}
               >
                 <div className="text-gray-500 flex items-center">
-                  {isMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                  {isMenuOpen ? <X className="w-5 h-5 sm:w-4 sm:h-4" /> : <Menu className="w-5 h-5 sm:w-4 sm:h-4" />}
                 </div>
 
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#29b6f6] to-[#0288d1] flex items-center justify-center overflow-hidden shrink-0 border border-white shadow-sm">
+                <div className="w-10 h-10 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-[#29b6f6] to-[#0288d1] flex items-center justify-center overflow-hidden shrink-0 border border-white shadow-sm">
                   {user?.avatar ? (
                     <img
                       src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`}
@@ -425,3 +425,8 @@ export default function UserHeader() {
     </header>
   );
 }
+
+
+
+
+

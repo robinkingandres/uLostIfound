@@ -45,11 +45,11 @@ export default function UserLogin() {
 
   return (
     /* Background*/
-  <div className="min-min-h-screen bg-transparent flex items-center justify-center px-4 pt-20 font-sans">
+  <div className="min-min-h-screen bg-transparent flex items-center justify-center px-2 sm:px-4 pt-20 font-sans">
 
     
 {/* Form Card */}
-    <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden p-8">
+        <div className="w-full max-w-[96vw] sm:max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-8">
 
         {/* Header Toggle */}
         <div className="flex gap-4 mb-8 text-sm font-bold text-gray-400">
@@ -167,3 +167,4 @@ export default function UserLogin() {
     </div>
   );
 }
+

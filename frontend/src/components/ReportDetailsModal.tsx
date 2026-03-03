@@ -17,6 +17,7 @@ export default function ReportDetailsModal({
   onReject,
 }: ReportDetailsModalProps) {
   const [showAIMatches, setShowAIMatches] = useState(false);
+  const [showImagePreview, setShowImagePreview] = useState(false);
   const canModerate = report.status === 'Pending';
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -52,11 +53,19 @@ export default function ReportDetailsModal({
 
         <div className="p-6">
           <div className="mb-6">
-            <img
-              src={report.image}
-              alt={report.itemName}
-              className="w-full h-40 object-cover rounded-lg mb-4"
-            />
+            <button
+              type="button"
+              onClick={() => setShowImagePreview(true)}
+              className="w-full rounded-lg overflow-hidden group"
+              aria-label="View full image"
+            >
+              <img
+                src={report.image}
+                alt={report.itemName}
+                className="w-full h-40 object-contain bg-gray-100 rounded-lg mb-1 cursor-zoom-in"
+              />
+              <span className="text-xs text-gray-500 group-hover:text-gray-700">Click image to view full size</span>
+            </button>
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-6">
@@ -144,6 +153,27 @@ export default function ReportDetailsModal({
         </div>
       </div>
 
+      {showImagePreview && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setShowImagePreview(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setShowImagePreview(false)}
+            className="absolute top-3 right-3 sm:top-5 sm:right-5 bg-black/60 hover:bg-black/75 text-white rounded-full p-2"
+            aria-label="Close image preview"
+          >
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+          <img
+            src={report.image}
+            alt={report.itemName}
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
       {showAIMatches && (
         <AIMatchesModal
           report={report}
@@ -153,3 +183,4 @@ export default function ReportDetailsModal({
     </div>
   );
 }
+

@@ -9,7 +9,6 @@ export type AddUserFormData = {
   role: string;
   password: string;
   year_level?: string;
-  room?: string;
 };
 
 interface EditUserModalProps {
@@ -20,7 +19,7 @@ interface EditUserModalProps {
   onCreate?: (data: AddUserFormData) => Promise<void>;
 }
 
-const ROLE_OPTIONS: UserRole[] = ['Student', 'Admin', 'Guidance'];
+const ROLE_OPTIONS: UserRole[] = ['Student', 'Teacher', 'Admin', 'Guidance'];
 const YEAR_LEVEL_OPTIONS = [
   'Grade 7',
   'Grade 8',
@@ -28,16 +27,6 @@ const YEAR_LEVEL_OPTIONS = [
   'Grade 10',
   'Grade 11',
   'Grade 12',
-] as const;
-const ROOM_OPTIONS = [
-  'Room 101',
-  'Room 102',
-  'Room 103',
-  'Room 104',
-  'Room 105',
-  'Room 106',
-  'Room 107',
-  'Room 108',
 ] as const;
 
 export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate }: EditUserModalProps) {
@@ -49,7 +38,6 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
     userId: '',
     password: '',
     yearLevel: '',
-    room: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -64,7 +52,6 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           userId: user.userId || '',
           password: '',
           yearLevel: user.yearLevel || (user as any).year_level || '',
-          room: user.room || '',
         });
       } else {
         setFormData({
@@ -74,7 +61,6 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           userId: '',
           password: '',
           yearLevel: '',
-          room: '',
         });
       }
       setError('');
@@ -97,7 +83,6 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           role: formData.role,
           password: formData.password,
           year_level: formData.role === 'Student' ? formData.yearLevel : '',
-          room: formData.role === 'Student' ? formData.room : '',
         });
       } else if (user && !isAddMode) {
         await onSave(user.id, {
@@ -106,13 +91,46 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           role: formData.role,
           userId: formData.userId,
           yearLevel: formData.role === 'Student' ? formData.yearLevel : '',
-          room: formData.role === 'Student' ? formData.room : '',
         });
       }
       onClose();
     } catch (err) {
       console.error(err);
-      setError(isAddMode ? 'Failed to create user. Please try again.' : 'Failed to update user. Please try again.');
+      if (isAddMode) {
+        const rawMessage = err instanceof Error ? err.message : '';
+        let parsed: any = null;
+        try {
+          parsed = rawMessage ? JSON.parse(rawMessage) : null;
+        } catch {
+          parsed = null;
+        }
+
+        const schoolIdError = parsed?.school_id;
+        const schoolIdText = Array.isArray(schoolIdError)
+          ? schoolIdError.join(' ')
+          : typeof schoolIdError === 'string'
+            ? schoolIdError
+            : '';
+        const combined = `${rawMessage} ${schoolIdText}`.toLowerCase();
+
+        const hasSchoolIdConflict = !!schoolIdError || (
+          combined.includes('school') &&
+          combined.includes('id') &&
+          (
+            (combined.includes('already') && (combined.includes('exist') || combined.includes('used'))) ||
+            combined.includes('duplicate') ||
+            combined.includes('unique')
+          )
+        );
+
+        if (hasSchoolIdConflict) {
+          setError('School ID already exists. Try another one.');
+        } else {
+          setError('Failed to create user. Please try again.');
+        }
+      } else {
+        setError('Failed to update user. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -163,6 +181,10 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
               type="text"
               value={formData.userId}
               onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+              onInvalid={(e) => e.currentTarget.setCustomValidity('School ID must contain numbers only (0-9).')}
+              onInput={(e) => e.currentTarget.setCustomValidity('')}
+              inputMode="numeric"
+              pattern="[0-9]+"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
@@ -198,20 +220,6 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
-                <select
-                  value={formData.room}
-                  onChange={(e) => setFormData({ ...formData, room: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Select room</option>
-                  {ROOM_OPTIONS.map((room) => (
-                    <option key={room} value={room}>{room}</option>
-                  ))}
-                </select>
-              </div>
             </>
           )}
 
@@ -255,3 +263,9 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
     </div>
   );
 }
+
+
+
+
+
+

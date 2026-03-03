@@ -204,16 +204,12 @@ export default function Profile() {
           </div>
 
           {/* Year Level */}
-          <div className="bg-gray-100 rounded-lg px-5 py-3">
-            <p className="text-xs text-gray-500 mb-0.5">Year Level</p>
-            <p className="font-bold text-gray-900">{user?.yearLevel || 'N/A'}</p>
-          </div>
-
-          {/* Room */}
-          <div className="bg-gray-100 rounded-lg px-5 py-3">
-            <p className="text-xs text-gray-500 mb-0.5">Room</p>
-            <p className="font-bold text-gray-900">{user?.room || 'N/A'}</p>
-          </div>
+          {user?.role !== 'Teacher' && (
+            <div className="bg-gray-100 rounded-lg px-5 py-3">
+              <p className="text-xs text-gray-500 mb-0.5">Year Level</p>
+              <p className="font-bold text-gray-900">{user?.yearLevel || 'N/A'}</p>
+            </div>
+          )}
 
           {/* Gender */}
           <div className="bg-gray-100 rounded-lg px-5 py-3">

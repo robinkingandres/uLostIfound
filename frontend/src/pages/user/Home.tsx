@@ -8,7 +8,8 @@ import {
   User as UserIcon,
   FileText,
   Clock,
-  ChevronRight
+  ChevronRight,
+  X
 } from 'lucide-react';
 import { fetchReports, fetchSiteSettings, type SiteSettings } from '../../services/api';
 import type { Report } from '../../types/report';
@@ -36,6 +37,7 @@ export default function UserHome() {
   // Modal States
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
 
   // Chatbot States
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
@@ -143,7 +145,7 @@ export default function UserHome() {
     <div className="min-h-screen bg-slate-50 font-sans text-gray-800 relative">
       <UserHeader />
 
-      <main className="max-w-md mx-auto md:max-w-6xl px-4 py-8 pb-24">
+      <main className="w-full max-w-none md:max-w-6xl mx-auto px-0 sm:px-4 py-8 pb-24">
         
         {/* Header Section */}
         <div className="text-center mb-10">
@@ -226,11 +228,18 @@ export default function UserHome() {
               >
                 {/* Image Section */}
                 <div className="relative h-56 w-full bg-slate-200 overflow-hidden">
-                  <img 
-                    src={report.image} 
-                    alt={report.itemName} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImage({ src: report.image, alt: report.itemName })}
+                    className="w-full h-full"
+                    aria-label="View full image"
+                  >
+                    <img 
+                      src={report.image} 
+                      alt={report.itemName} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                    />
+                  </button>
                   <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg ${getTypeColor(report.type)}`}>
                     {report.type}
                   </div>
@@ -338,6 +347,28 @@ export default function UserHome() {
         </>
       )}
 
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/80 p-3 sm:p-6 flex items-center justify-center"
+          onClick={() => setPreviewImage(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setPreviewImage(null)}
+            className="absolute top-3 right-3 sm:top-5 sm:right-5 bg-black/60 hover:bg-black/75 text-white rounded-full p-2"
+            aria-label="Close image preview"
+          >
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+          <img
+            src={previewImage.src}
+            alt={previewImage.alt}
+            className="max-w-full max-h-[90vh] object-contain rounded-xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       {selectedReport && (
         <ClaimModal
           isOpen={isClaimModalOpen}
@@ -349,3 +380,8 @@ export default function UserHome() {
     </div>
   );
 }
+
+
+
+
+

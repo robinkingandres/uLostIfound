@@ -128,21 +128,21 @@ export default function AIMatchNotification() {
           title="Total Matches"
           value={stats.total}
           icon={Sparkles}
-          bgColor="bg-gray-100"
+          bgColor="bg-white"
           iconBg="bg-blue-600"
         />
         <StatCard
           title="Pending Review"
           value={stats.pending}
           icon={ClipboardList}
-          bgColor="bg-gray-100"
+          bgColor="bg-white"
           iconBg="bg-yellow-400"
         />
         <StatCard
           title="Approved Matches"
           value={stats.approved}
           icon={CheckCircle}
-          bgColor="bg-gray-100"
+          bgColor="bg-white"
           iconBg="bg-green-500"
         />
       </div>
@@ -300,3 +300,4 @@ export default function AIMatchNotification() {
     </div>
   );
 }
+

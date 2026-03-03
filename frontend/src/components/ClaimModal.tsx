@@ -14,6 +14,7 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
   const [description, setDescription] = useState('');
   const [proofImage, setProofImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showImagePreview, setShowImagePreview] = useState(false);
   const [existingClaim, setExistingClaim] = useState<Claim | null>(null);
   const [loading, setLoading] = useState(false);
   const [requireProofImage, setRequireProofImage] = useState(false);
@@ -211,19 +212,21 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
                 <img
                   src={imagePreview}
                   alt="Proof preview"
-                  className="w-full h-32 object-cover"
+                  className="w-full h-32 object-cover cursor-zoom-in"
+                  onClick={() => setShowImagePreview(true)}
                 />
-                <button
-                  type="button"
-                  onClick={removeImage}
-                  disabled={hasNonEditableExistingClaim}
-                  className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                {!hasNonEditableExistingClaim && (
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
                 <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
                   <ImageIcon className="w-3 h-3" />
-                  {proofImage?.name}
+                  {proofImage?.name || 'Uploaded image'}
                 </div>
               </div>
             )}
@@ -246,7 +249,33 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
             </button>
           </div>
         </form>
+      {showImagePreview && imagePreview && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/80 p-3 sm:p-6 flex items-center justify-center"
+          onClick={() => setShowImagePreview(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setShowImagePreview(false)}
+            className="absolute top-3 right-3 sm:top-5 sm:right-5 bg-black/60 hover:bg-black/75 text-white rounded-full p-2"
+            aria-label="Close image preview"
+          >
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+          <img
+            src={imagePreview}
+            alt="Proof preview full"
+            className="max-w-full max-h-[90vh] object-contain rounded-xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       </div>
     </div>
   );
 }
+
+
+
+

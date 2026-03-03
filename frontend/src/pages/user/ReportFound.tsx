@@ -122,8 +122,8 @@ export default function ReportFound() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError("File size too large. Please upload an image under 5MB.");
+      if (file.size >= 8 * 1024 * 1024) {
+        setError("Image size exceeds limit. Only below 8MB images are allowed.");
         return;
       }
       setImage(file);
@@ -187,6 +187,9 @@ export default function ReportFound() {
 
   // Get today's date for max attribute
   const today = new Date().toISOString().split("T")[0];
+  const isPhotoEvidenceError =
+    error === 'Image size exceeds limit. Only below 8MB images are allowed.' ||
+    error === 'An image of the found item is required for verification.';
 
   return (
     <div className={isGuidanceReporter ? "flex h-screen bg-gray-50 overflow-hidden" : "min-h-screen bg-gray-50/30 font-sans text-gray-800 relative pb-20"}>
@@ -226,7 +229,7 @@ export default function ReportFound() {
                 <p className="text-gray-500 text-sm">Help return a lost item to its owner.</p>
             </div>
 
-            {error && (
+            {error && !isPhotoEvidenceError && (
               <div className="w-full mb-6 p-4 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl flex items-center gap-3 animate-in slide-in-from-top-2">
                 <span className="shrink-0"><Info className="w-4 h-4" /></span>
                 <span className="leading-tight font-medium">{error}</span>
@@ -355,6 +358,12 @@ export default function ReportFound() {
                 <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
                   <Camera className="w-4 h-4 text-gray-400" /> Photo Evidence <span className="text-red-500">*</span>
                 </label>
+                {isPhotoEvidenceError && (
+                  <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-xs rounded-xl flex items-center gap-2">
+                    <Info className="w-4 h-4 shrink-0" />
+                    <span className="leading-tight font-medium">{error}</span>
+                  </div>
+                )}
 
                 {previewUrl ? (
                   <div className="relative w-full aspect-video sm:w-72 rounded-xl border border-gray-200 overflow-hidden bg-gray-50 group shadow-sm">
@@ -452,3 +461,5 @@ export default function ReportFound() {
     </div>
   );
 }
+
+
