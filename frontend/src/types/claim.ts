@@ -9,6 +9,8 @@ export interface Claim {
   createdAt?: string;
   proofImage?: string | null;
   proof_image?: string | null;
+  claimantPhoto?: string | null;
+  claimant_photo?: string | null;
   proofImageUrl?: string | null;
   proofImageBase64?: string | null;
   date: string;

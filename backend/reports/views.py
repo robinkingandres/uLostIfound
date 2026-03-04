@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model 
-from django.db.models import Q, Count, Avg, F, Sum
+from django.db.models import Q, Count, Avg, F, Sum, Exists, OuterRef
 from django.db.models.functions import TruncMonth, TruncDay, TruncWeek, TruncYear, TruncHour
 from django.utils import timezone
 from datetime import timedelta, datetime, date
@@ -197,13 +197,13 @@ class ReportViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         user = request.user
-        is_admin = (user.role == 'Admin' or user.is_superuser)
-        if instance.status in ['Verified', 'Rejected']:
+        is_privileged = (user.role in ['Admin', 'Guidance'] or user.is_superuser)
+        if instance.status in ['Verified', 'Rejected'] and not is_privileged:
             raise exceptions.PermissionDenied(
                 "This report is finalized and can no longer be edited."
             )
-        # Non-admins can only update their own Pending reports
-        if not is_admin:
+        # Non-privileged users can only update their own Pending reports
+        if not is_privileged:
             self.check_report_owner_pending(instance)
         return super().update(request, *args, **kwargs)
 
@@ -217,15 +217,15 @@ class ReportViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         user = self.request.user
-        is_admin = (user.role == 'Admin' or user.is_superuser)
+        is_privileged = (user.role in ['Admin', 'Guidance'] or user.is_superuser)
 
-        # RBAC Check: Prevent non-admins from changing the status
+        # RBAC Check: Prevent non-privileged users from changing the status
         if 'status' in serializer.validated_data:
             new_status_req = serializer.validated_data['status']
             instance = self.get_object()
             
-            if instance.status != new_status_req and not is_admin:
-                raise exceptions.PermissionDenied("Only Admins can change the report status.")
+            if instance.status != new_status_req and not is_privileged:
+                raise exceptions.PermissionDenied("Only Admin/Guidance can change the report status.")
 
         instance = self.get_object()
         old_status = instance.status
@@ -252,7 +252,13 @@ class ReportViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         # Always clone base queryset per request to avoid stale queryset caching.
-        queryset = self.queryset.all()
+        queryset = self.queryset.all().annotate(
+            has_active_match=Exists(
+                AIMatch.objects.filter(
+                    Q(lost_report_id=OuterRef('pk')) | Q(found_report_id=OuterRef('pk'))
+                ).exclude(status='Rejected')
+            )
+        )
         if getattr(self, 'action', None) in ['retrieve', 'update', 'partial_update', 'destroy']:
             return queryset
 
@@ -267,6 +273,9 @@ class ReportViewSet(viewsets.ModelViewSet):
         if not is_admin_or_guidance:
             site_settings = SiteSettings.get_solo()
             visible_statuses = site_settings.home_visible_report_statuses or ['Verified']
+            # Claimed items must stay visible on public board as final release records.
+            if 'Claimed' not in visible_statuses:
+                visible_statuses = [*visible_statuses, 'Claimed']
             queryset = queryset.filter(status__in=visible_statuses)
 
         report_type = (report_type_raw or '').strip().lower()
@@ -282,6 +291,7 @@ class ReportViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=normalized_status)
 
         return queryset
+
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def my_reports(self, request):
         queryset = Report.objects.filter(reporter=request.user)
@@ -306,8 +316,18 @@ class ClaimViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated] 
 
     def perform_create(self, serializer):
+        user = self.request.user
+        claimant = user
+        claimant_id = self.request.data.get('claimantId')
+        if claimant_id and (user.role in ['Admin', 'Guidance'] or user.is_superuser):
+            try:
+                claimant = User.objects.get(id=int(claimant_id))
+            except (ValueError, TypeError, User.DoesNotExist):
+                raise exceptions.ValidationError(
+                    {"claimantId": "Selected claimant does not exist."}
+                )
         try:
-            serializer.save(claimant=self.request.user)
+            serializer.save(claimant=claimant)
         except IntegrityError:
             raise exceptions.ValidationError(
                 {"detail": "You already submitted a claim for this item."}
@@ -351,26 +371,12 @@ class ClaimViewSet(viewsets.ModelViewSet):
         if not is_admin_or_guidance:
             return Response({"detail": "You do not have permission to update claims."}, status=status.HTTP_403_FORBIDDEN)
         
-        # 2. Strict Workflow Check
+        # 2. Workflow Check
         new_status = request.data.get('status')
         
         if new_status:
-            # ADMIN RESTRICTION: Can only Approve or Reject. Cannot Release (Claimed).
-            if user.role == 'Admin' and not user.is_superuser:
-                if new_status == 'Claimed':
-                    return Response(
-                        {"detail": "Admins can only Approve/Reject. Guidance Officer must perform final release."}, 
-                        status=status.HTTP_403_FORBIDDEN
-                    )
-            
-            # GUIDANCE RESTRICTION: Can only Release (Claimed) or Reject. Cannot Approve from Pending.
-            if user.role == 'Guidance' and not user.is_superuser:
-                current_status = instance.status
-                if current_status == 'Pending' and new_status == 'Approved':
-                     return Response(
-                        {"detail": "Guidance Officers cannot approve pending claims. Admin must verify first."}, 
-                        status=status.HTTP_403_FORBIDDEN
-                    )
+            # Any admin/guidance account can move claim status directly, including Claimed.
+            pass
 
         return super().update(request, *args, **kwargs)
     
@@ -385,9 +391,9 @@ class ClaimViewSet(viewsets.ModelViewSet):
         if old_status != new_status:
             message = ""
             
-            # Admin Verification
+            # Admin/Guidance verification step (optional)
             if new_status == 'Approved':
-                message = f"Your claim for '{updated_claim.report.item_name}' has been Verified by Admin. Please proceed to the Guidance Office for physical verification and release."
+                message = f"Your claim for '{updated_claim.report.item_name}' has been Verified. Please proceed to the Guidance Office for physical verification and release."
             
             # Rejection (By either Admin or Guidance)
             elif new_status == 'Rejected':
@@ -400,6 +406,10 @@ class ClaimViewSet(viewsets.ModelViewSet):
             
             # Guidance Release
             elif new_status == 'Claimed':
+                if not updated_claim.claimant_photo:
+                    raise exceptions.ValidationError(
+                        {"detail": "Claimant photo is required before releasing an item."}
+                    )
                 message = f"Success! The item '{updated_claim.report.item_name}' has been released to you by the Guidance Office."
                 
                 # Update parent report
@@ -408,12 +418,25 @@ class ClaimViewSet(viewsets.ModelViewSet):
                 report.save()
 
                 # Mark related AI matches as completed confidence.
-                AIMatch.objects.filter(
+                related_matches = AIMatch.objects.filter(
                     Q(lost_report=report) | Q(found_report=report)
-                ).exclude(status='Rejected').update(
+                ).exclude(status='Rejected')
+                related_matches.update(
                     match_score=100.0,
                     status='Approved'
                 )
+
+                # Also mark counterpart matched reports as claimed so lost posts
+                # do not remain visible as Lost/Matched after release.
+                counterpart_report_ids = set()
+                for match in related_matches.select_related('lost_report', 'found_report'):
+                    if match.lost_report_id == report.id:
+                        counterpart_report_ids.add(match.found_report_id)
+                    elif match.found_report_id == report.id:
+                        counterpart_report_ids.add(match.lost_report_id)
+
+                if counterpart_report_ids:
+                    Report.objects.filter(id__in=counterpart_report_ids).exclude(status='Claimed').update(status='Claimed')
 
             # Create the notification object if a message was generated
             if message:
@@ -575,12 +598,18 @@ class AIMatchViewSet(viewsets.ModelViewSet):
             
             updated_match.save()
 
-    @action(detail=False, methods=['post'], permission_classes=[IsAdmin])
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def scan_all(self, request):
         """
         Trigger a full scan to find all potential matches.
-        Admin only.
+        Admin and Guidance.
         """
+        user = request.user
+        if user.role not in ['Admin', 'Guidance'] and not user.is_superuser:
+            return Response(
+                {"detail": "You do not have permission to scan for matches."},
+                status=status.HTTP_403_FORBIDDEN
+            )
         try:
             site_settings = SiteSettings.get_solo()
             if not site_settings.ai_matching_enabled:
@@ -591,12 +620,17 @@ class AIMatchViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_200_OK)
             from .ai_matching import find_potential_matches_all
             min_score_raw = request.data.get('min_score', None)
-            min_score = float(min_score_raw) if min_score_raw is not None else float(site_settings.ai_min_score)
+            try:
+                min_score = float(min_score_raw) if min_score_raw not in [None, ''] else float(site_settings.ai_min_score)
+            except (TypeError, ValueError):
+                min_score = float(site_settings.ai_min_score)
             new_matches = find_potential_matches_all(min_score=min_score)
+            total_matches = AIMatch.objects.exclude(status='Rejected').count()
             return Response({
                 'status': 'success',
-                'message': f'Found {len(new_matches)} new potential matches.',
-                'matches_created': len(new_matches)
+                'message': f'Scan complete. {len(new_matches)} new match(es) created. Active matches: {total_matches}.',
+                'matches_created': len(new_matches),
+                'active_matches': total_matches
             }, status=status.HTTP_200_OK)
         except Exception as e:
             print(f"AI scan_all failed: {e}")
@@ -1186,6 +1220,7 @@ class AdminAnalyticsExportDataView(APIView):
                     'claimant_school_id': '',
                     'claimant_email': '',
                     'claim_proof_image_url': '',
+                    'claimant_photo_url': '',
                 })
                 continue
 
@@ -1193,6 +1228,7 @@ class AdminAnalyticsExportDataView(APIView):
                 claimant = claim.claimant
                 claimant_name = f"{claimant.first_name} {claimant.last_name}".strip() or claimant.username
                 claim_proof_image_url = request.build_absolute_uri(claim.proof_image.url) if claim.proof_image else ''
+                claimant_photo_url = request.build_absolute_uri(claim.claimant_photo.url) if claim.claimant_photo else ''
                 rows.append({
                     'date_reported': report.date_reported.strftime('%Y-%m-%d'),
                     'record_type': report.type,
@@ -1214,6 +1250,7 @@ class AdminAnalyticsExportDataView(APIView):
                     'claimant_school_id': claimant.school_id,
                     'claimant_email': claimant.email,
                     'claim_proof_image_url': claim_proof_image_url,
+                    'claimant_photo_url': claimant_photo_url,
                 })
 
         return Response({

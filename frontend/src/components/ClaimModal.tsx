@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Hand, Upload, ImageIcon } from 'lucide-react';
+import { X, Upload, ImageIcon, Info, Loader2, Camera, UserCircle2 } from 'lucide-react';
 import { createClaim, fetchClaims, fetchSiteSettings, updateClaimProof } from '../services/api';
 import type { Claim } from '../types/claim';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ClaimModalProps {
   reportId: number;
@@ -11,15 +12,24 @@ interface ClaimModalProps {
 }
 
 export default function ClaimModal({ reportId, itemName, isOpen, onClose }: ClaimModalProps) {
+  const { user } = useAuth();
   const [description, setDescription] = useState('');
+
   const [proofImage, setProofImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [proofImagePreview, setProofImagePreview] = useState<string | null>(null);
+
+  const [claimantPhoto, setClaimantPhoto] = useState<File | null>(null);
+  const [claimantPhotoPreview, setClaimantPhotoPreview] = useState<string | null>(null);
+
   const [showImagePreview, setShowImagePreview] = useState(false);
+  const [previewTarget, setPreviewTarget] = useState<string | null>(null);
   const [existingClaim, setExistingClaim] = useState<Claim | null>(null);
   const [loading, setLoading] = useState(false);
   const [requireProofImage, setRequireProofImage] = useState(false);
   const [error, setError] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const proofImageInputRef = useRef<HTMLInputElement>(null);
+  const claimantPhotoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchSiteSettings()
@@ -37,18 +47,24 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
         if (!mounted) return;
         const current = claims[0] || null;
         setExistingClaim(current);
+
         if (current?.status === 'Pending') {
-          setDescription(current.proofDescription || '');
-          const existingImage =
+          const existingProofImage =
             current.proof_image ||
             current.proofImage ||
             current.proofImageUrl ||
             current.proofImageBase64 ||
             null;
-          setImagePreview(existingImage || null);
+
+          const existingClaimantPhoto = current.claimant_photo || current.claimantPhoto || null;
+
+          setDescription(current.proofDescription || '');
+          setProofImagePreview(existingProofImage);
+          setClaimantPhotoPreview(existingClaimantPhoto);
         } else {
           setDescription('');
-          setImagePreview(null);
+          setProofImagePreview(null);
+          setClaimantPhotoPreview(null);
         }
       } catch {
         if (!mounted) return;
@@ -63,34 +79,52 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
   }, [isOpen, reportId]);
 
   if (!isOpen) return null;
+
   const isPendingExistingClaim = !!existingClaim && existingClaim.status === 'Pending';
   const hasNonEditableExistingClaim = !!existingClaim && existingClaim.status !== 'Pending';
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setError('Please select a valid image file.');
-        return;
-      }
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Image size must be less than 5MB.');
-        return;
-      }
-      setProofImage(file);
-      setImagePreview(URL.createObjectURL(file));
-      setError('');
+  const validateImageFile = (file: File, label: string) => {
+    if (!file.type.startsWith('image/')) {
+      setError(`Please select a valid ${label} image file.`);
+      return false;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      setError(`${label} image size must be less than 5MB.`);
+      return false;
+    }
+    return true;
   };
 
-  const removeImage = () => {
+  const handleProofImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!validateImageFile(file, 'proof')) return;
+
+    setProofImage(file);
+    setProofImagePreview(URL.createObjectURL(file));
+    setError('');
+  };
+
+  const handleClaimantPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!validateImageFile(file, 'claimant')) return;
+
+    setClaimantPhoto(file);
+    setClaimantPhotoPreview(URL.createObjectURL(file));
+    setError('');
+  };
+
+  const removeProofImage = () => {
     setProofImage(null);
-    setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    setProofImagePreview(null);
+    if (proofImageInputRef.current) proofImageInputRef.current.value = '';
+  };
+
+  const removeClaimantPhoto = () => {
+    setClaimantPhoto(null);
+    setClaimantPhotoPreview(null);
+    if (claimantPhotoInputRef.current) claimantPhotoInputRef.current.value = '';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,12 +133,19 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
     setError('');
 
     if (!description.trim()) {
-      setError('Please provide a description.');
+      setError('Please provide proof details for the item.');
       setLoading(false);
       return;
     }
-    if (requireProofImage && !proofImage) {
+
+    if (requireProofImage && !proofImage && !proofImagePreview) {
       setError('Proof image is required by current claim settings.');
+      setLoading(false);
+      return;
+    }
+
+    if (!claimantPhoto && !claimantPhotoPreview) {
+      setError('Claimant photo is required for verification and documentation.');
       setLoading(false);
       return;
     }
@@ -117,141 +158,214 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
 
     try {
       if (isPendingExistingClaim && existingClaim) {
-        await updateClaimProof(existingClaim.id, description, proofImage);
-        alert('Claim proof updated successfully. Admin will continue reviewing your claim.');
+        await updateClaimProof(existingClaim.id, description, proofImage, claimantPhoto);
+        alert('Claim form updated successfully. Admin will continue reviewing your claim.');
       } else {
-        await createClaim(reportId, description, proofImage);
-        alert('Claim submitted successfully! Admin will review your proof.');
+        await createClaim(reportId, description, proofImage, claimantPhoto);
+        alert('Claim form submitted successfully.');
       }
+
       onClose();
       setDescription('');
       setProofImage(null);
-      setImagePreview(null);
+      setProofImagePreview(null);
+      setClaimantPhoto(null);
+      setClaimantPhotoPreview(null);
       setExistingClaim(null);
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : 'Failed to submit claim. Try again later.');
+      setError(err instanceof Error ? err.message : 'Failed to submit claim form. Try again later.');
     } finally {
       setLoading(false);
     }
   };
 
+  const openPreview = (src: string) => {
+    setPreviewTarget(src);
+    setShowImagePreview(true);
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-md shadow-xl overflow-hidden animate-fade-in">
-        
-        {/* Header */}
-        <div className="bg-blue-600 p-4 flex justify-between items-center text-white">
-          <div className="flex items-center gap-2">
-            <Hand className="w-5 h-5" />
-            <h3 className="font-bold">Claim Item</h3>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-3xl shadow-xl overflow-hidden animate-fade-in max-h-[95vh] overflow-y-auto">
+        <div className="p-5 sm:p-7 border-b border-gray-100 flex items-start justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-gray-500 font-bold">Claim Form</p>
+            <h3 className="text-2xl font-bold text-gray-900 mt-1">Claim Item</h3>
+            <p className="text-sm text-gray-500 mt-1">Submit proof of ownership and claimant identification.</p>
           </div>
-          <button onClick={onClose} className="hover:bg-blue-700 p-1 rounded transition-colors">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="hover:bg-gray-100 p-2 rounded-lg transition-colors">
+            <X className="w-5 h-5 text-gray-600" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6">
-          <p className="text-gray-700 text-sm mb-4">
-            You are claiming: <span className="font-bold text-gray-900">{itemName}</span>
-          </p>
+        <form onSubmit={handleSubmit} className="p-5 sm:p-7 space-y-6">
+          <div className="w-full rounded-xl p-4 flex items-start gap-3 bg-blue-50 border border-blue-100">
+            <Info className="w-5 h-5 mt-0.5 shrink-0 text-blue-600" />
+            <p className="text-xs leading-relaxed font-medium text-blue-700">
+              Claim details will be reviewed by the Guidance Office before item release.
+            </p>
+          </div>
+
           {isPendingExistingClaim ? (
-            <div className="bg-blue-50 text-blue-700 text-xs p-2 rounded mb-3">
-              Your claim for this item is still under review. You can update your proof details below.
+            <div className="bg-amber-50 text-amber-700 text-xs p-3 rounded-xl border border-amber-100">
+              Your claim is currently pending review. You may update the form while pending.
             </div>
           ) : null}
+
           {hasNonEditableExistingClaim ? (
-            <div className="bg-amber-50 text-amber-700 text-xs p-2 rounded mb-3">
-              You already filed a claim for this item. Duplicate claims are not allowed.
+            <div className="bg-red-50 text-red-700 text-xs p-3 rounded-xl border border-red-100">
+              This claim is already finalized and cannot be edited.
             </div>
           ) : null}
 
-          {error && <div className="bg-red-50 text-red-500 text-xs p-2 rounded mb-3">{error}</div>}
+          {error && (
+            <div className="bg-red-50 text-red-600 text-xs p-3 rounded-xl border border-red-100 flex items-start gap-2">
+              <Info className="w-4 h-4 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
 
-          <div className="mb-4">
-            <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
-              Proof of Ownership
-            </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+              <p className="text-xs uppercase font-bold text-gray-500">Item Name</p>
+              <p className="text-sm font-semibold text-gray-900 mt-1">{itemName}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+              <p className="text-xs uppercase font-bold text-gray-500">Claimant</p>
+              <p className="text-sm font-semibold text-gray-900 mt-1">{user?.name || user?.username || 'Student'}</p>
+              <p className="text-xs text-gray-500">{user?.userId || 'No school ID'}</p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-bold text-gray-700">Proof of Item <span className="text-red-500">*</span></label>
             <textarea
-              rows={3}
-              className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
-              placeholder="Describe unique features (scratches, contents, wallpaper, stickers, etc.) that only the owner would know."
+              rows={4}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none bg-gray-50/50 focus:bg-white transition-all resize-none"
+              placeholder="Describe unique identifiers: marks, scratches, contents, serial notes, where last used, etc."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               disabled={hasNonEditableExistingClaim}
             />
           </div>
 
-          {/* Image Upload Section */}
-          <div className="mb-4">
-            <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
-              Upload Proof Image ({requireProofImage ? 'Required' : 'Optional'})
-            </label>
-            
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              onChange={handleImageChange}
-              className="hidden"
-            />
+          <input
+            type="file"
+            ref={proofImageInputRef}
+            accept="image/*"
+            onChange={handleProofImageChange}
+            className="hidden"
+          />
 
-            {!imagePreview ? (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={hasNonEditableExistingClaim}
-                className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center gap-2 hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer"
-              >
-                <Upload className="w-8 h-8 text-gray-400" />
-                <span className="text-sm text-gray-500">Click to upload an image</span>
-                <span className="text-xs text-gray-400">PNG, JPG up to 5MB</span>
-              </button>
-            ) : (
-              <div className="relative border border-gray-300 rounded-lg overflow-hidden">
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-gray-400" />
+              Proof Image {requireProofImage ? <span className="text-red-500">*</span> : <span className="text-gray-400 text-xs">(Optional)</span>}
+            </label>
+
+            {proofImagePreview ? (
+              <div className="relative w-full sm:w-80 rounded-xl border border-gray-200 overflow-hidden bg-gray-50 group">
                 <img
-                  src={imagePreview}
-                  alt="Proof preview"
-                  className="w-full h-32 object-cover cursor-zoom-in"
-                  onClick={() => setShowImagePreview(true)}
+                  src={proofImagePreview}
+                  alt="Proof"
+                  className="w-full h-48 object-cover cursor-zoom-in"
+                  onClick={() => openPreview(proofImagePreview)}
                 />
                 {!hasNonEditableExistingClaim && (
                   <button
                     type="button"
-                    onClick={removeImage}
-                    className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+                    onClick={removeProofImage}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 )}
-                <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
-                  <ImageIcon className="w-3 h-3" />
-                  {proofImage?.name || 'Uploaded image'}
-                </div>
               </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => proofImageInputRef.current?.click()}
+                disabled={hasNonEditableExistingClaim}
+                className="w-full sm:w-80 border-2 border-dashed border-cyan-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-cyan-50/50 transition-colors"
+              >
+                <Upload className="w-7 h-7 text-cyan-500" />
+                <span className="text-sm font-semibold text-cyan-700">Upload Proof Image</span>
+                <span className="text-xs text-gray-500">PNG/JPG up to 5MB</span>
+              </button>
             )}
           </div>
 
-          <div className="flex justify-end gap-3">
+          <input
+            type="file"
+            ref={claimantPhotoInputRef}
+            accept="image/*"
+            onChange={handleClaimantPhotoChange}
+            className="hidden"
+          />
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+              <Camera className="w-4 h-4 text-gray-400" />
+              Claimant Person Photo <span className="text-red-500">*</span>
+            </label>
+
+            {claimantPhotoPreview ? (
+              <div className="relative w-full sm:w-80 rounded-xl border border-gray-200 overflow-hidden bg-gray-50 group">
+                <img
+                  src={claimantPhotoPreview}
+                  alt="Claimant"
+                  className="w-full h-48 object-cover cursor-zoom-in"
+                  onClick={() => openPreview(claimantPhotoPreview)}
+                />
+                {!hasNonEditableExistingClaim && (
+                  <button
+                    type="button"
+                    onClick={removeClaimantPhoto}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => claimantPhotoInputRef.current?.click()}
+                disabled={hasNonEditableExistingClaim}
+                className="w-full sm:w-80 border-2 border-dashed border-emerald-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-emerald-50/50 transition-colors"
+              >
+                <UserCircle2 className="w-7 h-7 text-emerald-500" />
+                <span className="text-sm font-semibold text-emerald-700">Upload Claimant Photo</span>
+                <span className="text-xs text-gray-500">Required for release documentation</span>
+              </button>
+            )}
+          </div>
+
+          <div className="pt-4 flex flex-col-reverse sm:flex-row gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors"
+              className="w-full sm:w-auto px-6 py-3 rounded-xl border border-gray-300 text-sm font-bold text-gray-600 hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || hasNonEditableExistingClaim}
-              className="px-4 py-2 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-70"
+              className="w-full sm:flex-1 px-6 py-3 rounded-xl bg-[#29b6f6] hover:bg-[#039be5] text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? 'Submitting...' : isPendingExistingClaim ? 'Update Claim Proof' : 'Submit Claim'}
+              {loading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</>
+              ) : isPendingExistingClaim ? 'Update Claim Form' : 'Submit Claim Form'}
             </button>
           </div>
         </form>
-      {showImagePreview && imagePreview && (
+      </div>
+
+      {showImagePreview && previewTarget && (
         <div
-          className="fixed inset-0 z-[60] bg-black/80 p-3 sm:p-6 flex items-center justify-center"
+          className="fixed inset-0 z-[60] bg-black/85 p-3 sm:p-6 flex items-center justify-center"
           onClick={() => setShowImagePreview(false)}
         >
           <button
@@ -263,19 +377,13 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
             <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
           <img
-            src={imagePreview}
-            alt="Proof preview full"
+            src={previewTarget}
+            alt="Preview"
             className="max-w-full max-h-[90vh] object-contain rounded-xl"
             onClick={(e) => e.stopPropagation()}
           />
         </div>
       )}
-
-      </div>
     </div>
   );
 }
-
-
-
-

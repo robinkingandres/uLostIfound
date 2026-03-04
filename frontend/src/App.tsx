@@ -7,6 +7,8 @@ import GuidanceLayout from './layouts/GuidanceLayout';
 import GuidanceDashboard from './pages/guidance/Dashboard';
 import GuidanceClaims from './pages/guidance/ClaimReview';
 import GuidanceAccountSettings from './pages/guidance/AccountSettings';
+import CreateClaimReport from './pages/guidance/CreateClaimReport';
+import GuidanceAIMatches from './pages/guidance/AIMatches';
 
 // Admin Imports
 import AdminLayout from './layouts/AdminLayout';
@@ -27,7 +29,6 @@ import ReportLost from './pages/user/ReportLost';
 import ReportFound from './pages/user/ReportFound';
 import ReportSuccess from './pages/user/ReportLostSuccess';
 import ReportFoundSuccess from './pages/user/ReportFoundSuccess';
-import UserProfile from './pages/user/Profile';
 import Matches from './pages/user/Matches';
 import ForgotPassword from './pages/user/ForgotPassword';
 import ActivityPage from './pages/user/Activity';
@@ -38,7 +39,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           {/* --- PUBLIC ROUTES --- */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="/login" element={<UserLogin />} />
           {/* Redirect old admin login to the unified login */}
           <Route path="/admin/login" element={<Navigate to="/login" replace />} />
@@ -55,46 +56,37 @@ function App() {
             <Route index element={<Navigate to="/guidance/dashboard" replace />} />
             <Route path="dashboard" element={<GuidanceDashboard />} />
             <Route path="claims" element={<GuidanceClaims />} />
+            <Route path="create-claim-report" element={<CreateClaimReport />} />
+            <Route path="ai-matches" element={<GuidanceAIMatches />} />
             <Route path="settings" element={<GuidanceAccountSettings />} />
             <Route path="account-settings" element={<Navigate to="/guidance/settings" replace />} />
           </Route>
 
-          {/* --- PROTECTED USER ROUTES (Access: Student, Teacher, Admin) --- */}
-          <Route path="/home" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
-              <UserHome />
-            </ProtectedRoute>
-          } />
-          
+          {/* --- PUBLIC USER VIEW ROUTE --- */}
+          <Route path="/home" element={<UserHome />} />
+
+          {/* Guidance report routes */}
           <Route path="/report-lost" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
+            <ProtectedRoute allowedRoles={['Guidance']}>
               <ReportLost />
             </ProtectedRoute>
           } />
-
           <Route path="/report-found" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
+            <ProtectedRoute allowedRoles={['Guidance']}>
               <ReportFound />
             </ProtectedRoute>
           } />
-
           <Route path="/report-success" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
+            <ProtectedRoute allowedRoles={['Guidance']}>
               <ReportSuccess />
             </ProtectedRoute>
           } />
-
           <Route path="/report-found-success" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
+            <ProtectedRoute allowedRoles={['Guidance']}>
               <ReportFoundSuccess />
             </ProtectedRoute>
           } />
-
-          <Route path="/profile" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
-              <UserProfile />
-            </ProtectedRoute>
-          } />
+          <Route path="/profile" element={<Navigate to="/home" replace />} />
 
           <Route path="/matches" element={
             <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
@@ -134,7 +126,7 @@ function App() {
           </Route>
 
           {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/home" replace />} />
           
         </Routes>
       </BrowserRouter>

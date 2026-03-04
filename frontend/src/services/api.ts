@@ -35,9 +35,27 @@ const getCsrfToken = () => {
     return null;
 };
 
+const parseErrorResponse = async (response: Response): Promise<string> => {
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    const data = await response.json();
+    if (typeof data?.detail === 'string') return data.detail;
+    if (Array.isArray(data?.non_field_errors) && data.non_field_errors[0]) return String(data.non_field_errors[0]);
+    return JSON.stringify(data);
+  }
+
+  const text = await response.text();
+  if (!text) return `Request failed with status ${response.status}`;
+  if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+    return `Request failed with status ${response.status}. Server returned an HTML error page.`;
+  }
+  return text;
+};
+
 // --- TYPES for API PAYLOAD (data sent to backend) ---
 export interface ReportPayload {
   itemName: string; 
+  personName?: string;
   description: string;
   type: ReportType;
   category: string;
@@ -104,7 +122,17 @@ export const fetchDashboardStats = async (timePeriod: string = 'yearly', statusF
 // =================================================================
 
 // --- Create a new claim (User) ---
-export const createClaim = async (reportId: number, proofDescription: string, proofImage: File | null) => {
+export const createClaim = async (
+  reportId: number,
+  proofDescription: string,
+  proofImage: File | null,
+  claimantPhoto: File | null,
+  options?: {
+    claimantId?: number;
+    claimantName?: string;
+    claimantSchoolId?: string;
+  }
+) => {
   const csrfToken = await fetchCsrfToken();
   
   if (!csrfToken) {
@@ -118,6 +146,18 @@ export const createClaim = async (reportId: number, proofDescription: string, pr
   if (proofImage) {
     formData.append('proofImage', proofImage);
   }
+  if (claimantPhoto) {
+    formData.append('claimantPhoto', claimantPhoto);
+  }
+  if (options?.claimantId) {
+    formData.append('claimantId', options.claimantId.toString());
+  }
+  if (options?.claimantName) {
+    formData.append('claimantNameInput', options.claimantName);
+  }
+  if (options?.claimantSchoolId) {
+    formData.append('claimantSchoolIdInput', options.claimantSchoolId);
+  }
 
   const response = await fetch(CLAIM_URL, {
     method: 'POST',
@@ -129,9 +169,8 @@ export const createClaim = async (reportId: number, proofDescription: string, pr
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    const detail = errorData?.detail || errorData?.non_field_errors?.[0] || 'Failed to submit claim';
-    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(errorData));
+    const detail = await parseErrorResponse(response);
+    throw new Error(detail || 'Failed to submit claim');
   }
 
   return response.json();
@@ -161,7 +200,8 @@ export const fetchClaims = async (reportId?: number): Promise<Claim[]> => {
 export const updateClaimProof = async (
   claimId: number,
   proofDescription: string,
-  proofImage?: File | null
+  proofImage?: File | null,
+  claimantPhoto?: File | null
 ): Promise<Claim> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
@@ -170,6 +210,9 @@ export const updateClaimProof = async (
   formData.append('proofDescription', proofDescription);
   if (proofImage) {
     formData.append('proofImage', proofImage);
+  }
+  if (claimantPhoto) {
+    formData.append('claimantPhoto', claimantPhoto);
   }
 
   const response = await fetch(`${CLAIM_URL}${claimId}/`, {
@@ -180,9 +223,8 @@ export const updateClaimProof = async (
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    const detail = errorData?.detail || errorData?.non_field_errors?.[0] || 'Failed to update claim proof';
-    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(errorData));
+    const detail = await parseErrorResponse(response);
+    throw new Error(detail || 'Failed to update claim proof');
   }
   return response.json();
 };
@@ -211,8 +253,8 @@ export const updateClaimStatus = async (
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(JSON.stringify(errorData));
+    const detail = await parseErrorResponse(response);
+    throw new Error(detail || 'Failed to update claim status');
   }
   return response.json();
 };
@@ -296,7 +338,11 @@ export const fetchReports = async (type?: ReportType, status?: ReportStatus): Pr
 /**
  * Updates an existing report (User: own Pending only; Admin: any).
  */
-export const updateReport = async (id: number, data: Partial<ReportPayload>, imageFile?: File | null): Promise<Report> => {
+export const updateReport = async (
+  id: number,
+  data: Partial<ReportPayload> & { status?: ReportStatus },
+  imageFile?: File | null
+): Promise<Report> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
 
@@ -735,7 +781,7 @@ export const updateAIMatchStatus = async (id: number, status: 'Approved' | 'Reje
 export const triggerAIScan = async (minScore?: number): Promise<{ status: string; message: string; matches_created: number }> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
-  const scanEndpoints = [`${API_URL}/admin/ai/scan/`, `${AI_MATCH_URL}scan_all/`, `${API_URL}/ai/scan/`];
+  const scanEndpoints = [`${AI_MATCH_URL}scan_all/`, `${API_URL}/admin/ai/scan/`, `${API_URL}/ai/scan/`];
   let lastError = '';
 
   for (const endpoint of scanEndpoints) {
@@ -928,6 +974,7 @@ export interface AdminAnalyticsExportRow {
   claimant_school_id: string;
   claimant_email: string;
   claim_proof_image_url: string;
+  claimant_photo_url: string;
 }
 
 export interface AdminAnalyticsExportResponse {

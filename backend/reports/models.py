@@ -23,6 +23,12 @@ class Report(models.Model):
     )
     
     item_name = models.CharField(max_length=255)
+    person_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Name of the person linked to the report (owner/claimer). Required for lost reports."
+    )
     description = models.TextField()
     type = models.CharField(max_length=10, choices=REPORT_TYPE_CHOICES)
     category = models.CharField(max_length=100)
@@ -51,8 +57,26 @@ class Claim(models.Model):
 
     report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='claims')
     claimant = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='claims')
+    claimant_full_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Manual claimant full name for walk-in claims without system account."
+    )
+    claimant_school_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Manual claimant school ID or identifier."
+    )
     proof_description = models.TextField(help_text="Describe why this item belongs to you (e.g., specific marks, contents).")
     proof_image = models.ImageField(upload_to='claim_proofs/', null=True, blank=True, help_text="Upload an image as proof of ownership.")
+    claimant_photo = models.ImageField(
+        upload_to='claimant_photos/',
+        null=True,
+        blank=True,
+        help_text="Photo of the claimant for in-person identity verification and release documentation."
+    )
     status = models.CharField(max_length=10, choices=CLAIM_STATUS_CHOICES, default='Pending')
     date_created = models.DateTimeField(auto_now_add=True)
     rejection_reason = models.TextField(blank=True, null=True)

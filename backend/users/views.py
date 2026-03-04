@@ -1,6 +1,7 @@
 import random
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db.models import Q
 from rest_framework import viewsets, filters, status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -69,6 +70,11 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         Allow users to update their own profile, but restrict other actions to admins.
         """
+        if self.action == 'list':
+            user = self.request.user
+            if user.is_authenticated and (user.role in ['Admin', 'Guidance'] or user.is_superuser):
+                return [permissions.IsAuthenticated()]
+            return [IsAdmin()]
         if self.action in ['update', 'partial_update', 'retrieve']:
             # Allow authenticated users to update/retrieve their own profile
             return [permissions.IsAuthenticated()]
@@ -90,6 +96,10 @@ class UserViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.role == 'Admin' or user.is_superuser:
             return User.objects.all()
+        if user.role == 'Guidance':
+            return User.objects.filter(
+                Q(id=user.id) | Q(role__in=['Student', 'Teacher'])
+            ).order_by('last_name', 'first_name', 'username')
         # Regular users can only see themselves
         return User.objects.filter(id=user.id)
 

@@ -12,9 +12,7 @@ export default function ReportFoundSuccess() {
 
   return (
     <div
-      className={`min-h-screen font-sans relative ${
-        isGuidanceReporter ? 'bg-emerald-900 text-white' : 'bg-slate-50 text-gray-800'
-      }`}
+      className="min-h-screen font-sans relative bg-white text-gray-800"
     >
       
       {/* --- HEADER --- */}
@@ -33,14 +31,14 @@ export default function ReportFoundSuccess() {
         </div>
 
         {/* Success Message */}
-        <h1 className={`text-2xl font-bold mb-4 ${isGuidanceReporter ? 'text-white' : 'text-gray-900'}`}>
+        <h1 className="text-2xl font-bold mb-4 text-gray-900">
           Report Submitted!
         </h1>
         
-        <p className={`text-sm leading-relaxed max-w-xs mx-auto ${isGuidanceReporter ? 'text-emerald-100' : 'text-gray-600'}`}>
+        <p className="text-sm leading-relaxed max-w-xs mx-auto text-gray-600">
           {isGuidanceReporter ? (
             <>
-              Your <span className="font-semibold text-emerald-200">found item report</span> is already verified and posted.
+              Your <span className="font-semibold text-cyan-600">found item report</span> is already verified and posted.
               It is now visible on the homepage feed.
             </>
           ) : (
@@ -55,9 +53,7 @@ export default function ReportFoundSuccess() {
         {/* Back Home Button */}
         <button 
           onClick={() => navigate(isGuidanceReporter ? '/guidance/dashboard' : '/home')}
-          className={`mt-12 font-semibold hover:underline transition-all active:scale-95 ${
-            isGuidanceReporter ? 'text-emerald-200' : 'text-cyan-500'
-          }`}
+          className="mt-12 font-semibold hover:underline transition-all active:scale-95 text-cyan-500"
         >
           {isGuidanceReporter ? 'Return to Guidance Dashboard' : 'Return to Home'}
         </button>

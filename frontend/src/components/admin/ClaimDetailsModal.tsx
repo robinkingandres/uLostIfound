@@ -14,6 +14,7 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
   const titleId = useId();
   const [imgError, setImgError] = useState(false);
   const [reportImgError, setReportImgError] = useState(false);
+  const [claimantImgError, setClaimantImgError] = useState(false);
   
   // State for rejection logic
   const [showRejectInput, setShowRejectInput] = useState(false);
@@ -34,6 +35,7 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
   useEffect(() => {
     setImgError(false);
     setReportImgError(false);
+    setClaimantImgError(false);
     setShowRejectInput(false);
     setRejectReason("");
   }, [claim?.id, open]);
@@ -68,6 +70,7 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
     "";
 
   const reportImgSrc = claim.reportImage || "";
+  const claimantImgSrc = claim.claimant_photo || claim.claimantPhoto || "";
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 p-4 flex items-center justify-center" onClick={onClose}>
@@ -114,6 +117,30 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
               <div className="text-xs font-semibold text-gray-500">Claimant</div>
               <div className="mt-1 font-bold text-gray-900">{claim.claimantName}</div>
               <div className="text-xs text-gray-500 italic">{claim.claimantRole}</div>
+              <div className="mt-3">
+                <div className="text-xs font-semibold text-gray-500 mb-2">Claimant Photo</div>
+                {!claimantImgSrc ? (
+                  <div className="text-sm text-red-600 font-semibold">
+                    Missing claimant photo. Required before release.
+                  </div>
+                ) : claimantImgError ? (
+                  <div className="text-sm text-red-600 font-semibold">
+                    Failed to load claimant photo.
+                  </div>
+                ) : (
+                  <a href={claimantImgSrc} target="_blank" rel="noreferrer" className="block group relative">
+                    <img
+                      src={claimantImgSrc}
+                      alt="Claimant"
+                      className="w-full max-h-56 object-cover rounded-xl border border-gray-200 bg-gray-50"
+                      onError={() => setClaimantImgError(true)}
+                    />
+                    <div className="hidden group-hover:block absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                      Click to expand
+                    </div>
+                  </a>
+                )}
+              </div>
             </div>
 
             <div className="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/50 p-4">
@@ -209,10 +236,10 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
             <div className="rounded-xl border border-gray-100 p-4">
               <div className="text-xs font-semibold text-gray-500">Next step</div>
               <div className="mt-2 text-sm text-gray-700">
-                {claim.status === "Pending" && "Admin must approve or reject."}
+                {claim.status === "Pending" && "Review and verify details, then approve/reject or release as claimed."}
                 {claim.status === "Approved" && (
                   <span className="inline-flex items-center gap-2 text-orange-600">
-                    <Clock className="w-4 h-4" /> Forwarded to Guidance.
+                    <Clock className="w-4 h-4" /> Ready for release processing.
                   </span>
                 )}
                 {(claim.status === "Claimed" || claim.status === "Rejected") && "Completed."}

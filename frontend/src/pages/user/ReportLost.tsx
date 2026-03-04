@@ -42,6 +42,7 @@ export default function ReportLost() {
   
   const [formData, setFormData] = useState({
     itemTitle: '',
+    personName: '',
     category: 'Phone',
     dateLost: '',
     location: '',
@@ -138,7 +139,7 @@ export default function ReportLost() {
     setError('');
 
     // Basic Validation
-    if (!formData.itemTitle || !formData.dateLost || !formData.location || !formData.description) {
+    if (!formData.itemTitle || !formData.personName || !formData.dateLost || !formData.location || !formData.description) {
       setError('Please fill out all required fields marked with *');
       setLoading(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -148,6 +149,7 @@ export default function ReportLost() {
     try {
       const payload: ReportPayload = {
         itemName: formData.itemTitle,
+        personName: formData.personName.trim(),
         category: formData.category,
         date: formData.dateLost,
         location: formData.location,
@@ -231,6 +233,19 @@ export default function ReportLost() {
             </div>
 
             <form onSubmit={handleSubmit} className="w-full space-y-6">
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-gray-700">Person Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  name="personName"
+                  required
+                  value={formData.personName}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                  placeholder="e.g., Juan Dela Cruz"
+                />
+              </div>
+
               {/* Item Title */}
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-gray-700">Item Name <span className="text-red-500">*</span></label>

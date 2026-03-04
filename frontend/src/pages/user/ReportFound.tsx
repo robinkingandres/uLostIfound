@@ -48,6 +48,7 @@ export default function ReportFound() {
   // 2. Form State
   const [formData, setFormData] = useState({
     itemTitle: '',
+    personName: '',
     category: 'Phone',
     dateFound: '',
     location: '',
@@ -164,6 +165,7 @@ export default function ReportFound() {
     try {
       const payload: ReportPayload = {
         itemName: formData.itemTitle,
+        personName: formData.personName.trim(),
         category: formData.category,
         date: formData.dateFound,
         location: formData.location,
@@ -254,6 +256,20 @@ export default function ReportFound() {
             </div>
 
             <form onSubmit={handleSubmit} className="w-full space-y-6">
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-gray-700">
+                  Person Name <span className="text-xs font-normal text-gray-500">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  name="personName"
+                  value={formData.personName}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                  placeholder="Enter name if known"
+                />
+              </div>
+
               {/* Item Title */}
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-gray-700">Item Name <span className="text-red-500">*</span></label>
