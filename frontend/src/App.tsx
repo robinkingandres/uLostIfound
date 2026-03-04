@@ -6,6 +6,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import GuidanceLayout from './layouts/GuidanceLayout';
 import GuidanceDashboard from './pages/guidance/Dashboard';
 import GuidanceClaims from './pages/guidance/ClaimReview';
+import GuidanceAccountSettings from './pages/guidance/AccountSettings';
+import CreateClaimReport from './pages/guidance/CreateClaimReport';
+import GuidanceAIMatches from './pages/guidance/AIMatches';
 
 // Admin Imports
 import AdminLayout from './layouts/AdminLayout';
@@ -15,6 +18,8 @@ import UserManagement from './pages/UserManagement';
 import ClaimManagement from './pages/ClaimManagement';
 import Analytics from './pages/Analytics';
 import AIMatchNotification from './pages/admin/AIMatchNotification';
+import AccountSettings from "./pages/admin/AccountSettings";
+
 
 // User Imports
 // WE USE ONE UNIFIED LOGIN NOW
@@ -24,9 +29,9 @@ import ReportLost from './pages/user/ReportLost';
 import ReportFound from './pages/user/ReportFound';
 import ReportSuccess from './pages/user/ReportLostSuccess';
 import ReportFoundSuccess from './pages/user/ReportFoundSuccess';
-import UserProfile from './pages/user/Profile';
 import Matches from './pages/user/Matches';
 import ForgotPassword from './pages/user/ForgotPassword';
+import ActivityPage from './pages/user/Activity';
 
 function App() {
   return (
@@ -34,7 +39,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           {/* --- PUBLIC ROUTES --- */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="/login" element={<UserLogin />} />
           {/* Redirect old admin login to the unified login */}
           <Route path="/admin/login" element={<Navigate to="/login" replace />} />
@@ -51,48 +56,47 @@ function App() {
             <Route index element={<Navigate to="/guidance/dashboard" replace />} />
             <Route path="dashboard" element={<GuidanceDashboard />} />
             <Route path="claims" element={<GuidanceClaims />} />
+            <Route path="create-claim-report" element={<CreateClaimReport />} />
+            <Route path="ai-matches" element={<GuidanceAIMatches />} />
+            <Route path="settings" element={<GuidanceAccountSettings />} />
+            <Route path="account-settings" element={<Navigate to="/guidance/settings" replace />} />
           </Route>
 
-          {/* --- PROTECTED USER ROUTES (Access: Student, Teacher, Admin) --- */}
-          <Route path="/home" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
-              <UserHome />
-            </ProtectedRoute>
-          } />
-          
+          {/* --- PUBLIC USER VIEW ROUTE --- */}
+          <Route path="/home" element={<UserHome />} />
+
+          {/* Guidance report routes */}
           <Route path="/report-lost" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Guidance']}>
               <ReportLost />
             </ProtectedRoute>
           } />
-
           <Route path="/report-found" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Guidance']}>
               <ReportFound />
             </ProtectedRoute>
           } />
-
           <Route path="/report-success" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Guidance']}>
               <ReportSuccess />
             </ProtectedRoute>
           } />
-
           <Route path="/report-found-success" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Guidance']}>
               <ReportFoundSuccess />
             </ProtectedRoute>
           } />
-
-          <Route path="/profile" element={
-            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
-              <UserProfile />
-            </ProtectedRoute>
-          } />
+          <Route path="/profile" element={<Navigate to="/home" replace />} />
 
           <Route path="/matches" element={
             <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin']}>
               <Matches />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/activity" element={
+            <ProtectedRoute allowedRoles={['Student', 'Teacher', 'Admin', 'Guidance']}>
+              <ActivityPage />
             </ProtectedRoute>
           } />
 
@@ -113,11 +117,16 @@ function App() {
             <Route path="users" element={<UserManagement />} />
             <Route path="claims" element={<ClaimManagement />} />
             <Route path="ai-matches" element={<AIMatchNotification />} />
-            <Route path="analytics" element={<Analytics />} />
+            <Route path="analytics-dashboard" element={<Analytics />} />
+            <Route path="analytics" element={<Navigate to="/admin/analytics-dashboard" replace />} />
+            <Route path="lost-found-dashboard" element={<Navigate to="/admin/analytics-dashboard" replace />} />
+            <Route path="settings" element={<AccountSettings />} />
+            <Route path="account-settings" element={<Navigate to="/admin/settings" replace />} />
+
           </Route>
 
           {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/home" replace />} />
           
         </Routes>
       </BrowserRouter>

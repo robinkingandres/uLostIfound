@@ -143,3 +143,6 @@ venv/
 *.pyc
 __pycache__/
 db.sqlite3
+
+# Django Media
+backend/media/

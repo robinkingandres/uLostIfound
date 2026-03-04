@@ -14,6 +14,7 @@ export default function UserLogin() {
   
   const navigate = useNavigate();
   const { login } = useAuth();
+  const loginBackgroundImage = '/login-background.png';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,12 +45,14 @@ export default function UserLogin() {
   };
 
   return (
-    /* Background*/
-  <div className="min-min-h-screen bg-transparent flex items-center justify-center px-4 pt-20 font-sans">
+    <div
+      className="min-h-screen relative flex items-center justify-center px-2 sm:px-4 py-8 font-sans bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: `url(${loginBackgroundImage})` }}
+    >
+      <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[1px]" aria-hidden="true"></div>
 
-    
-{/* Form Card */}
-    <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden p-8">
+      {/* Form Card */}
+      <div className="relative z-10 w-full max-w-[96vw] sm:max-w-md bg-white/95 rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-8">
 
         {/* Header Toggle */}
         <div className="flex gap-4 mb-8 text-sm font-bold text-gray-400">
@@ -167,3 +170,4 @@ export default function UserLogin() {
     </div>
   );
 }
+

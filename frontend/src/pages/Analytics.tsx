@@ -1,269 +1,782 @@
-import { Download } from 'lucide-react';
-import DashboardHeader from '../components/admin/DashboardHeader';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { Loader2, Download, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import {
+  fetchAdminAnalytics,
+  fetchAdminAnalyticsExportData,
+  type AdminAnalyticsResponse,
+  type AdminAnalyticsExportResponse,
+} from '../services/api';
 
-// --- KPI Card Component ---
-const KPICard = ({ title, value, subtext }: { title: string; value: string; subtext?: string }) => (
-  <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-    <h3 className="text-sm font-semibold text-gray-500 mb-2">{title}</h3>
-    <p className="text-3xl font-bold text-gray-900">{value}</p>
-    {subtext && <p className="text-xs text-gray-400 mt-1">{subtext}</p>}
-  </div>
-);
+type Timeframe = 'week' | 'month' | 'year';
+type MetricKey = 'lost' | 'found' | 'claims' | 'ai';
 
-// --- Bar Chart Component (Claim Processing) ---
-const BarChart = () => {
-  const data = [
-    { month: 'Jan', claimed: 20, found: 25, verified: 45 },
-    { month: 'Feb', claimed: 35, found: 35, verified: 20 },
-    { month: 'Mar', claimed: 15, found: 40, verified: 30 },
-    { month: 'Apr', claimed: 10, found: 45, verified: 45 },
-    { month: 'May', claimed: 35, found: 40, verified: 30 },
-  ];
-  const max = 50;
+type DetailState = {
+  title: string;
+  rows: Array<Record<string, string | number>>;
+} | null;
 
-  return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-      <h3 className="text-lg font-bold text-gray-900 mb-6">Claim Processing Efficiency</h3>
-      
-      <div className="flex items-end justify-between h-48 gap-2 mb-4 px-2">
-        {data.map((d) => (
-          <div key={d.month} className="flex flex-col items-center gap-2 flex-1">
-            <div className="flex items-end gap-1 h-full w-full justify-center">
-              {/* Red Bar */}
-              <div style={{ height: `${(d.claimed / max) * 100}%` }} className="w-2 md:w-3 bg-red-500 rounded-t-sm transition-all duration-500" />
-              {/* Blue Bar */}
-              <div style={{ height: `${(d.found / max) * 100}%` }} className="w-2 md:w-3 bg-blue-500 rounded-t-sm transition-all duration-500" />
-              {/* Green Bar */}
-              <div style={{ height: `${(d.verified / max) * 100}%` }} className="w-2 md:w-3 bg-green-500 rounded-t-sm transition-all duration-500" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">{d.month}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex justify-center gap-4 mt-4">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-red-500 rounded-sm"></div>
-          <span className="text-xs text-gray-600">Claimed items</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-blue-500 rounded-sm"></div>
-          <span className="text-xs text-gray-600">Found Items</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-green-500 rounded-sm"></div>
-          <span className="text-xs text-gray-600">Verified Items</span>
-        </div>
-      </div>
-    </div>
-  );
+const cardMotion = {
+  hidden: { opacity: 0, x: -20 },
+  show: (i: number) => ({ opacity: 1, x: 0, transition: { delay: i * 0.08, duration: 0.35 } }),
 };
 
-// --- Line Chart Component (Lost Item Pattern) ---
-const LineChart = () => {
-  // Simple SVG Line Chart implementation
-  const points = [70, 50, 50, 15, 25, 90]; // y-values (inverted for SVG)
-  const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June'];
-  
-  // Calculate SVG points string
-  const width = 100;
-  const height = 100;
-  const xStep = width / (points.length - 1);
-  const polylinePoints = points.map((y, i) => `${i * xStep},${100 - y}`).join(' ');
-
-  return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-      <div className="flex justify-between items-start mb-6">
-        <h3 className="text-lg font-bold text-gray-900">Lost Item Pattern by Month</h3>
-        <span className="bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full">Lost Item</span>
-      </div>
-
-      <div className="h-48 relative px-4">
-        {/* Grid lines */}
-        <div className="absolute inset-0 flex flex-col justify-between text-xs text-gray-400 pointer-events-none">
-          <span>100</span>
-          <span>50</span>
-          <span>0</span>
-        </div>
-        
-        {/* SVG Chart */}
-        <div className="absolute inset-0 ml-6 mb-6">
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
-            {/* Grid Lines in SVG */}
-            <line x1="0" y1="0" x2="100" y2="0" stroke="#f3f4f6" strokeWidth="1" />
-            <line x1="0" y1="50" x2="100" y2="50" stroke="#f3f4f6" strokeWidth="1" />
-            <line x1="0" y1="100" x2="100" y2="100" stroke="#f3f4f6" strokeWidth="1" />
-            
-            {/* The Line */}
-            <polyline 
-              fill="none" 
-              stroke="#6366f1" 
-              strokeWidth="2" 
-              points={polylinePoints} 
-              className="drop-shadow-lg"
-            />
-            
-            {/* The Dots */}
-            {points.map((y, i) => (
-              <circle 
-                key={i} 
-                cx={i * xStep} 
-                cy={100 - y} 
-                r="3" 
-                fill="white" 
-                stroke="#6366f1" 
-                strokeWidth="2" 
-              />
-            ))}
-          </svg>
-        </div>
-      </div>
-
-      <div className="flex justify-between px-6 ml-6 text-xs text-gray-500 mt-2">
-        {labels.map(l => <span key={l}>{l}</span>)}
-      </div>
-    </div>
-  );
+const lineColors = {
+  lost: '#ef4444',
+  found: '#22c55e',
+  claims: '#3b82f6',
+  ai: '#8b5cf6',
 };
 
-// --- Donut Chart Component (Status Distribution) ---
-const DonutChart = () => {
-  return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-      <h3 className="text-lg font-bold text-gray-900 mb-6">Status Distribution</h3>
-      
-      <div className="flex items-center justify-center gap-8">
-        <div className="relative w-48 h-48">
-          <svg viewBox="0 0 100 100" className="transform -rotate-90 w-full h-full">
-            {/* Background Circle */}
-            <circle cx="50" cy="50" r="40" fill="transparent" stroke="#f3f4f6" strokeWidth="20" />
-            
-            {/* Segments (Calculated manually for visual demo) */}
-            {/* Claimed (Purple) - 48% */}
-            <circle cx="50" cy="50" r="40" fill="transparent" stroke="#818cf8" strokeWidth="20" strokeDasharray="125 251" strokeDashoffset="0" />
-            
-            {/* Pending (Pink) - 26% */}
-            <circle cx="50" cy="50" r="40" fill="transparent" stroke="#fca5a5" strokeWidth="20" strokeDasharray="65 251" strokeDashoffset="-125" />
-            
-            {/* Verified (Cyan) - 44% (Visual approx) */}
-            <circle cx="50" cy="50" r="40" fill="transparent" stroke="#22d3ee" strokeWidth="20" strokeDasharray="40 251" strokeDashoffset="-190" />
-            
-            {/* Rejected (Orange) - 7% */}
-            <circle cx="50" cy="50" r="40" fill="transparent" stroke="#fbbf24" strokeWidth="20" strokeDasharray="20 251" strokeDashoffset="-230" />
-          </svg>
-          
-          {/* Center Hole White */}
-          <div className="absolute inset-0 flex items-center justify-center">
-             <div className="w-20 h-20 bg-white rounded-full"></div>
-          </div>
-        </div>
+const statusColors = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#64748b'];
 
-        <div className="space-y-3">
-          {[
-            { label: 'Claimed', color: 'bg-indigo-400', value: 48 },
-            { label: 'Pending', color: 'bg-red-300', value: 26 },
-            { label: 'Verified', color: 'bg-cyan-400', value: 44 },
-            { label: 'Rejected', color: 'bg-yellow-400', value: 7 },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${item.color}`}></div>
-              <span className="text-sm font-medium text-gray-600">{item.label}</span>
-              {/* <span className="text-xs text-gray-400 ml-auto">{item.value}</span> */}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+function dateOffset(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function toTitleCase(v: string) {
+  return v.charAt(0).toUpperCase() + v.slice(1);
+}
+
+const EXPORT_COLUMNS = [
+  'Date Reported',
+  'Record Type',
+  'Report ID',
+  'Item Name',
+  'Category',
+  'Location',
+  'Report Status',
+  'Report Description',
+  'Item Image URL',
+  'Reporter Name',
+  'Reporter School ID',
+  'Reporter Role',
+  'Reporter Email',
+  'Claim ID',
+  'Claim Status',
+  'Claimed At',
+  'Claimant Name',
+  'Claimant School ID',
+  'Claimant Email',
+  'Claim Proof Image URL',
+] as const;
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+type CapturedDashboardChart = {
+  title: string;
+  svgDataUri: string;
 };
 
-// --- Pie Chart Component (Category Distribution) ---
-const PieChart = () => {
-  return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-      <h3 className="text-lg font-bold text-gray-900 mb-6">Category Distribution</h3>
-      
-      <div className="flex items-center justify-between">
-        {/* CSS Conic Gradient Pie Chart */}
-        <div className="w-40 h-40 rounded-full" 
-             style={{
-               background: `conic-gradient(
-                 #818cf8 0% 11%, 
-                 #fca5a5 11% 25%, 
-                 #22d3ee 25% 42%, 
-                 #fbbf24 42% 64%, 
-                 #f87171 64% 85%, 
-                 #34d399 85% 100%
-               )`
-             }}>
+function captureDashboardCharts(): CapturedDashboardChart[] {
+  const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-dashboard-chart]'));
+  const charts: CapturedDashboardChart[] = [];
+
+  sections.forEach((section) => {
+    const title = section.dataset.chartTitle || 'Chart';
+    const svg = section.querySelector('svg.recharts-surface');
+    if (!svg) return;
+
+    const cloned = svg.cloneNode(true) as SVGSVGElement;
+    if (!cloned.getAttribute('xmlns')) cloned.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    if (!cloned.getAttribute('xmlns:xlink')) cloned.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+    const width = svg.getAttribute('width') || `${Math.ceil(svg.getBoundingClientRect().width)}`;
+    const height = svg.getAttribute('height') || `${Math.ceil(svg.getBoundingClientRect().height)}`;
+    if (width) cloned.setAttribute('width', width);
+    if (height) cloned.setAttribute('height', height);
+
+    const serialized = new XMLSerializer().serializeToString(cloned);
+    const encoded = window.btoa(unescape(encodeURIComponent(serialized)));
+    charts.push({
+      title,
+      svgDataUri: `data:image/svg+xml;base64,${encoded}`,
+    });
+  });
+
+  return charts;
+}
+
+function exportDashboardPdfWithGraphs(
+  data: AdminAnalyticsResponse,
+  charts: CapturedDashboardChart[],
+  rows: AdminAnalyticsExportResponse['rows']
+) {
+  const win = window.open('', '_blank');
+  if (!win) return;
+
+  const compactRows = rows.slice(0, 20);
+  const detailRows = compactRows.map((row) => `
+    <tr>
+      <td>${escapeHtml(row.date_reported)}</td>
+      <td>${escapeHtml(row.item_name)}</td>
+      <td>${escapeHtml(row.record_type)}</td>
+      <td>${escapeHtml(row.report_status)}</td>
+      <td>${escapeHtml(row.reporter_name)}<br/><small>${escapeHtml(row.reporter_school_id)}</small></td>
+      <td>${row.claimant_name ? `${escapeHtml(row.claimant_name)}<br/><small>${escapeHtml(row.claimant_school_id)}</small>` : '-'}</td>
+    </tr>
+  `).join('');
+
+  const chartBlocks = charts.length
+    ? charts.map((chart) => `
+      <div class="chart-card">
+        <h3>${escapeHtml(chart.title)}</h3>
+        <img src="${chart.svgDataUri}" alt="${escapeHtml(chart.title)}" />
+      </div>
+    `).join('')
+    : '<p>No chart visuals available. Please wait for charts to load, then export again.</p>';
+
+  const html = `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Admin Dashboard Graph Export</title>
+        <style>
+          @page { size: A4 portrait; margin: 8mm; }
+          body { font-family: Arial, sans-serif; padding: 8px; color: #111827; }
+          h1 { margin: 0 0 8px 0; }
+          h2 { margin: 14px 0 8px 0; font-size: 14px; }
+          h3 { margin: 0 0 6px 0; font-size: 11px; }
+          .meta { color: #6b7280; font-size: 10px; margin-bottom: 10px; }
+          .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 8px 0 10px 0; }
+          .chip { border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 8px; font-size: 10px; background: #f9fafb; }
+          .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+          .chart-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; break-inside: avoid; }
+          .chart-card img { width: 100%; max-height: 160px; height: auto; object-fit: contain; display: block; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          th, td { border: 1px solid #e5e7eb; padding: 5px; text-align: left; font-size: 9px; vertical-align: top; }
+          th { background: #f3f4f6; }
+          small { color: #6b7280; font-size: 8px; }
+          .note { margin-top: 4px; color: #6b7280; font-size: 9px; }
+          @media print {
+            .chart-card { page-break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Admin Analytics Dashboard</h1>
+        <div class="meta">Range: ${escapeHtml(data.filters.date_from)} to ${escapeHtml(data.filters.date_to)} | Category: ${escapeHtml(data.filters.category)}</div>
+        <div class="summary">
+          <div class="chip">Total Reports: ${data.kpis.total_reports}</div>
+          <div class="chip">Claims Submitted: ${data.kpis.claims_submitted}</div>
+          <div class="chip">Resolution Rate: ${data.kpis.resolution_rate}%</div>
+          <div class="chip">AI Matches: ${data.kpis.ai_matches_generated}</div>
+        </div>
+        <h2>Graph Snapshot</h2>
+        <div class="charts">${chartBlocks}</div>
+        <h2>Reported Items and Users</h2>
+        <table>
+          <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Status</th><th>Reporter</th><th>Claimant</th></tr></thead>
+          <tbody>${detailRows}</tbody>
+        </table>
+        <div class="note">Showing ${compactRows.length} of ${rows.length} records for compact PDF output.</div>
+      </body>
+    </html>
+  `;
+
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => win.print(), 300);
+}
+
+function escapeCsv(value: unknown) {
+  const text = String(value ?? '');
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function buildDetailedCsv(exportData: AdminAnalyticsExportResponse) {
+  const lines: string[] = [EXPORT_COLUMNS.join(',')];
+  exportData.rows.forEach((row) => {
+    lines.push([
+      escapeCsv(row.date_reported),
+      escapeCsv(row.record_type),
+      escapeCsv(row.report_id),
+      escapeCsv(row.item_name),
+      escapeCsv(row.category),
+      escapeCsv(row.location),
+      escapeCsv(row.report_status),
+      escapeCsv(row.report_description),
+      escapeCsv(row.item_image_url),
+      escapeCsv(row.reporter_name),
+      escapeCsv(row.reporter_school_id),
+      escapeCsv(row.reporter_role),
+      escapeCsv(row.reporter_email),
+      escapeCsv(row.claim_id),
+      escapeCsv(row.claim_status),
+      escapeCsv(row.claimed_at),
+      escapeCsv(row.claimant_name),
+      escapeCsv(row.claimant_school_id),
+      escapeCsv(row.claimant_email),
+      escapeCsv(row.claim_proof_image_url),
+    ].join(','));
+  });
+  return new Blob([lines.join('\n')], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function exportDetailedPdf(exportData: AdminAnalyticsExportResponse) {
+  const win = window.open('', '_blank');
+  if (!win) return;
+
+  const lostCount = exportData.rows.filter((r) => r.record_type === 'Lost').length;
+  const foundCount = exportData.rows.filter((r) => r.record_type === 'Found').length;
+  const claimedCount = exportData.rows.filter((r) => r.report_status === 'Claimed' || r.claim_status === 'Claimed').length;
+  const tableRows = exportData.rows.map((row) => `
+    <tr>
+      <td>${escapeHtml(row.date_reported)}</td>
+      <td>${escapeHtml(row.record_type)}</td>
+      <td>${escapeHtml(row.item_name)}</td>
+      <td>${escapeHtml(row.report_status)}</td>
+      <td>${escapeHtml(row.reporter_name)}<br/><small>${escapeHtml(row.reporter_school_id)} | ${escapeHtml(row.reporter_email)}</small></td>
+      <td>${row.claimant_name ? `${escapeHtml(row.claimant_name)}<br/><small>${escapeHtml(row.claimant_school_id)} | ${escapeHtml(row.claimant_email)}</small>` : '-'}</td>
+      <td>${row.item_image_url ? `<img src="${escapeHtml(row.item_image_url)}" alt="item" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;" />` : '-'}</td>
+      <td>${row.claim_proof_image_url ? `<img src="${escapeHtml(row.claim_proof_image_url)}" alt="proof" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;" />` : '-'}</td>
+    </tr>
+  `).join('');
+
+  const html = `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Analytics Detailed Export</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+          h1 { margin: 0 0 8px 0; }
+          h2 { margin: 20px 0 8px 0; font-size: 16px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; font-size: 11px; vertical-align: top; }
+          th { background: #f3f4f6; }
+          .meta { color: #6b7280; font-size: 12px; margin-bottom: 16px; }
+          .summary { display: flex; gap: 8px; margin: 12px 0 16px 0; }
+          .chip { border: 1px solid #e5e7eb; border-radius: 999px; padding: 6px 10px; font-size: 12px; background: #f9fafb; }
+        </style>
+      </head>
+      <body>
+        <h1>Lost & Found Detailed Report</h1>
+        <div class="meta">Range: ${escapeHtml(exportData.filters.date_from)} to ${escapeHtml(exportData.filters.date_to)} | Category: ${escapeHtml(exportData.filters.category)}</div>
+        <div class="summary">
+          <div class="chip">Lost Reports: ${lostCount}</div>
+          <div class="chip">Found Reports: ${foundCount}</div>
+          <div class="chip">Claimed Items: ${claimedCount}</div>
+          <div class="chip">Rows: ${exportData.rows.length}</div>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-          {[
-            { label: 'Electronics', val: '43 (11.38%)', color: 'text-indigo-400' },
-            { label: 'Bottles', val: '81 (21.43%)', color: 'text-red-300' },
-            { label: 'Umbrellas', val: '66 (17.46%)', color: 'text-cyan-400' },
-            { label: 'Books', val: '84 (22.22%)', color: 'text-yellow-400' },
-            { label: 'Others', val: '48 (12.70%)', color: 'text-red-400' },
-            { label: 'Accessories', val: '56 (14.81%)', color: 'text-green-400' },
-          ].map((item) => (
-            <div key={item.label}>
-              <div className="flex items-center gap-2 mb-0.5">
-                <div className={`w-2 h-2 rounded-full bg-current ${item.color}`}></div>
-                <span className="text-xs text-gray-500">{item.label}</span>
-              </div>
-              <p className={`text-xs font-bold ${item.color}`}>{item.val.split(' ')[0]} <span className="font-normal opacity-75">{item.val.split(' ')[1]}</span></p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
+        <h2>Record Details</h2>
+        <table>
+          <thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Status</th><th>Reporter</th><th>Claimant</th><th>Item Image</th><th>Proof Image</th></tr></thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `;
+
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => win.print(), 250);
+}
+
+function SkeletonCard() {
+  return <div className="h-32 rounded-2xl border border-gray-200 bg-gray-100 animate-pulse" />;
+}
+
+function SkeletonPanel({ height = 'h-80' }: { height?: string }) {
+  return <div className={`${height} rounded-2xl border border-gray-200 bg-gray-100 animate-pulse`} />;
+}
 
 export default function Analytics() {
+  const [timeframe, setTimeframe] = useState<Timeframe>('month');
+  const [activeMetrics, setActiveMetrics] = useState<MetricKey[]>(['lost', 'found', 'claims', 'ai']);
+  const [dateFrom, setDateFrom] = useState(dateOffset(-30));
+  const [dateTo, setDateTo] = useState(dateOffset(0));
+  const [category, setCategory] = useState('all');
+  const [data, setData] = useState<AdminAnalyticsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState<'excel' | 'pdf' | 'dashboard' | null>(null);
+  const [error, setError] = useState('');
+  const [detail, setDetail] = useState<DetailState>(null);
+
+  const loadAnalytics = async (opts?: { keepLoading?: boolean }) => {
+    if (!opts?.keepLoading) setLoading(true);
+    setError('');
+    try {
+      const payload = await fetchAdminAnalytics({
+        date_from: dateFrom,
+        date_to: dateTo,
+        category,
+        timeframe,
+        metrics: activeMetrics,
+      });
+      setData(payload);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load analytics');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (timeframe === 'week') setDateFrom(dateOffset(-7));
+    if (timeframe === 'month') setDateFrom(dateOffset(-30));
+    if (timeframe === 'year') setDateFrom(dateOffset(-365));
+    setDateTo(dateOffset(0));
+  }, [timeframe]);
+
+  useEffect(() => {
+    loadAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, category, timeframe, activeMetrics]);
+
+  const statusChartData = useMemo(() => {
+    if (!data) return [];
+    return Object.entries(data.status_breakdown).map(([name, value]) => ({ name: toTitleCase(name), value }));
+  }, [data]);
+
+  const categories = useMemo(() => {
+    if (!data) return ['all'];
+    return ['all', ...data.categories.map((c) => c.name)];
+  }, [data]);
+
+  if (error) {
+    return <div className="p-8 text-red-600 font-semibold">{error}</div>;
+  }
+
+  const kpis = data?.kpis;
+  const timeframeText = timeframe === 'week' ? 'Weekly' : timeframe === 'month' ? 'Monthly' : 'Yearly';
+  const rangeText = timeframe === 'week' ? '7 Days' : timeframe === 'month' ? '30 Days' : '365 Days';
+
+  const toggleMetric = (metric: MetricKey) => {
+    setActiveMetrics((prev) => {
+      if (prev.includes(metric)) return prev.filter((m) => m !== metric);
+      return [...prev, metric];
+    });
+  };
+
+  const loadExportData = () =>
+    fetchAdminAnalyticsExportData({
+      date_from: dateFrom,
+      date_to: dateTo,
+      category,
+      timeframe,
+    });
+
   return (
-    <div className="flex-1 bg-gray-50 overflow-auto">
-      <DashboardHeader />
-
-      <div className="p-8">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-8">
+    <div className="p-4 md:p-8 space-y-6">
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
+        <div className="flex flex-col lg:flex-row gap-4 lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Reports & Analytics</h1>
-            <p className="text-gray-600 mt-1">Statistical insights and data visualization</p>
+            <h1 className="text-2xl font-bold text-gray-900">Lost & Found Analytics Dashboard</h1>
+            <p className="text-sm text-gray-500">8 core metrics for operational efficiency and AI match monitoring.</p>
           </div>
-          <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-semibold transition-colors">
-              <Download className="w-4 h-4" />
-              Export CSV
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={async () => {
+                if (!data) return;
+                setExporting('dashboard');
+                try {
+                  const charts = captureDashboardCharts();
+                  const exportData = await loadExportData();
+                  exportDashboardPdfWithGraphs(data, charts, exportData.rows);
+                } catch (err) {
+                  console.error(err);
+                } finally {
+                  setTimeout(() => setExporting(null), 150);
+                }
+              }}
+              disabled={!data || exporting !== null}
+              className="px-3 py-2 rounded-lg border text-sm bg-white border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+            >
+              {exporting === 'dashboard' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              Export Dashboard PDF
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-semibold transition-colors">
-              <Download className="w-4 h-4" />
-              Export PDF
+            <button
+              onClick={async () => {
+                setExporting('pdf');
+                try {
+                  const exportData = await loadExportData();
+                  exportDetailedPdf(exportData);
+                } catch (err) {
+                  console.error(err);
+                } finally {
+                  setTimeout(() => setExporting(null), 300);
+                }
+              }}
+              disabled={exporting !== null}
+              className="px-3 py-2 rounded-lg border text-sm bg-white border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+            >
+              {exporting === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              Export History PDF
+            </button>
+            <button
+              onClick={async () => {
+                setExporting('excel');
+                try {
+                  const exportData = await loadExportData();
+                  const csvBlob = buildDetailedCsv(exportData);
+                  downloadBlob(
+                    csvBlob,
+                    `analytics_detailed_${exportData.filters.date_from}_${exportData.filters.date_to}.xls`
+                  );
+                } catch (err) {
+                  console.error(err);
+                } finally {
+                  setExporting(null);
+                }
+              }}
+              disabled={exporting !== null}
+              className="px-3 py-2 rounded-lg border text-sm bg-white border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+            >
+              {exporting === 'excel' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              Export Excel
+            </button>
+            <button onClick={() => setTimeframe('week')} className={`px-3 py-2 rounded-lg border text-sm ${timeframe === 'week' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Week</button>
+            <button onClick={() => setTimeframe('month')} className={`px-3 py-2 rounded-lg border text-sm ${timeframe === 'month' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Month</button>
+            <button onClick={() => setTimeframe('year')} className={`px-3 py-2 rounded-lg border text-sm ${timeframe === 'year' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Year</button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="text-xs font-semibold text-gray-600">From</label>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600">To</label>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600">Category</label>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white">
+              {categories.map((c) => (
+                <option key={c} value={c}>{c === 'all' ? 'All categories' : c}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={() => loadAnalytics({ keepLoading: true })}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white hover:scale-[1.01] transition-transform"
+            >
+              <RefreshCw className="w-4 h-4" /> Refresh
             </button>
           </div>
         </div>
 
-        {/* Top KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <KPICard title="Average Resolution Time" value="3.5 days" />
-          <KPICard title="Ai Match Accuracy" value="89%" />
-          <KPICard title="Success Rate" value="78%" />
-        </div>
+        <details className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <summary className="cursor-pointer text-sm font-medium text-gray-700">Trend Metrics</summary>
+          <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
+            {(['lost', 'found', 'claims', 'ai'] as MetricKey[]).map((metric) => (
+              <label key={metric} className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={activeMetrics.includes(metric)}
+                  onChange={() => toggleMetric(metric)}
+                />
+                {toTitleCase(metric)}
+              </label>
+            ))}
+          </div>
+        </details>
+      </div>
 
-        {/* Middle Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <BarChart />
-          <LineChart />
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {loading || !kpis ? (
+          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+        ) : (
+          [
+            { title: 'Total Reports', today: `+${kpis.reports_today} today`, value: kpis.total_reports, foot: `${kpis.total_reports.toLocaleString()} total` },
+            { title: 'Claims Submitted', today: `+${kpis.claims_today} today`, value: kpis.claims_submitted, foot: `${kpis.claims_submitted.toLocaleString()} total` },
+            { title: 'Resolution Rate', today: `${kpis.claims_resolved.toLocaleString()} resolved`, value: `${kpis.resolution_rate}%`, foot: `${kpis.avg_resolution_time_days} days avg` },
+            { title: 'AI Matches', today: `+${kpis.ai_matches_today} today`, value: kpis.ai_matches_generated, foot: `${kpis.ai_matches_generated.toLocaleString()} total` },
+          ].map((card, i) => (
+            <motion.button
+              type="button"
+              key={card.title}
+              custom={i}
+              variants={cardMotion}
+              initial="hidden"
+              animate="show"
+              whileHover={{ scale: 1.015 }}
+              onClick={() => setDetail({ title: card.title, rows: [{ metric: card.title, value: card.value, detail: card.foot }] })}
+              className="text-left rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+            >
+              <div className="text-sm font-semibold text-gray-600">{card.title}</div>
+              <div className="mt-2 text-xs text-gray-500">{card.today}</div>
+              <div className="mt-2 text-3xl font-bold text-gray-900">{card.value}</div>
+              <div className="mt-2 text-xs text-gray-500">{card.foot}</div>
+            </motion.button>
+          ))
+        )}
+      </div>
 
-        {/* Bottom Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <DonutChart />
-          <PieChart />
+      <div className="grid grid-cols-1 gap-6">
+        <div
+          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          data-dashboard-chart
+          data-chart-title={`${timeframeText} Trends`}
+        >
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">{timeframeText} Trends</h2>
+            <span className="text-xs text-gray-500">Lost, Found, Claims, AI Matches</span>
+          </div>
+          {loading || !data ? (
+            <div className="mt-4"><SkeletonPanel height="h-96" /></div>
+          ) : (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }} className="h-96 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data.trends} onClick={(state: any) => {
+                  const active = state?.activePayload?.[0]?.payload as AdminAnalyticsResponse['trends'][number] | undefined;
+                  if (!active) return;
+                  setDetail({ title: `Trend Details - ${active.month}`, rows: [{ month: active.month, lost: active.lost, found: active.found, claims: active.claims, ai: active.ai }] });
+                }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  {activeMetrics.includes('lost') ? <Line type="monotone" dataKey="lost" stroke={lineColors.lost} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={900} /> : null}
+                  {activeMetrics.includes('found') ? <Line type="monotone" dataKey="found" stroke={lineColors.found} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={1000} /> : null}
+                  {activeMetrics.includes('claims') ? <Line type="monotone" dataKey="claims" stroke={lineColors.claims} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={1100} /> : null}
+                  {activeMetrics.includes('ai') ? <Line type="monotone" dataKey="ai" stroke={lineColors.ai} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={1200} /> : null}
+                </LineChart>
+              </ResponsiveContainer>
+            </motion.div>
+          )}
         </div>
       </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div
+          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          data-dashboard-chart
+          data-chart-title={`Due Claims (${timeframeText})`}
+        >
+          <h2 className="font-semibold text-gray-900">Due Claims ({timeframeText})</h2>
+          {loading || !data ? (
+            <div className="mt-4"><SkeletonPanel /></div>
+          ) : (
+            <div className="h-80 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.due_claims_monthly} onClick={(state: any) => {
+                  const active = state?.activePayload?.[0]?.payload as { month: string; count: number } | undefined;
+                  if (!active) return;
+                  setDetail({ title: `Due Claims - ${active.month}`, rows: [active] });
+                }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#ef4444" radius={[8, 8, 0, 0]} isAnimationActive animationDuration={900} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        <div
+          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          data-dashboard-chart
+          data-chart-title={`Pending Claims (${timeframeText})`}
+        >
+          <h2 className="font-semibold text-gray-900">Pending Claims ({timeframeText})</h2>
+          {loading || !data ? (
+            <div className="mt-4"><SkeletonPanel /></div>
+          ) : (
+            <div className="h-80 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.pending_claims_monthly} onClick={(state: any) => {
+                  const active = state?.activePayload?.[0]?.payload as { month: string; count: number } | undefined;
+                  if (!active) return;
+                  setDetail({ title: `Pending Claims - ${active.month}`, rows: [active] });
+                }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} isAnimationActive animationDuration={1000} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div
+          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          data-dashboard-chart
+          data-chart-title={`${timeframeText} Category Breakdown`}
+        >
+          <h2 className="font-semibold text-gray-900">{timeframeText} Category Breakdown</h2>
+          {loading || !data ? (
+            <div className="mt-4"><SkeletonPanel /></div>
+          ) : (
+            <div className="h-80 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.categories.slice(0, 8)} onClick={(state: any) => {
+                  const active = state?.activePayload?.[0]?.payload as { name: string; count: number } | undefined;
+                  if (!active) return;
+                  setDetail({ title: `Category - ${active.name}`, rows: [active] });
+                }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-15} height={48} textAnchor="end" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#0ea5e9" radius={[8, 8, 0, 0]} isAnimationActive animationDuration={900} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        <div
+          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          data-dashboard-chart
+          data-chart-title={`Status: Last ${rangeText}`}
+        >
+          <h2 className="font-semibold text-gray-900">Status: Last {rangeText}</h2>
+          {loading || !data ? (
+            <div className="mt-4"><SkeletonPanel /></div>
+          ) : (
+            <div className="h-80 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusChartData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={55}
+                    outerRadius={95}
+                    paddingAngle={2}
+                    onClick={(entry: any) => setDetail({ title: `Status - ${entry.name}`, rows: [entry.payload] })}
+                    isAnimationActive
+                    animationDuration={900}
+                  >
+                    {statusChartData.map((_, index) => (
+                      <Cell key={index} fill={statusColors[index % statusColors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        <div
+          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          data-dashboard-chart
+          data-chart-title="Top Locations"
+        >
+          <h2 className="font-semibold text-gray-900">Top Locations</h2>
+          {loading || !data ? (
+            <div className="mt-4"><SkeletonPanel /></div>
+          ) : (
+            <div className="h-80 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.locations} layout="vertical" margin={{ left: 30 }} onClick={(state: any) => {
+                  const active = state?.activePayload?.[0]?.payload as { name: string; count: number } | undefined;
+                  if (!active) return;
+                  setDetail({ title: `Location - ${active.name}`, rows: [active] });
+                }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="name" width={110} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#14b8a6" radius={[0, 8, 8, 0]} isAnimationActive animationDuration={900} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {kpis && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className={`rounded-xl border p-3 ${kpis.resolution_rate >= 80 ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+            <div className="text-xs text-gray-600">Resolution Threshold</div>
+            <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-gray-900">
+              {kpis.resolution_rate >= 80 ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <AlertTriangle className="w-4 h-4 text-amber-600" />}
+              {kpis.resolution_rate >= 80 ? 'Healthy (>=80%)' : 'Needs attention (<80%)'}
+            </div>
+          </div>
+          <div className={`rounded-xl border p-3 ${kpis.overdue_claims > 7 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'}`}>
+            <div className="text-xs text-gray-600">Overdue Claims (&gt;7 days)</div>
+            <div className="mt-1 text-xl font-bold text-gray-900">{kpis.overdue_claims}</div>
+          </div>
+          <div className="rounded-xl border border-gray-200 p-3 bg-white">
+            <div className="text-xs text-gray-600">Pending Claims</div>
+            <div className="mt-1 text-xl font-bold text-gray-900">{kpis.pending_claims}</div>
+          </div>
+          <div className="rounded-xl border border-gray-200 p-3 bg-white">
+            <div className="text-xs text-gray-600">Avg Resolution Time</div>
+            <div className="mt-1 text-xl font-bold text-gray-900">{kpis.avg_resolution_time_days} days</div>
+          </div>
+        </div>
+      )}
+
+      {detail && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setDetail(null)}>
+          <div className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white shadow-xl p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">{detail.title}</h3>
+              <button onClick={() => setDetail(null)} className="text-sm text-gray-500 hover:text-gray-900">Close</button>
+            </div>
+            <div className="mt-4 overflow-auto max-h-72">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b">
+                    {Object.keys(detail.rows[0] || {}).map((k) => <th key={k} className="py-2 pr-2">{k}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.rows.map((row, i) => (
+                    <tr key={i} className="border-b last:border-b-0">
+                      {Object.values(row).map((val, idx) => <td key={idx} className="py-2 pr-2">{String(val)}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

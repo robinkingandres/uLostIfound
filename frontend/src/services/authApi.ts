@@ -4,6 +4,7 @@ const ROOT_API_URL = `${API_URL}/`;
 const LOGIN_URL = `${API_URL}/auth/login/`;
 const LOGOUT_URL = `${API_URL}/auth/logout/`;
 const RESET_REQUEST_URL = `${API_URL}/auth/password-reset/request/`;
+const RESET_VERIFY_URL = `${API_URL}/auth/password-reset/verify-code/`;
 const RESET_CONFIRM_URL = `${API_URL}/auth/password-reset/confirm/`;
 
 // --- Utility function to get CSRF Token from cookie ---
@@ -112,6 +113,23 @@ export const requestPasswordReset = async (email: string) => {
     if (!response.ok) {
         const error = await response.json();
         throw new Error(error.detail || 'Failed to send code.');
+    }
+    return response.json();
+};
+
+/**
+ * Verifies if reset code is valid before allowing password change step.
+ */
+export const verifyPasswordResetCode = async (email: string, code: string) => {
+    const response = await fetch(RESET_VERIFY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Invalid verification code.');
     }
     return response.json();
 };

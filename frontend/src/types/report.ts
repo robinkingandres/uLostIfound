@@ -8,7 +8,11 @@ export interface Report {
   reporterRole: string;
   reporterSchoolId: string;
   reporterUsername: string;
+  reporterAvatar?: string | null; // Reporter's profile picture URL
+  isMatched?: boolean;
+  publicStatus?: 'Lost' | 'Found' | 'Matched' | 'Claimed';
   itemName: string;
+  personName?: string;
   description: string;
   type: ReportType;
   category: string;

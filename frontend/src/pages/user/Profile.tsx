@@ -5,7 +5,7 @@ import Chatbot from '../../components/Chatbot';
 import EditProfileModal from '../../components/EditProfileModal';
 import ItemsListModal from '../../components/ItemsListModal';
 import { useAuth } from '../../contexts/AuthContext';
-import { fetchMyReports, fetchClaims, uploadAvatar, updateProfile, fetchCurrentUser } from '../../services/api';
+import { fetchMyReports, fetchClaims, uploadAvatar, fetchCurrentUser } from '../../services/api';
 import type { Report } from '../../types/report';
 import type { Claim } from '../../types/claim';
 import chatbotIcon from '../../assets/chatbot.png';
@@ -27,6 +27,22 @@ export default function Profile() {
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
   const [isClaimsModalOpen, setIsClaimsModalOpen] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  // Helper to ensure data mapping is consistent between backend and frontend
+  const mapUserResponse = (data: any) => ({
+    ...user,
+    id: data.id,
+    username: data.username,
+    role: data.role,
+    name: data.name,
+    userId: data.userId,
+    email: data.email,
+    avatar: data.avatar,
+    // Map backend snake_case to frontend camelCase
+    yearLevel: data.year_level || data.yearLevel,
+    room: data.room,
+    gender: data.gender
+  });
 
   const loadData = async () => {
     try {
@@ -76,16 +92,7 @@ export default function Profile() {
     setUploadingAvatar(true);
     try {
       const updated = await uploadAvatar(user.id, file);
-      const authUser = {
-        id: updated.id,
-        username: updated.username,
-        role: updated.role,
-        name: updated.name,
-        userId: updated.userId,
-        email: updated.email,
-        avatar: updated.avatar
-      };
-      refreshUser(authUser);
+      refreshUser(mapUserResponse(updated));
     } catch (err: any) {
       console.error(err);
       alert('Failed to upload avatar. Please try again.');
@@ -101,16 +108,7 @@ export default function Profile() {
     if (!user) return;
     try {
       const updatedUserData = await fetchCurrentUser(user.id);
-      const authUser = {
-        id: updatedUserData.id,
-        username: updatedUserData.username,
-        role: updatedUserData.role,
-        name: updatedUserData.name,
-        userId: updatedUserData.userId,
-        email: updatedUserData.email,
-        avatar: updatedUserData.avatar
-      };
-      refreshUser(authUser);
+      refreshUser(mapUserResponse(updatedUserData));
     } catch (err) {
       console.error('Failed to refresh user data:', err);
       await loadData();
@@ -193,34 +191,30 @@ export default function Profile() {
             <p className="font-bold text-gray-900">{user?.name || 'N/A'}</p>
           </div>
 
-          {/* School ID - Now Real Data */}
+          {/* School ID */}
           <div className="bg-gray-100 rounded-lg px-5 py-3">
             <p className="text-xs text-gray-500 mb-0.5">School ID</p>
             <p className="font-bold text-gray-900">{user?.userId || 'N/A'}</p>
           </div>
 
-          {/* Email Address - Now Real Data */}
+          {/* Email Address */}
           <div className="bg-gray-100 rounded-lg px-5 py-3">
             <p className="text-xs text-gray-500 mb-0.5">Email Address</p>
             <p className="font-bold text-gray-900">{user?.email || 'N/A'}</p>
           </div>
 
-          {/* Year Level (Mock Data - Backend update required for dynamic) */}
-          <div className="bg-gray-100 rounded-lg px-5 py-3">
-            <p className="text-xs text-gray-500 mb-0.5">Year Level</p>
-            <p className="font-bold text-gray-900">Grade 7</p>
-          </div>
+          {/* Year Level */}
+          {user?.role !== 'Teacher' && (
+            <div className="bg-gray-100 rounded-lg px-5 py-3">
+              <p className="text-xs text-gray-500 mb-0.5">Year Level</p>
+              <p className="font-bold text-gray-900">{user?.yearLevel || 'N/A'}</p>
+            </div>
+          )}
 
-          {/* Room (Mock Data) */}
-          <div className="bg-gray-100 rounded-lg px-5 py-3">
-            <p className="text-xs text-gray-500 mb-0.5">Room</p>
-            <p className="font-bold text-gray-900">Room 101</p>
-          </div>
-
-          {/* Gender (Mock Data) */}
+          {/* Gender */}
           <div className="bg-gray-100 rounded-lg px-5 py-3">
             <p className="text-xs text-gray-500 mb-0.5">Gender</p>
-            <p className="font-bold text-gray-900">Female</p>
+            <p className="font-bold text-gray-900">{user?.gender || 'N/A'}</p>
           </div>
 
         </div>
@@ -279,7 +273,7 @@ export default function Profile() {
       </div>
 
       {/* Chatbot Component */}
-      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
+      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} reports={myReports} />
 
       {/* Edit Profile Modal */}
       <EditProfileModal

@@ -1,46 +1,32 @@
-import { useState, useEffect, useCallback } from 'react';
-import { 
-  ClipboardList, 
-  CheckCircle, 
-  XCircle, 
+import { useState, useEffect, useCallback } from "react";
+import {
+  CheckCircle,
+  XCircle,
   Check,
   X,
   PackageCheck,
-  Clock
-} from 'lucide-react';
-import DashboardHeader from '../components/admin/DashboardHeader';
-import StatCard from '../components/admin/StatCard';
-import type { Claim, ClaimStatus } from '../types/claim';
-import { fetchClaims, updateClaimStatus } from '../services/api';
+  Clock,
+  Search
+} from "lucide-react";
+import StatCard from "../components/admin/StatCard";
+import type { Claim, ClaimStatus } from "../types/claim";
+import { fetchClaims, updateClaimStatus } from "../services/api";
+import ClaimDetailsModal from "../components/admin/ClaimDetailsModal";
 
 export default function ClaimManagement() {
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  // ... (Stats state and loadClaims remain the same) ...
-  const [stats, setStats] = useState({
-    pending: 0,
-    approved: 0,
-    claimed: 0,
-    rejected: 0
-  });
+  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [filter, setFilter] = useState<ClaimStatus | "All">("All");
+  const [search, setSearch] = useState("");
 
   const loadClaims = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await fetchClaims();
       setClaims(data);
-      
-      setStats({
-        pending: data.filter(c => c.status === 'Pending').length,
-        approved: data.filter(c => c.status === 'Approved').length,
-        claimed: data.filter(c => c.status === 'Claimed').length,
-        rejected: data.filter(c => c.status === 'Rejected').length
-      });
-    } catch (err) {
-      console.error(err);
-      setError('Failed to load claims.');
+    } catch (error) {
+      console.error("Failed to load claims:", error);
     } finally {
       setLoading(false);
     }
@@ -50,130 +36,208 @@ export default function ClaimManagement() {
     loadClaims();
   }, [loadClaims]);
 
-  const handleStatusChange = async (id: number, newStatus: ClaimStatus) => {
-    // ... (same optimistic update logic) ...
-    const originalClaims = [...claims];
-    const updatedData = claims.map(c => c.id === id ? { ...c, status: newStatus } : c);
-    setClaims(updatedData);
-
+  // --- THE FIX IS HERE ---
+  const handleStatusUpdate = async (id: number, newStatus: ClaimStatus, rejectionReason?: string) => {
     try {
-      await updateClaimStatus(id, newStatus);
-      // Update stats immediately for UI responsiveness
-      setStats({
-        pending: updatedData.filter(c => c.status === 'Pending').length,
-        approved: updatedData.filter(c => c.status === 'Approved').length,
-        claimed: updatedData.filter(c => c.status === 'Claimed').length,
-        rejected: updatedData.filter(c => c.status === 'Rejected').length
-      });
-    } catch (err) {
-      console.error('Failed to update status:', err);
-      alert('Failed to update claim status.');
-      setClaims(originalClaims);
+      // Pass the rejectionReason to the API
+      await updateClaimStatus(id, newStatus, rejectionReason);
+      
+      // Update local state to reflect change immediately
+      setClaims((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, status: newStatus } : c))
+      );
+      
+      // Close modal if open
+      setIsModalOpen(false);
+      
+      // Optional: Refresh from server to ensure sync
+      loadClaims();
+    } catch (error) {
+      console.error("Failed to update status:", error);
+      alert("Failed to update claim status");
     }
   };
+
+  const filteredClaims = claims.filter((claim) => {
+    const matchesFilter = filter === "All" || claim.status === filter;
+    const matchesSearch = 
+      claim.itemName.toLowerCase().includes(search.toLowerCase()) ||
+      claim.claimantName.toLowerCase().includes(search.toLowerCase()) ||
+      claim.id.toString().includes(search);
+    return matchesFilter && matchesSearch;
+  });
 
   const getStatusColor = (status: ClaimStatus) => {
-    // ... (same color logic) ...
     switch (status) {
-      case 'Approved': return 'bg-green-100 text-green-700';
-      case 'Claimed': return 'bg-blue-100 text-blue-700';
-      case 'Rejected': return 'bg-red-100 text-red-700';
-      default: return 'bg-yellow-100 text-yellow-700';
+      case "Approved": return "bg-green-100 text-green-700 border-green-200";
+      case "Rejected": return "bg-red-100 text-red-700 border-red-200";
+      case "Claimed": return "bg-blue-100 text-blue-700 border-blue-200";
+      default: return "bg-yellow-100 text-yellow-700 border-yellow-200";
     }
   };
 
-  if (loading) return <div className="p-8">Loading claims...</div>;
-  if (error) return <div className="p-8 text-red-500">{error}</div>;
-
   return (
-    <div className="flex-1 bg-gray-50 overflow-auto">
-      <DashboardHeader />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <StatCard
+          title="Pending Review"
+          value={claims.filter((c) => c.status === "Pending").length}
+          icon={Clock}
+          bgColor="bg-white"
+          iconBg="bg-yellow-500"
+        />
+        <StatCard
+          title="To Be Claimed"
+          value={claims.filter((c) => c.status === "Approved").length}
+          icon={CheckCircle}
+          bgColor="bg-white"
+          iconBg="bg-green-500"
+        />
+        <StatCard
+          title="Completed"
+          value={claims.filter((c) => c.status === "Claimed").length}
+          icon={PackageCheck}
+          bgColor="bg-white"
+          iconBg="bg-blue-500"
+        />
+        <StatCard
+          title="Rejected"
+          value={claims.filter((c) => c.status === "Rejected").length}
+          icon={XCircle}
+          bgColor="bg-white"
+          iconBg="bg-red-500"
+        />
+      </div>
 
-      <div className="p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Claim Requests (Admin)</h1>
-          <p className="text-gray-600 mt-1">Verify proof of ownership before forwarding to Guidance.</p>
+      {/* Filters & Search */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
+        <div className="flex gap-2 bg-gray-50 p-1 rounded-lg">
+          {(["All", "Pending", "Approved", "Claimed", "Rejected"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                filter === s
+                  ? "bg-white text-blue-600 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {s}
+            </button>
+          ))}
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <StatCard title="Pending" value={stats.pending} icon={ClipboardList} bgColor="bg-gray-100" iconBg="bg-yellow-400" />
-          <StatCard title="To Release" value={stats.approved} icon={CheckCircle} bgColor="bg-gray-100" iconBg="bg-green-400" />
-          <StatCard title="Claimed" value={stats.claimed} icon={PackageCheck} bgColor="bg-gray-100" iconBg="bg-blue-400" />
-          <StatCard title="Rejected" value={stats.rejected} icon={XCircle} bgColor="bg-gray-100" iconBg="bg-red-600" />
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search claims..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          />
         </div>
+      </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Claim Verification Queue</h2>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left py-4 px-4 text-sm font-bold text-gray-900">Item Name</th>
-                  <th className="text-left py-4 px-4 text-sm font-bold text-gray-900">Claimant</th>
-                  <th className="text-left py-4 px-4 text-sm font-bold text-gray-900">Proof</th>
-                  <th className="text-left py-4 px-4 text-sm font-bold text-gray-900">Status</th>
-                  <th className="text-left py-4 px-4 text-sm font-bold text-gray-900">Actions</th>
+      {/* Claims Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Item</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Claimant</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Date</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    Loading claims...
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {claims.map((claim) => (
-                  <tr key={claim.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="py-4 px-4 font-bold text-gray-900">{claim.itemName}</td>
-                    <td className="py-4 px-4">
-                      <div>
-                        <p className="font-bold text-gray-900">{claim.claimantName}</p>
-                        <p className="text-xs text-gray-500 italic">{claim.claimantRole}</p>
-                      </div>
+              ) : filteredClaims.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    No claims found matching your filters.
+                  </td>
+                </tr>
+              ) : (
+                filteredClaims.map((claim) => (
+                  <tr key={claim.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-gray-900">{claim.itemName}</div>
+                      <div className="text-xs text-gray-500">ID: #{claim.id}</div>
                     </td>
-                    <td className="py-4 px-4 text-sm text-gray-600 truncate max-w-xs" title={claim.proofDescription}>
-                      {claim.proofDescription}
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-medium text-gray-900">{claim.claimantName}</div>
+                      <div className="text-xs text-gray-500">{claim.claimantRole}</div>
                     </td>
-                    <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(claim.status)}`}>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {new Date(claim.createdAt || claim.date).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(claim.status)}`}>
                         {claim.status}
                       </span>
                     </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center gap-2">
-                        {/* ADMIN ACTIONS: Only Approve or Reject */}
-                        {claim.status === 'Pending' && (
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedClaim(claim);
+                            setIsModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                        >
+                          View Details
+                        </button>
+                        
+                        {/* Quick Actions for Pending */}
+                        {claim.status === "Pending" && (
                           <>
-                            <button 
-                              onClick={() => handleStatusChange(claim.id, 'Approved')}
-                              className="flex items-center gap-1 px-3 py-1 bg-green-50 hover:bg-green-100 text-green-600 rounded text-xs font-bold transition-colors border border-green-200"
+                            <button
+                              onClick={() => handleStatusUpdate(claim.id, "Approved")}
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title="Approve"
                             >
-                              <Check className="w-3 h-3" /> Approve (Verify)
+                              <Check className="w-4 h-4" />
                             </button>
-                            <button 
-                              onClick={() => handleStatusChange(claim.id, 'Rejected')}
-                              className="flex items-center gap-1 px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded text-xs font-bold transition-colors border border-red-200"
+                            <button
+                              onClick={() => {
+                                setSelectedClaim(claim);
+                                setIsModalOpen(true);
+                                // We open modal for rejection to force reason input
+                              }}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Reject"
                             >
-                              <X className="w-3 h-3" /> Reject
+                              <X className="w-4 h-4" />
                             </button>
                           </>
-                        )}
-
-                        {/* Approved items are waiting for Guidance */}
-                        {claim.status === 'Approved' && (
-                           <span className="flex items-center gap-1 text-xs text-orange-500 font-medium bg-orange-50 px-2 py-1 rounded">
-                              <Clock className="w-3 h-3" /> Forwarded to Guidance
-                           </span>
-                        )}
-                        
-                        {(claim.status === 'Claimed' || claim.status === 'Rejected') && (
-                           <span className="text-xs text-gray-400 italic">Completed</span>
                         )}
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
+
+      {/* Detail Modal */}
+      <ClaimDetailsModal
+        open={isModalOpen}
+        claim={selectedClaim}
+        onClose={() => setIsModalOpen(false)}
+        onStatusChange={handleStatusUpdate}
+      />
     </div>
   );
 }
+

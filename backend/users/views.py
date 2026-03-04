@@ -1,13 +1,14 @@
 import random
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db.models import Q
 from rest_framework import viewsets, filters, status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import authenticate, login, logout, get_user_model 
 from django.middleware.csrf import get_token 
-from .serializers import UserSerializer
-from .models import PasswordResetCode # Import the new model
+from .serializers import UserSerializer, SiteSettingsSerializer, CategorySerializer
+from .models import PasswordResetCode, SiteSettings, Category # Import the new model
 from core.permissions import IsAdmin
 
 # Load the custom user model once
@@ -69,6 +70,11 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         Allow users to update their own profile, but restrict other actions to admins.
         """
+        if self.action == 'list':
+            user = self.request.user
+            if user.is_authenticated and (user.role in ['Admin', 'Guidance'] or user.is_superuser):
+                return [permissions.IsAuthenticated()]
+            return [IsAdmin()]
         if self.action in ['update', 'partial_update', 'retrieve']:
             # Allow authenticated users to update/retrieve their own profile
             return [permissions.IsAuthenticated()]
@@ -90,6 +96,10 @@ class UserViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.role == 'Admin' or user.is_superuser:
             return User.objects.all()
+        if user.role == 'Guidance':
+            return User.objects.filter(
+                Q(id=user.id) | Q(role__in=['Student', 'Teacher'])
+            ).order_by('last_name', 'first_name', 'username')
         # Regular users can only see themselves
         return User.objects.filter(id=user.id)
 
@@ -107,7 +117,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Non-admins cannot change role or school_id
+        # Non-admins cannot change role, school_id, year_level, or room.
         if user.role != 'Admin' and not user.is_superuser:
             if 'role' in request.data:
                 return Response(
@@ -119,8 +129,136 @@ class UserViewSet(viewsets.ModelViewSet):
                     {"detail": "You cannot change your school ID."},
                     status=status.HTTP_403_FORBIDDEN
                 )
+            if 'year_level' in request.data or 'yearLevel' in request.data:
+                return Response(
+                    {"detail": "Only admins can change year level."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if 'room' in request.data:
+                return Response(
+                    {"detail": "Only admins can change room."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
         
         return super().update(request, *args, **kwargs)
+
+
+class SettingsView(APIView):
+    """
+    Public GET for user-facing config; admin PATCH for system settings.
+    """
+    permission_classes = ()  # public GET handled explicitly
+
+    def get(self, request):
+        settings_obj = SiteSettings.get_solo()
+        serializer = SiteSettingsSerializer(settings_obj, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        user = request.user
+        if not user.is_authenticated or (user.role != 'Admin' and not user.is_superuser):
+            return Response({"detail": "Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+        settings_obj = SiteSettings.get_solo()
+        serializer = SiteSettingsSerializer(
+            settings_obj,
+            data=request.data,
+            partial=True,
+            context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class SettingsCategoriesView(APIView):
+    """
+    Admin-only bulk category update endpoint used by the Settings Save action.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        user = request.user
+        if user.role != 'Admin' and not user.is_superuser:
+            return Response({"detail": "Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+
+        payload = request.data.get('categories', request.data)
+        if not isinstance(payload, list):
+            return Response({"detail": "categories must be a list."}, status=status.HTTP_400_BAD_REQUEST)
+
+        existing = {cat.id: cat for cat in Category.objects.all()}
+        keep_ids = []
+
+        for index, raw_item in enumerate(payload):
+            if not isinstance(raw_item, dict):
+                continue
+            name = str(raw_item.get('name', '')).strip()
+            if not name:
+                continue
+            sort_order = int(raw_item.get('sort_order', index))
+            is_active = bool(raw_item.get('is_active', True))
+            category_id = raw_item.get('id')
+
+            category = existing.get(category_id)
+            if category:
+                category.name = name
+                category.sort_order = sort_order
+                category.is_active = is_active
+                category.save(update_fields=['name', 'sort_order', 'is_active'])
+                keep_ids.append(category.id)
+            else:
+                category = Category.objects.create(
+                    name=name,
+                    sort_order=sort_order,
+                    is_active=is_active,
+                )
+                keep_ids.append(category.id)
+
+        if keep_ids:
+            Category.objects.exclude(id__in=keep_ids).delete()
+        else:
+            Category.objects.all().delete()
+
+        categories = Category.objects.all().order_by('sort_order', 'name')
+        serializer = CategorySerializer(categories, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class SettingsAiThresholdView(APIView):
+    """
+    Admin-only endpoint for AI minimum score slider updates.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        user = request.user
+        if user.role != 'Admin' and not user.is_superuser:
+            return Response({"detail": "Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+
+        min_score = request.data.get('min_score', None)
+        if min_score is None:
+            return Response({"detail": "min_score is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            min_score = float(min_score)
+        except (TypeError, ValueError):
+            return Response({"detail": "min_score must be a number."}, status=status.HTTP_400_BAD_REQUEST)
+
+        settings_obj = SiteSettings.get_solo()
+        settings_obj.ai_min_score = max(0.0, min(100.0, min_score))
+        settings_obj.save(update_fields=['ai_min_score'])
+
+        serializer = SiteSettingsSerializer(settings_obj, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    queryset = Category.objects.all().order_by('sort_order', 'name')
+    serializer_class = CategorySerializer
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        return [IsAdmin()]
 
 class RequestPasswordResetView(APIView):
     permission_classes = () # Allow unauthenticated access
@@ -131,6 +269,13 @@ class RequestPasswordResetView(APIView):
             return Response({"detail": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
+            site_settings = SiteSettings.get_solo()
+            if not site_settings.email_master_enabled:
+                return Response(
+                    {"detail": "Email notifications are currently disabled by the administrator."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+
             user = User.objects.get(email=email)
             
             # Generate 6-digit code
@@ -188,5 +333,27 @@ class ResetPasswordView(APIView):
 
             return Response({"detail": "Password has been reset successfully. Please login."})
 
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class VerifyPasswordResetCodeView(APIView):
+    permission_classes = ()
+
+    def post(self, request):
+        email = request.data.get('email')
+        code = request.data.get('code')
+
+        if not email or not code:
+            return Response({"detail": "Email and code are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=email)
+            reset_code = PasswordResetCode.objects.filter(user=user, code=code).first()
+
+            if not reset_code or not reset_code.is_valid():
+                return Response({"detail": "Invalid or expired verification code."}, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response({"detail": "Verification code is valid."}, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)

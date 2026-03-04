@@ -10,6 +10,9 @@ interface AuthUser {
     userId: string; // Maps to school_id
     email: string;
     avatar?: string;
+    yearLevel?: string;
+    room?: string;
+    gender?: string;
 }
 
 interface AuthContextType {
@@ -17,8 +20,7 @@ interface AuthContextType {
   user: AuthUser | null;
   login: (username: string, password: string) => Promise<AuthUser | null>;
   logout: () => void;
-  /** Refresh user data from API and update context (e.g. after profile edit). */
-  refreshUser: (userData: AuthUser) => void;
+  refreshUser: (userData: any) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -45,7 +47,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(initialState.isAuthenticated);
   const [user, setUser] = useState<AuthUser | null>(initialState.user);
 
-  // CHANGED: Return AuthUser | null
   const login = async (username: string, password: string): Promise<AuthUser | null> => {
     try {
         const userData = await fetchLogin(username, password);
@@ -55,9 +56,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             username: userData.username,
             role: userData.role,
             name: userData.name, 
-            userId: userData.userId, // Capture School ID
-            email: userData.email,   // Capture Email
-            avatar: userData.avatar  // Capture Avatar
+            userId: userData.userId || userData.school_id, 
+            email: userData.email,   
+            avatar: userData.avatar,
+            // Maps both possibilities to ensure yearLevel is never undefined
+            yearLevel: userData.yearLevel || userData.year_level,
+            room: userData.room,
+            gender: userData.gender
         };
 
         setIsAuthenticated(true);
@@ -65,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('isAuthenticated', 'true');
         localStorage.setItem('user', JSON.stringify(authUser));
         
-        return authUser; // Return the user object so we can check roles immediately
+        return authUser; 
     } catch (e) {
         console.error("Login failed:", e);
         return null;
@@ -80,9 +85,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('user');
   };
 
-  const refreshUser = (userData: AuthUser) => {
-    setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
+  const refreshUser = (userData: any) => {
+    // Map data here so that profile updates don't break the UI fields
+    const formattedUser: AuthUser = {
+        ...userData,
+        userId: userData.userId || userData.school_id,
+        yearLevel: userData.yearLevel || userData.year_level,
+    };
+    setUser(formattedUser);
+    localStorage.setItem('user', JSON.stringify(formattedUser));
   };
 
   return (

@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, CheckCircle, PackageCheck, TrendingUp, MapPin, Calendar, Sparkles, X } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Clock, CheckCircle, PackageCheck, TrendingUp, MapPin, Calendar, Sparkles, X, Pencil, Trash2, FileText } from 'lucide-react';
 import UserHeader from '../../components/UserHeader';
 import Chatbot from '../../components/Chatbot';
-import { fetchMyReports, fetchClaims, fetchMyAIMatches } from '../../services/api';
+import EditReportModal from '../../components/EditReportModal';
+import { fetchMyReports, fetchClaims, fetchMyAIMatches, deleteReport } from '../../services/api';
 import type { Report } from '../../types/report';
 import type { Claim } from '../../types/claim';
 import type { AIMatch } from '../../services/api';
 import chatbotIcon from '../../assets/chatbot.png';
+import aiMatchesLogo from '../../assets/aimatches.png';
 import { useAuth } from '../../contexts/AuthContext';
 
 type MatchCategory = 'All' | 'AI Matches' | 'Pending' | 'Verified' | 'Complete';
@@ -23,7 +25,7 @@ interface MatchItem {
   location: string;
   date: string;
   status: 'Pending' | 'Verified' | 'Complete' | 'AI Match';
-  matchPercentage?: number;
+  progressPercentage?: number;
   reportId?: number;
   claimId?: number;
   category: string;
@@ -32,8 +34,14 @@ interface MatchItem {
 
 export default function Matches() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const [activeCategory, setActiveCategory] = useState<MatchCategory>('All');
+  const categoryParam = searchParams.get('category');
+  const [activeCategory, setActiveCategory] = useState<MatchCategory>(
+    categoryParam && ['All', 'AI Matches', 'Pending', 'Verified', 'Complete'].includes(categoryParam)
+      ? (categoryParam as MatchCategory)
+      : 'All'
+  );
   const [reports, setReports] = useState<Report[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [aiMatches, setAIMatches] = useState<AIMatch[]>([]);
@@ -41,17 +49,28 @@ export default function Matches() {
   const [error, setError] = useState('');
   const [selectedMatch, setSelectedMatch] = useState<MatchItem | null>(null);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [editingReport, setEditingReport] = useState<Report | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  // Calculate match percentage (mock calculation based on similarity)
-  const calculateMatchPercentage = (report: Report, claim?: Claim): number => {
-    if (claim) {
-      const reportWords = report.description.toLowerCase().split(/\s+/);
-      const claimWords = claim.proofDescription.toLowerCase().split(/\s+/);
-      const commonWords = reportWords.filter(word => claimWords.includes(word));
-      const similarity = (commonWords.length / Math.max(reportWords.length, claimWords.length)) * 100;
-      return Math.min(100, Math.max(70, Math.round(similarity + 20)));
+  const clampProgress = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
+
+  const getStatusProgress = (status: 'Pending' | 'Verified' | 'Complete'): number => {
+    switch (status) {
+      case 'Pending':
+        return 25;
+      case 'Verified':
+        return 75;
+      case 'Complete':
+        return 100;
+      default:
+        return 25;
     }
-    return 75;
+  };
+
+  const getAIMatchProgress = (aiMatch: AIMatch): number => {
+    if ((aiMatch.matchScore || 0) >= 100) return 100;
+    if (aiMatch.status === 'Approved') return 75;
+    return 25;
   };
 
   const getImageUrl = (imagePath: string | null | undefined) => {
@@ -78,7 +97,7 @@ export default function Matches() {
         location: item.location || 'N/A',
         date: aiMatch.date,
         status: 'AI Match',
-        matchPercentage: aiMatch.matchScore,
+        progressPercentage: clampProgress(getAIMatchProgress(aiMatch)),
         category: item.category,
         aiMatch: aiMatch,
       });
@@ -106,7 +125,7 @@ export default function Matches() {
         location: report.location,
         date: report.date,
         status,
-        matchPercentage: relatedClaim ? calculateMatchPercentage(report, relatedClaim) : undefined,
+        progressPercentage: clampProgress(getStatusProgress(status)),
         reportId: report.id,
         claimId: relatedClaim?.id,
         category: report.category,
@@ -133,7 +152,7 @@ export default function Matches() {
           location: 'N/A',
           date: claim.date,
           status,
-          matchPercentage: 85,
+          progressPercentage: clampProgress(getStatusProgress(status)),
           claimId: claim.id,
           category: 'Unknown',
         });
@@ -174,6 +193,27 @@ export default function Matches() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (categoryParam && ['All', 'AI Matches', 'Pending', 'Verified', 'Complete'].includes(categoryParam)) {
+      setActiveCategory(categoryParam as MatchCategory);
+    }
+  }, [categoryParam]);
+
+  const handleDeleteReport = async (reportId: number) => {
+    if (!confirm('Are you sure you want to delete this report?')) return;
+    setDeletingId(reportId);
+    try {
+      await deleteReport(reportId);
+      await loadData();
+      setSelectedMatch(null);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to delete report. Please try again.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const filteredItems = getFilteredItems();
 
@@ -227,6 +267,19 @@ export default function Matches() {
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 relative pb-24">
+      {/* Animation Style Injection */}
+      <style>
+        {`
+          @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+          }
+          .animate-float {
+            animation: float 3s ease-in-out infinite;
+          }
+        `}
+      </style>
+      
       <UserHeader />
 
       <main className="max-w-md mx-auto md:max-w-5xl px-4 py-6">
@@ -297,12 +350,14 @@ export default function Matches() {
         {/* Match Items List */}
         {filteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4">
-            <div className="w-48 h-48 mb-6 relative">
+            <div className="w-64 h-64 mb-6 relative">
               <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
-                <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-lg">
-                  <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center">
-                    <TrendingUp className="w-12 h-12 text-gray-400" />
-                  </div>
+                <div className="w-48 h-48 bg-white rounded-full flex items-center justify-center shadow-lg overflow-hidden">
+                  <img 
+                    src={aiMatchesLogo} 
+                    alt="AI Matches Logo" 
+                    className="w-40 h-40 object-contain animate-float"
+                  />
                 </div>
               </div>
             </div>
@@ -337,7 +392,7 @@ export default function Matches() {
                         <h3 className="font-bold text-gray-900 text-lg mb-1">{item.itemName}</h3>
                         <p className="text-sm text-gray-600 line-clamp-2 mb-2">{item.description}</p>
                       </div>
-                      {item.matchPercentage !== undefined && (
+                      {item.progressPercentage !== undefined && (
                         <div className={`flex items-center gap-1 flex-shrink-0 ${
                           item.type === 'ai-match' ? 'text-purple-600' : 'text-green-600'
                         }`}>
@@ -346,7 +401,7 @@ export default function Matches() {
                           ) : (
                             <TrendingUp className="w-4 h-4" />
                           )}
-                          <span className="text-sm font-semibold">{item.matchPercentage}% match</span>
+                          <span className="text-sm font-semibold">{item.progressPercentage}% progress</span>
                         </div>
                       )}
                     </div>
@@ -366,17 +421,41 @@ export default function Matches() {
                       </div>
                     </div>
 
-                    {/* View Details Button */}
-                    <button
-                      onClick={() => setSelectedMatch(item)}
-                      className={`text-sm font-medium flex items-center gap-1 ${
-                        item.type === 'ai-match' 
-                          ? 'text-purple-600 hover:text-purple-700' 
-                          : 'text-blue-600 hover:text-blue-700'
-                      }`}
-                    >
-                      View Details →
-                    </button>
+                    {/* View Details + Edit/Delete (for Pending reports) */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setSelectedMatch(item)}
+                        className={`text-sm font-medium flex items-center gap-1 ${
+                          item.type === 'ai-match' 
+                            ? 'text-purple-600 hover:text-purple-700' 
+                            : 'text-blue-600 hover:text-blue-700'
+                        }`}
+                      >
+                        View Details →
+                      </button>
+                      {item.type === 'report' && item.status === 'Pending' && item.reportId && (
+                        <>
+                          <button
+                            onClick={() => {
+                              const report = reports.find(r => r.id === item.reportId);
+                              if (report) setEditingReport(report);
+                            }}
+                            className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            title="Edit report"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => item.reportId && handleDeleteReport(item.reportId)}
+                            disabled={deletingId === item.reportId}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Delete report"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -403,7 +482,7 @@ export default function Matches() {
         </button>
       </div>
 
-      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
+      <Chatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} reports={reports} />
 
       {/* Match Details Modal */}
       {selectedMatch && (
@@ -413,6 +492,21 @@ export default function Matches() {
           report={reports.find(r => r.id === selectedMatch.reportId)}
           claim={claims.find(c => c.id === selectedMatch.claimId)}
           getImageUrl={getImageUrl}
+          onEdit={(r) => {
+            setSelectedMatch(null);
+            setEditingReport(r);
+          }}
+          onDelete={handleDeleteReport}
+          isDeleting={deletingId !== null}
+        />
+      )}
+
+      {/* Edit Report Modal */}
+      {editingReport && (
+        <EditReportModal
+          report={editingReport}
+          onClose={() => setEditingReport(null)}
+          onSuccess={loadData}
         />
       )}
     </div>
@@ -426,9 +520,60 @@ interface MatchDetailsModalProps {
   report?: Report;
   claim?: Claim;
   getImageUrl: (path: string | null | undefined) => string;
+  onEdit?: (report: Report) => void;
+  onDelete?: (reportId: number) => void;
+  isDeleting?: boolean;
 }
 
-function MatchDetailsModal({ match, onClose, report, claim, getImageUrl }: MatchDetailsModalProps) {
+function MatchDetailsModal({ match, onClose, report, claim, getImageUrl, onEdit, onDelete, isDeleting }: MatchDetailsModalProps) {
+  const displayProgress = Math.max(0, Math.min(100, Math.round(match.progressPercentage ?? 25)));
+
+  const printClaimReport = () => {
+    if (!claim) return;
+    const reportImage = claim.reportImage || (report?.image ? getImageUrl(report.image) : '');
+    const proofImage = claim.proof_image || claim.proofImage || '';
+    const claimantPhoto = claim.claimant_photo || claim.claimantPhoto || '';
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Claim Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+            h1 { margin: 0 0 8px 0; }
+            .meta { font-size: 12px; color: #6b7280; margin-bottom: 16px; }
+            .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+            .label { font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 700; }
+            .value { font-size: 14px; margin-top: 4px; }
+            img { max-width: 100%; max-height: 220px; object-fit: cover; border: 1px solid #e5e7eb; border-radius: 8px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+          </style>
+        </head>
+        <body>
+          <h1>Claim Report</h1>
+          <div class="meta">Generated: ${new Date().toLocaleString()} | Claim ID: #${claim.id}</div>
+          <div class="card"><div class="label">Item</div><div class="value">${claim.itemName}</div></div>
+          <div class="card"><div class="label">Claimant</div><div class="value">${claim.claimantName} (${claim.claimantRole})</div></div>
+          <div class="card"><div class="label">Proof Details</div><div class="value">${claim.proofDescription || 'N/A'}</div></div>
+          <div class="grid">
+            <div class="card"><div class="label">Item Image</div>${reportImage ? `<img src="${reportImage}" alt="Item"/>` : '<div class="value">No image</div>'}</div>
+            <div class="card"><div class="label">Proof Image</div>${proofImage ? `<img src="${proofImage}" alt="Proof"/>` : '<div class="value">No image</div>'}</div>
+          </div>
+          <div class="card"><div class="label">Claimant Photo</div>${claimantPhoto ? `<img src="${claimantPhoto}" alt="Claimant"/>` : '<div class="value">No claimant photo</div>'}</div>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 250);
+  };
+
   const getStatusMessage = () => {
     if (match.type === 'ai-match') {
       return {
@@ -544,8 +689,8 @@ function MatchDetailsModal({ match, onClose, report, claim, getImageUrl }: Match
                 {/* Match Scores */}
                 <div className="mt-4 pt-4 border-t border-purple-200">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold text-purple-900">Match Confidence</span>
-                    <span className="text-lg font-bold text-purple-600">{match.aiMatch.matchScore}%</span>
+                    <span className="text-sm font-semibold text-purple-900">Case Progress</span>
+                    <span className="text-lg font-bold text-purple-600">{displayProgress}%</span>
                   </div>
                   <div className="flex gap-4 text-xs text-purple-700">
                     <span>Visual: {match.aiMatch.visualScore}%</span>
@@ -554,24 +699,24 @@ function MatchDetailsModal({ match, onClose, report, claim, getImageUrl }: Match
                   <div className="mt-2 bg-purple-200 rounded-full h-2">
                     <div 
                       className="bg-purple-600 h-2 rounded-full transition-all"
-                      style={{ width: `${match.aiMatch.matchScore}%` }}
+                      style={{ width: `${displayProgress}%` }}
                     />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Match Score (for non-AI matches) */}
-            {match.matchPercentage !== undefined && match.type !== 'ai-match' && (
+            {/* Case Progress (for non-AI matches) */}
+            {match.progressPercentage !== undefined && match.type !== 'ai-match' && (
               <div className="bg-gray-50 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900">Match Score</h3>
+                  <h3 className="font-semibold text-gray-900">Case Progress</h3>
                   <div className={`px-4 py-1.5 rounded-full text-sm font-bold ${
-                    match.matchPercentage >= 90 ? 'bg-green-100 text-green-700' :
-                    match.matchPercentage >= 70 ? 'bg-yellow-100 text-yellow-700' :
+                    displayProgress >= 90 ? 'bg-green-100 text-green-700' :
+                    displayProgress >= 70 ? 'bg-yellow-100 text-yellow-700' :
                     'bg-orange-100 text-orange-700'
                   }`}>
-                    {match.matchPercentage}%
+                    {displayProgress}%
                   </div>
                 </div>
                 {report && claim && (
@@ -633,7 +778,7 @@ function MatchDetailsModal({ match, onClose, report, claim, getImageUrl }: Match
                     'text-orange-600'
                   }`} />
                 )}
-                <div>
+                <div className="flex-1">
                   <h4 className={`font-bold text-lg ${
                     statusInfo.color === 'green' ? 'text-green-800' :
                     statusInfo.color === 'blue' ? 'text-blue-800' :
@@ -653,6 +798,36 @@ function MatchDetailsModal({ match, onClose, report, claim, getImageUrl }: Match
                 </div>
               </div>
             </div>
+
+            {claim && (
+              <button
+                type="button"
+                onClick={printClaimReport}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+              >
+                <FileText className="w-4 h-4" />
+                Claim Report
+              </button>
+            )}
+
+            {/* Edit / Delete for Pending reports */}
+            {match.type === 'report' && match.status === 'Pending' && report && onEdit && onDelete && (
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => onEdit(report)}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-100 text-amber-700 rounded-xl font-semibold hover:bg-amber-200 transition-colors"
+                >
+                  <Pencil className="w-4 h-4" /> Edit Report
+                </button>
+                <button
+                  onClick={() => match.reportId && confirm('Delete this report?') && onDelete(match.reportId)}
+                  disabled={isDeleting}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-100 text-red-700 rounded-xl font-semibold hover:bg-red-200 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" /> Delete Report
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
