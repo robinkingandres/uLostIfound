@@ -5,7 +5,7 @@ psycopg2-binary
 dj-database-url
 gunicorn
 pillow>=10.0
-numpy==1.23.5
-https://github.com/google-coral/py-repo/raw/master/tflite-runtime/tflite_runtime-2.14.0-cp310-cp310-linux_x86_64.whl
+numpy<2.0
+tflite-runtime==2.14.0
 requests>=2.31
 python-dotenv>=1.0
