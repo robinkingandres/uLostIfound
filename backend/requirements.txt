@@ -3,16 +3,16 @@ Django>=4.2
 djangorestframework>=3.14
 django-cors-headers>=4.3
 
-# Database
+# Database & Production (ESSENTIAL)
+psycopg2-binary
+dj-database-url
+gunicorn
 pillow>=10.0
 
-# AI/ML for CLIP matching
-torch>=2.0
-transformers>=4.35
+# TensorFlow Lite for MobileNetV3
+tflite-runtime
 numpy>=1.24
 
-# HTTP requests
+# HTTP requests & Utilities
 requests>=2.31
-
-# Other utilities
 python-dotenv>=1.0
