@@ -30,24 +30,20 @@ class LoginView(APIView):
         username = request.data.get('username')
         password = request.data.get('password')
         
-        # This calls your CustomUserAuthBackend now
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
-            # User found and session established
             login(request, user)
-            
-            # Use the existing UserSerializer to return user data
             serializer = UserSerializer(user)
-            
-            # --- FIX: Create Response object and explicitly set CSRF cookie ---
             response = Response(serializer.data)
-            csrf_token = get_token(request) # Get the current token
-            response.set_cookie('csrftoken', csrf_token) # Set the cookie explicitly
+            
+            # --- FIX: Let Django's secure middleware handle the cookie ---
+            # By just calling get_token, Django automatically attaches the secure 
+            # cookie using the rules from settings.py!
+            get_token(request) 
             
             return response
         else:
-            # User not found or incorrect password/inactive account
             return Response(
                 {"detail": "Invalid credentials or account not active."}, 
                 status=status.HTTP_401_UNAUTHORIZED

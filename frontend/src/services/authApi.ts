@@ -65,6 +65,9 @@ export const fetchLogin = async (username: string, password: string): Promise<an
         throw new Error(errorData.detail || "Login failed due to server error.");
     }
 
+    // --- NEW FIX: Clear the old token so React is forced to fetch the new post-login token ---
+    cachedCsrfToken = null; 
+
     return response.json();
 };
 
