@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-xqq3qwfpor&gr5(=q@(x$snw55-u&+v(g^l679@ymtqz2qaw3$
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -146,6 +146,7 @@ CORS_ALLOWED_ORIGINS = [
 AUTH_USER_MODEL = 'users.User'
 
 CORS_ALLOW_CREDENTIALS = True # <-- ADD THIS LINE
+CORS_ALLOW_ALL_ORIGINS = True
 
 # --- NEW: Custom Authentication Backend ---
 AUTHENTICATION_BACKENDS = [
@@ -157,7 +158,11 @@ AUTHENTICATION_BACKENDS = [
 # --- FIX: CSRF/COOKIE CONFIGURATION FOR CORS/DEV ---
 
 # 1. Trust the frontend origin for CSRF purposes
-CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "http://localhost:8000").split(",")
+CSRF_TRUSTED_ORIGINS = [
+    'https://ulostifound-production.up.railway.app',
+    'https://u-lost-ifound.vercel.app',
+    'https://u-lost-ifound-git-russel-andresrobinking-2780s-projects.vercel.app'
+]
 
 # 2. Relax SameSite policy. Necessary for cross-origin local dev.
 # Since we are not using HTTPS, we must set these to False/None.
