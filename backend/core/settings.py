@@ -157,12 +157,7 @@ AUTHENTICATION_BACKENDS = [
 # --- FIX: CSRF/COOKIE CONFIGURATION FOR CORS/DEV ---
 
 # 1. Trust the frontend origin for CSRF purposes
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:8000',
-    'http://localhost:8000',
-    
-]
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "http://localhost:8000").split(",")
 
 # 2. Relax SameSite policy. Necessary for cross-origin local dev.
 # Since we are not using HTTPS, we must set these to False/None.
