@@ -112,8 +112,14 @@ AUTHENTICATION_BACKENDS = [
 # ==============================================================================
 
 # 1. CORS Settings (Allow React to communicate with Django)
-CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+# Explicitly list the allowed frontend URLs (No wildcards allowed with credentials)
+CORS_ALLOWED_ORIGINS = [
+    'https://u-lost-ifound.vercel.app',
+    'https://u-lost-ifound-git-russel-andresrobinking-2780s-projects.vercel.app',
+    'http://localhost:5173', 
+]
 
 # 2. CSRF Trusted Origins (Tell Django to trust requests from Vercel)
 CSRF_TRUSTED_ORIGINS = [
