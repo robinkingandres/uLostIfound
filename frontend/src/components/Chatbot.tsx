@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Send, Bot, RotateCcw, Search, FileText, MapPin, ShieldCheck } from 'lucide-react';
+import { X, Send, Bot, RotateCcw, Search, FileText, MapPin, ShieldCheck, Bell } from 'lucide-react';
 
 // 1. Updated Interface to include 'type' (Lost vs Found)
 interface ReportItem {
@@ -93,20 +93,24 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
     }
     
     if (msg.includes('location') || msg.includes('office') || msg.includes('where')) {
-      return "📍 **Guidance Office Location**\n\nWe are located on the **Ground Floor, Main Building**, beside the Principal's Office.\n\n**Hours:** 7:30 AM - 4:30 PM (Mon-Fri).";
+      return "📍 **Guidance Office Location**\n\nLocated at **ACG Building, Ground Floor**, beside the Principal's Office.\n\n**Hours:** 7:30 AM - 4:30 PM (Mon-Fri).";
     }
 
     // 2. INSTRUCTIONS (How-to)
+    if (msg.includes('get notified') || msg.includes('notified') || msg.includes('notification bell') || msg.includes('notify me')) {
+      return "**Get Notified**\n\nCheck the **notification bell** in the upper right.\nIclick ang **Enable Alerts** para magkaroon ng notification doon kapag may bagong na-report na **lost** o **found** item.";
+    }
+
     if (msg.includes('report lost') || msg.includes('how to report')) {
-      return "📝 **To Report a Lost Item:**\n\n1. Click **'Report Lost'** in the menu.\n2. Enter the item name, details, and last location.\n3. Submit.\n\nWe will alert you if a match is found.";
+      return "📝 **To Report a Lost Item:**\n\nGo to the **Guidance Office**, submit a description of an item, and where did u lose it.";
     }
 
     if (msg.includes('report found') || msg.includes('found item')) {
-      return "🤝 **To Report a Found Item:**\n\n1. Click **'Report Found'** in the menu.\n2. Upload a photo and description.\n3. Please surrender the item to the **Guidance Office** for safekeeping.";
+      return "🤝 **To Report a Found Item:**\n\nGo to the **Guidance Office**, submit a description of an item, and where did u found it. When did u lose it";
     }
 
     if (msg.includes('claim') || msg.includes('how to claim')) {
-      return "🔑 **How to Claim:**\n\n1. Find the item in the Feed.\n2. Click **'Claim'**.\n3. Visit the **Guidance Office**.\n\n**Note:** Bring proof of ownership (photo, specific description, or unlock the device).";
+      return "🔑 **How to Claim:**\n\nGo to Guidance Office located at ACG building ground floor beside Principals office.";
     }
 
     // 3. DATABASE SEARCH LOGIC
@@ -169,10 +173,13 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
       return "Kamusta! Ako ang **uLost AI Assistant** mo.\n\nMatutulungan kitang mag-report ng item o maghanap sa database.\n\nSubukan mong i-type ang **\"Keys\"** o **\"Nawala ang ID ko\"**.";
     }
     if (text.includes('Guidance Office Location')) {
-      return "Narito ang lokasyon ng Guidance Office:\nNasa Ground Floor, Main Building, katabi ng Principal's Office.\nOras: 7:30 AM - 4:30 PM (Mon-Fri).";
+      return "Narito ang lokasyon ng Guidance Office:\nNasa ACG Building, Ground Floor, katabi ng Principal's Office.\nOras: 7:30 AM - 4:30 PM (Mon-Fri).";
     }
     if (text.includes('About uLost')) {
       return "Tungkol sa uLost:\nPinamamahalaan ito ng **Guidance Office**. Tinutulungan ng uLost ang mga estudyante na maibalik ang kanilang nawawalang gamit.";
+    }
+    if (text.includes('Get Notified')) {
+      return "Para maabisuhan ka:\nTingnan ang notification bell sa upper right.\nIclick ang Enable Alerts para magkaroon ng notification doon kapag may bagong na-report na lost o found item.";
     }
     if (text.includes('To Report a Lost Item')) {
       return "Paano mag-report ng nawawalang gamit:\n1. I-click ang Report Lost sa menu.\n2. Ilagay ang item name, detalye, at huling lokasyon.\n3. I-submit.\nAabisuhan ka namin kapag may match.";
@@ -231,6 +238,7 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
 
   // --- UPDATED BUTTONS (Removed Check Status) ---
   const faqOptions = [
+    { label: "Get Notified", icon: <Bell size={14}/> },
     { label: "Report Lost", icon: <FileText size={14}/> },
     { label: "Report Found", icon: <FileText size={14}/> }, // Added specific Report Found button
     { label: "How to claim?", icon: <ShieldCheck size={14}/> },

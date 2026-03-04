@@ -286,7 +286,7 @@ export default function UserHome() {
         <div className="text-center mb-5 sm:mb-10">
           <h1 className={`text-xl sm:text-2xl md:text-4xl font-extrabold tracking-tight leading-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
             {(siteSettings?.org_name || 'San Isidro National High School')} <br />
-            <span className="text-blue-600 text-[1.05em]">Lost and Found Tracking System</span>
+            <span className="text-blue-600 text-[1.05em]">Lost and Found Managing System</span>
           </h1>
           <p className={`text-xs sm:text-sm md:text-base mt-2 sm:mt-4 ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
             Public view: browse posted lost and found items.
