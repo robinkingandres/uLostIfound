@@ -108,36 +108,48 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # ==============================================================================
-# CORS & CSRF CONFIGURATION (VERCEL FRONTEND <-> RAILWAY BACKEND)
+# CORS & CSRF CONFIGURATION
 # ==============================================================================
 
 # 1. CORS Settings (Allow React to communicate with Django)
 CORS_ALLOW_CREDENTIALS = True
 
-# Explicitly list the allowed frontend URLs (No wildcards allowed with credentials)
-CORS_ALLOWED_ORIGINS = [
+# Keep frontend origins centralized so CORS and CSRF stay in sync.
+FRONTEND_ORIGINS = [
     'https://u-lost-ifound.vercel.app',
     'https://u-lost-ifound-git-russel-andresrobinking-2780s-projects.vercel.app',
-    'http://localhost:5173', 
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
 ]
+CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
 
-# 2. CSRF Trusted Origins (Tell Django to trust requests from Vercel)
+# 2. CSRF Trusted Origins (required for cross-origin unsafe methods, e.g. login POST)
 CSRF_TRUSTED_ORIGINS = [
     'https://ulostifound-production.up.railway.app',
-    'https://u-lost-ifound.vercel.app',
-    'https://u-lost-ifound-git-russel-andresrobinking-2780s-projects.vercel.app'
+    *FRONTEND_ORIGINS,
 ]
 
-# 3. Cross-Domain Cookie Settings (Mandatory for Vercel -> Railway authentication)
-# Since both sites use HTTPS, these MUST be 'None' and True to survive the browser block.
-CSRF_COOKIE_SAMESITE = 'None'
-SESSION_COOKIE_SAMESITE = 'None'
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_SECURE = True
+# 3. Cookie security settings
+# Local HTTP development cannot use Secure cookies. Production must use Secure+None.
+IS_RAILWAY_ENV = any(
+    os.environ.get(key)
+    for key in ['RAILWAY_ENVIRONMENT', 'RAILWAY_PROJECT_ID', 'RAILWAY_PUBLIC_DOMAIN']
+)
+IS_LOCAL_DEV = DEBUG and not IS_RAILWAY_ENV
 
-# Because we now use the secure /api/csrf/ JSON endpoint, we don't need JavaScript 
-# to manually read the cookie. We can safely lock it down!
-CSRF_COOKIE_HTTPONLY = True 
+if IS_LOCAL_DEV:
+    CSRF_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SECURE = False
+else:
+    CSRF_COOKIE_SAMESITE = 'None'
+    SESSION_COOKIE_SAMESITE = 'None'
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+
+# We use /api/csrf/ JSON endpoint, so frontend doesn't need direct cookie access.
+CSRF_COOKIE_HTTPONLY = True
 
 # ==============================================================================
 # EMAIL CONFIGURATION
