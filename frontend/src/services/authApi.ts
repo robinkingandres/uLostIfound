@@ -1,5 +1,7 @@
 // This file needs to be imported by api.ts, so we must define the root API URL
-const API_URL = 'http://localhost:8000/api'; // <-- FIXED HOSTNAMEconst ROOT_API_URL = `${API_URL}/`;
+// FIXED: Now using the environment variable for production
+const API_URL = `${import.meta.env.VITE_API_URL}/api`; 
+
 const ROOT_API_URL = `${API_URL}/`;
 const LOGIN_URL = `${API_URL}/auth/login/`;
 const LOGOUT_URL = `${API_URL}/auth/logout/`;
@@ -21,7 +23,6 @@ const getCsrfToken = () => {
     }
     return null;
 };
-
 // --- EXPORTED CSRF TOKEN FETCH FUNCTION ---
 /**
  * Forces a GET request to a safe endpoint (like /api/) to ensure Django sets the csrftoken cookie.

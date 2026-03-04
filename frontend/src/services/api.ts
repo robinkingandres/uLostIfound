@@ -5,7 +5,7 @@ import { fetchCsrfToken } from './authApi';
 
 export type { Report };
 
-const API_URL = 'http://localhost:8000/api'; // <-- FIXED HOSTNAME
+const API_URL = `${import.meta.env.VITE_API_URL}/api`;
 const REPORT_URL = `${API_URL}/reports/`;
 const CLAIM_URL = `${API_URL}/claims/`; // <-- NEW CLAIM URL
 const USER_URL = `${API_URL}/users/`;
