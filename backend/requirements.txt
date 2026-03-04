@@ -1,18 +1,12 @@
-# Django and REST Framework
+--extra-index-url https://google-coral.github.io/py-repo/
 Django>=4.2
 djangorestframework>=3.14
 django-cors-headers>=4.3
-
-# Database & Production (ESSENTIAL)
 psycopg2-binary
 dj-database-url
 gunicorn
 pillow>=10.0
-
-# TensorFlow Lite for MobileNetV3
+numpy<2.0
 tflite-runtime
-numpy>=1.24
-
-# HTTP requests & Utilities
 requests>=2.31
 python-dotenv>=1.0
