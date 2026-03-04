@@ -342,7 +342,7 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Type 'Wallet', 'ID'..."
-                  className="w-full pl-10 pr-4 py-3 bg-slate-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all outline-none text-gray-700 placeholder:text-gray-400"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-100 border-none rounded-xl text-[16px] sm:text-sm focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all outline-none text-gray-700 placeholder:text-gray-400"
                 />
               </div>
               <button 

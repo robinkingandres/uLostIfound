@@ -31,7 +31,22 @@ import {
   type Report 
 } from '../../services/api';
 
-const LOCATIONS = ['Room 101', 'Room 102', 'Library', 'Cafeteria', 'Gym', 'School Grounds'];
+const LOCATIONS = [
+  'TLE BUILDING',
+  'DPWH 2',
+  'YNARES 3',
+  'PLED 1',
+  'PLED 3',
+  'DPWH 1',
+  'YNARES 2',
+  'YNARES 1',
+  'ACG BUILDING',
+  'PLED 4',
+  'PLED 5',
+  'Gym',
+  'Canteen',
+  'School Ground',
+];
 
 export default function ReportFound() {
   const navigate = useNavigate();
@@ -335,7 +350,7 @@ export default function ReportFound() {
                       {LOCATIONS.map(loc => (
                         <option key={loc} value={loc}>{loc}</option>
                       ))}
-                      <option value="Other">Other (Specify below...)</option>
+                      <option value="Other">Others(Specify below)</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>

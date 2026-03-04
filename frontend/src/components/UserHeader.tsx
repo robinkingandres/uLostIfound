@@ -36,7 +36,7 @@ export default function UserHeader({
   const [publicUpdatesOpen, setPublicUpdatesOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200/50 shadow-sm font-sans transition-all duration-300">
+    <header className={`sticky top-0 z-50 backdrop-blur-md border-b shadow-sm font-sans transition-all duration-300 ${isDark ? 'bg-[#071739] border-[#0f2a56] shadow-none' : 'bg-white/80 border-gray-200/50'}`}>
       <div className="max-w-6xl mx-auto px-0 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16">
           <div
@@ -59,9 +59,9 @@ export default function UserHeader({
               </div>
             </div>
 
-            <span className="hidden sm:block font-bold text-lg text-black tracking-tight transition-colors">
-              <span className="hover:text-blue-600 transition-colors duration-200 cursor-pointer">uLost</span>
-              <span className="hover:text-orange-500 transition-colors duration-200 cursor-pointer">iFound</span>
+            <span className={`hidden sm:block font-bold text-lg tracking-tight transition-colors ${isDark ? 'text-white' : 'text-black'}`}>
+              <span className={`${isDark ? 'text-white hover:text-blue-300' : 'hover:text-blue-600'} transition-colors duration-200 cursor-pointer`}>uLost</span>
+              <span className={`${isDark ? 'text-white hover:text-orange-300' : 'hover:text-orange-500'} transition-colors duration-200 cursor-pointer`}>iFound</span>
             </span>
           </div>
 
@@ -70,7 +70,11 @@ export default function UserHeader({
               <button
                 type="button"
                 onClick={onToggleDarkMode}
-                className="p-2 sm:w-9 sm:h-9 sm:rounded-full text-gray-600 sm:bg-gray-100 sm:hover:bg-gray-200 transition-colors inline-flex items-center justify-center"
+                className={`relative p-2 sm:w-9 sm:h-9 rounded-full transition-colors inline-flex items-center justify-center ${
+                  isDark
+                    ? 'text-slate-100 bg-[#0f244a] hover:bg-[#173564] border border-[#1c3d72]'
+                    : 'text-gray-600 sm:bg-gray-100 sm:hover:bg-gray-200'
+                }`}
                 aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
                 title={isDark ? 'Light mode' : 'Dark mode'}
               >
@@ -82,7 +86,11 @@ export default function UserHeader({
                   setPublicUpdatesOpen((prev) => !prev);
                   onMarkPublicUpdatesRead?.();
                 }}
-                className="relative p-2 sm:w-9 sm:h-9 sm:rounded-full text-gray-600 sm:bg-gray-100 sm:hover:bg-gray-200 transition-colors inline-flex items-center justify-center"
+                className={`relative p-2 sm:w-9 sm:h-9 rounded-full transition-colors inline-flex items-center justify-center ${
+                  isDark
+                    ? 'text-slate-100 bg-[#0f244a] hover:bg-[#173564] border border-[#1c3d72]'
+                    : 'text-gray-600 sm:bg-gray-100 sm:hover:bg-gray-200'
+                }`}
                 aria-label="Notification updates"
                 title="Notification updates"
               >

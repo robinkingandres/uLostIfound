@@ -309,13 +309,21 @@ export default function ReportLost() {
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm appearance-none bg-gray-50/50 cursor-pointer focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none focus:bg-white transition-all"
                     >
                       <option value="" disabled>Select a location...</option>
-                      <option value="Room 101">Room 101</option>
-                      <option value="Room 102">Room 102</option>
-                      <option value="Library">Library</option>
-                      <option value="Cafeteria">Cafeteria</option>
+                      <option value="TLE BUILDING">TLE BUILDING</option>
+                      <option value="DPWH 2">DPWH 2</option>
+                      <option value="YNARES 3">YNARES 3</option>
+                      <option value="PLED 1">PLED 1</option>
+                      <option value="PLED 3">PLED 3</option>
+                      <option value="DPWH 1">DPWH 1</option>
+                      <option value="YNARES 2">YNARES 2</option>
+                      <option value="YNARES 1">YNARES 1</option>
+                      <option value="ACG BUILDING">ACG BUILDING</option>
+                      <option value="PLED 4">PLED 4</option>
+                      <option value="PLED 5">PLED 5</option>
                       <option value="Gym">Gym</option>
-                      <option value="School Grounds">School Grounds</option>
-                      <option value="Other">Other (Specify below...)</option>
+                      <option value="Canteen">Canteen</option>
+                      <option value="School Ground">School Ground</option>
+                      <option value="Other">Others(Specify below)</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
