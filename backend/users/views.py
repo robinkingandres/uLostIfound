@@ -7,12 +7,21 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import authenticate, login, logout, get_user_model 
 from django.middleware.csrf import get_token 
+from django.http import JsonResponse
+from django.views.decorators.csrf import ensure_csrf_cookie
 from .serializers import UserSerializer, SiteSettingsSerializer, CategorySerializer
 from .models import PasswordResetCode, SiteSettings, Category # Import the new model
 from core.permissions import IsAdmin
 
 # Load the custom user model once
 User = get_user_model() 
+
+# --- NEW CSRF TOKEN VIEW ---
+@ensure_csrf_cookie
+def csrf_token_view(request):
+    """Sends the CSRF token to the frontend as JSON."""
+    return JsonResponse({'csrfToken': get_token(request)})
+# ---------------------------
 
 class LoginView(APIView):
     permission_classes = () # Allow any request
