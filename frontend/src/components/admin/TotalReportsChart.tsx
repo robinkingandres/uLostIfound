@@ -43,12 +43,23 @@ export default function TotalReportsChart({
     { key: 'found', label: 'Found', color: '#22c55e' },
   ];
 
+  const formatDate = (value: Date) =>
+    value.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
   const getPeriodLabel = () => {
+    const today = new Date();
     switch (timePeriod) {
-      case 'weekly':
-        return 'Weekly Overview (Sunday - Saturday)';
-      case 'monthly':
-        return 'Monthly Overview (This month)';
+      case 'weekly': {
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay());
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        return `Weekly Overview (${formatDate(weekStart)} - ${formatDate(weekEnd)})`;
+      }
+      case 'monthly': {
+        const monthLabel = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        return `Monthly Overview (${monthLabel})`;
+      }
       case 'semester':
         return 'Semester Overview (Last 5 months)';
       default:
