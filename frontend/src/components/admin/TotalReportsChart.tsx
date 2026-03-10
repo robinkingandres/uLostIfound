@@ -33,7 +33,6 @@ export default function TotalReportsChart({
     key: keyof ChartData;
     label: string;
     color: string;
-    dash?: string;
     emphasis?: boolean;
   };
 
@@ -41,7 +40,7 @@ export default function TotalReportsChart({
     { key: 'matched', label: 'Matched', color: '#f97316' },
     { key: 'claimed', label: 'Claimed', color: '#3b82f6' },
     { key: 'lost', label: 'Lost', color: '#ef4444', emphasis: true },
-    { key: 'found', label: 'Found', color: '#22c55e', dash: '6 4' },
+    { key: 'found', label: 'Found', color: '#22c55e' },
   ];
 
   const getPeriodLabel = () => {
@@ -121,7 +120,6 @@ export default function TotalReportsChart({
                   dataKey={line.key}
                   name={line.label}
                   stroke={line.color}
-                  strokeDasharray={line.dash}
                   strokeWidth={line.emphasis ? 3.25 : 2.5}
                   dot={{ r: line.emphasis ? 4 : 3 }}
                   activeDot={{ r: line.emphasis ? 6 : 5 }}
