@@ -57,10 +57,10 @@ interface DashboardStats {
   totalUnclaimedItems: number; 
   pendingReports: number;
   totalUsers: number;
-  reportsByMonth: { month: string; value: number }[];
+  reportsByMonth: { period: string; lost: number; found: number; matched: number; claimed: number }[];
 }
 
-export const fetchDashboardStats = async (timePeriod: string = 'yearly', statusFilter: string = 'all'): Promise<DashboardStats> => {
+export const fetchDashboardStats = async (timePeriod: string = 'monthly'): Promise<DashboardStats> => {
     const csrfToken = await fetchCsrfToken(); 
 
     if (!csrfToken) {
@@ -69,7 +69,6 @@ export const fetchDashboardStats = async (timePeriod: string = 'yearly', statusF
     
     const url = new URL(DASHBOARD_STATS_URL, window.location.origin);
     url.searchParams.append('time_period', timePeriod);
-    url.searchParams.append('status', statusFilter);
     
     const response = await fetch(url.toString(), { 
       credentials: 'include', 

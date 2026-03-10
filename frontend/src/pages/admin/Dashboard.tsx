@@ -10,8 +10,11 @@ import ActivityFeed from '../../components/admin/ActivityFeed';
 import { fetchDashboardStats } from '../../services/api'; 
 
 interface ChartData {
-  month: string;
-  value: number;
+  period: string;
+  lost: number;
+  found: number;
+  matched: number;
+  claimed: number;
 }
 
 interface DashboardData {
@@ -24,8 +27,7 @@ interface DashboardData {
     reportsByMonth: ChartData[];
 }
 
-type TimePeriod = 'weekly' | 'monthly' | 'yearly';
-type StatusFilter = 'all' | 'lost' | 'found' | 'claimed';
+type TimePeriod = 'weekly' | 'monthly' | 'semester';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardData>({
@@ -39,13 +41,12 @@ export default function AdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>('yearly');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('monthly');
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const data = await fetchDashboardStats(timePeriod, statusFilter);
+        const data = await fetchDashboardStats(timePeriod);
         // @ts-ignore - Ignoring potential type mismatch during dev if API types aren't fully sync'd yet
         setStats({
           totalLostItems: data.totalLostItems,
@@ -64,7 +65,7 @@ export default function AdminDashboard() {
       }
     };
     loadStats();
-  }, [timePeriod, statusFilter]);
+  }, [timePeriod]);
   
   if (loading) return <div className="p-8 text-center text-gray-500">Loading Dashboard...</div>;
   if (error) return <div className="p-8 text-center text-red-500 font-semibold">{error}</div>;
@@ -107,9 +108,7 @@ export default function AdminDashboard() {
             <TotalReportsChart 
               data={stats.reportsByMonth} 
               timePeriod={timePeriod}
-              statusFilter={statusFilter}
               onTimePeriodChange={setTimePeriod}
-              onStatusFilterChange={setStatusFilter}
             />
           </div>
           <div className="xl:col-span-4 h-full">

@@ -30,18 +30,19 @@ class DashboardStatsView(APIView):
 
     def get(self, request, format=None):
         # Get filter parameters
-        time_period = request.query_params.get('time_period', 'yearly').lower()  # weekly, monthly, yearly
-        status_filter = request.query_params.get('status', 'all').lower()  # all, lost, found, claimed
-        
-        # Build base queryset with status filter
-        base_queryset = Report.objects.all()
-        if status_filter == 'lost':
-            base_queryset = base_queryset.filter(type='Lost')
-        elif status_filter == 'found':
-            base_queryset = base_queryset.filter(type='Found')
-        elif status_filter == 'claimed':
-            base_queryset = base_queryset.filter(status='Claimed')
-        # 'all' means no type/status filter
+        time_period = request.query_params.get('time_period', 'monthly').lower()  # weekly, monthly, semester, yearly
+
+        if time_period not in ['weekly', 'monthly', 'semester', 'yearly']:
+            time_period = 'monthly'
+
+        # Base queryset (no status filter; we want all series at once)
+        base_queryset = Report.objects.all().annotate(
+            has_active_match=Exists(
+                AIMatch.objects.filter(
+                    Q(lost_report_id=OuterRef('pk')) | Q(found_report_id=OuterRef('pk'))
+                ).exclude(status='Rejected')
+            )
+        )
         
         # 1. Basic Counts (always use all reports, not filtered)
         total_reports = Report.objects.count()
@@ -52,98 +53,80 @@ class DashboardStatsView(APIView):
         pending_reports = Report.objects.filter(status='Pending').count()
         total_users = User.objects.count()
         
-        # 2. Time-based Report Stats (for the main bar chart)
-        now = timezone.now()
-        
+        # 2. Time-based Report Stats (line chart: lost, found, matched, claimed)
+        today = timezone.localdate()
+
+        def period_key(value):
+            if hasattr(value, 'date'):
+                return value.date()
+            return value
+
         if time_period == 'weekly':
-            # Last 4 weeks
-            start_date = now - timedelta(weeks=4)
+            # Current week (Sunday -> Saturday), daily buckets
+            days_since_sunday = (today.weekday() + 1) % 7
+            date_from = today - timedelta(days=days_since_sunday)
+            date_to = date_from + timedelta(days=6)
             trunc_func = TruncDay
-            date_format = '%m/%d'
-            
-            time_data = (
-                base_queryset.filter(date_reported__gte=start_date)
-                .annotate(period=trunc_func('date_reported'))
-                .values('period')
-                .annotate(count=Count('id'))
-                .order_by('period')
-            )
-            
-            # Generate labels for last 4 weeks
-            reports_by_period = []
-            for i in range(4):
-                week_start = now - timedelta(weeks=3-i)
-                week_label = week_start.strftime('%m/%d')
-                period_count = 0
-                for item in time_data:
-                    if item['period'] and hasattr(item['period'], 'date'):
-                        item_date = item['period'].date()
-                        week_start_date = (now - timedelta(weeks=3-i)).date()
-                        week_end_date = (now - timedelta(weeks=2-i)).date()
-                        if week_start_date <= item_date < week_end_date:
-                            period_count += item['count']
-                reports_by_period.append({
-                    'month': week_label,
-                    'value': period_count
-                })
-                
+            period_list = [date_from + timedelta(days=i) for i in range(7)]
+            label_for = lambda d: d.strftime('%A').lower()
+
         elif time_period == 'monthly':
-            # Last 12 months
-            start_date = now - timedelta(days=365)
+            # Current month only (daily buckets)
+            month_start = date(today.year, today.month, 1)
+            days_in_month = calendar.monthrange(today.year, today.month)[1]
+            month_end = date(today.year, today.month, days_in_month)
+            date_from = month_start
+            date_to = month_end
+            trunc_func = TruncDay
+            period_list = [month_start + timedelta(days=i) for i in range(days_in_month)]
+            label_for = lambda d: str(d.day)
+
+        elif time_period == 'semester':
+            # Last 5 months (monthly buckets)
+            period_list = []
+            for i in range(4, -1, -1):
+                month_index = today.month - i
+                year = today.year
+                while month_index <= 0:
+                    month_index += 12
+                    year -= 1
+                period_list.append(date(year, month_index, 1))
+            date_from = period_list[0]
+            date_to = today
             trunc_func = TruncMonth
-            date_format = '%b'
-            
-            time_data = (
-                base_queryset.filter(date_reported__gte=start_date)
-                .annotate(period=trunc_func('date_reported'))
-                .values('period')
-                .annotate(count=Count('id'))
-                .order_by('period')
-            )
-            
-            # Create a dictionary for quick lookup
-            stats_dict = {}
-            for item in time_data:
-                if item['period']:
-                    month_key = item['period'].month if hasattr(item['period'], 'month') else item['period'].strftime('%m')
-                    stats_dict[month_key] = item['count']
-            
-            # Generate last 12 months
-            reports_by_period = []
-            for i in range(11, -1, -1):  # Last 12 months
-                month_date = now - timedelta(days=30*i)
-                month_num = month_date.month
-                month_label = calendar.month_abbr[month_num]
-                reports_by_period.append({
-                    'month': month_label,
-                    'value': stats_dict.get(month_num, 0)
-                })
-                
-        else:  # yearly (default)
-            # Current year, by month
-            current_year = now.year
+            label_for = lambda d: calendar.month_name[d.month].lower()
+
+        else:  # yearly (fallback)
+            date_from = date(today.year, 1, 1)
+            date_to = today
             trunc_func = TruncMonth
-            
-            time_data = (
-                base_queryset.filter(date_reported__year=current_year)
-                .annotate(period=trunc_func('date_reported'))
-                .values('period')
-                .annotate(count=Count('id'))
-                .order_by('period')
+            period_list = [date(today.year, i, 1) for i in range(1, 13)]
+            label_for = lambda d: d.strftime('%b')
+
+        time_data = (
+            base_queryset.filter(date_reported__date__range=(date_from, date_to))
+            .annotate(period=trunc_func('date_reported'))
+            .values('period')
+            .annotate(
+                lost=Count('id', filter=Q(type='Lost')),
+                found=Count('id', filter=Q(type='Found')),
+                matched=Count('id', filter=Q(has_active_match=True)),
+                claimed=Count('id', filter=Q(status='Claimed')),
             )
-            
-            stats_dict = {}
-            for item in time_data:
-                if item['period']:
-                    month_num = item['period'].month if hasattr(item['period'], 'month') else int(str(item['period']).split('-')[1])
-                    stats_dict[month_num] = item['count']
-            
-            reports_by_period = []
-            for i in range(1, 13):
-                reports_by_period.append({
-                    'month': calendar.month_abbr[i],
-                    'value': stats_dict.get(i, 0)
-                })
+            .order_by('period')
+        )
+
+        stats_map = {period_key(item['period']): item for item in time_data}
+        reports_by_period = []
+        for period_start in period_list:
+            entry = stats_map.get(period_start, {})
+            reports_by_period.append({
+                'period': label_for(period_start),
+                'lost': entry.get('lost', 0),
+                'found': entry.get('found', 0),
+                'matched': entry.get('matched', 0),
+                'claimed': entry.get('claimed', 0),
+            })
 
         data = {
             'totalReports': total_reports,

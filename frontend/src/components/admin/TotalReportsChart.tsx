@@ -1,39 +1,51 @@
 import { ChevronDown } from 'lucide-react';
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 interface ChartData {
-  month: string;
-  value: number;
+  period: string;
+  lost: number;
+  found: number;
+  matched: number;
+  claimed: number;
 }
 
 interface TotalReportsChartProps {
   data: ChartData[];
-  timePeriod: 'weekly' | 'monthly' | 'yearly';
-  statusFilter: 'all' | 'lost' | 'found' | 'claimed';
-  onTimePeriodChange: (period: 'weekly' | 'monthly' | 'yearly') => void;
-  onStatusFilterChange: (filter: 'all' | 'lost' | 'found' | 'claimed') => void;
+  timePeriod: 'weekly' | 'monthly' | 'semester';
+  onTimePeriodChange: (period: 'weekly' | 'monthly' | 'semester') => void;
 }
 
 export default function TotalReportsChart({ 
   data, 
   timePeriod, 
-  statusFilter,
   onTimePeriodChange,
-  onStatusFilterChange 
 }: TotalReportsChartProps) {
-  // Calculate max value dynamically to scale the bars (default to 10 to avoid division by zero)
-  const maxValue = Math.max(...data.map((d) => d.value), 10);
-  const currentYear = new Date().getFullYear();
+  const hasData = data.some((item) => item.lost || item.found || item.matched || item.claimed);
+  const series = [
+    { key: 'matched', label: 'Matched', color: '#f97316' },
+    { key: 'claimed', label: 'Claimed', color: '#3b82f6' },
+    { key: 'lost', label: 'Lost', color: '#ef4444', emphasis: true },
+    { key: 'found', label: 'Found', color: '#22c55e', dash: '6 4' },
+  ] as const;
 
   const getPeriodLabel = () => {
     switch (timePeriod) {
       case 'weekly':
-        return 'Weekly Overview';
+        return 'Weekly Overview (Sunday - Saturday)';
       case 'monthly':
-        return 'Monthly Overview';
-      case 'yearly':
-        return 'Yearly Overview';
+        return 'Monthly Overview (This month)';
+      case 'semester':
+        return 'Semester Overview (Last 5 months)';
       default:
-        return 'Yearly Overview';
+        return 'Monthly Overview';
     }
   };
 
@@ -52,29 +64,12 @@ export default function TotalReportsChart({
             <div className="relative">
               <select
                 value={timePeriod}
-                onChange={(e) => onTimePeriodChange(e.target.value as 'weekly' | 'monthly' | 'yearly')}
-                className="w-28 px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs text-gray-700 appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer"
+                onChange={(e) => onTimePeriodChange(e.target.value as 'weekly' | 'monthly' | 'semester')}
+                className="w-36 px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs text-gray-700 appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer"
               >
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
-                <option value="yearly">Yearly</option>
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Status Filter Dropdown */}
-          <div className="relative">
-            <div className="relative">
-              <select
-                value={statusFilter}
-                onChange={(e) => onStatusFilterChange(e.target.value as 'all' | 'lost' | 'found' | 'claimed')}
-                className="w-28 px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs text-gray-700 appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer"
-              >
-                <option value="all">All</option>
-                <option value="lost">Lost</option>
-                <option value="found">Found</option>
-                <option value="claimed">Claimed</option>
+                <option value="semester">Semester</option>
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none" />
             </div>
@@ -82,32 +77,64 @@ export default function TotalReportsChart({
         </div>
       </div>
 
-      {/* Bar Graph Container */}
-      <div className="flex-1 flex items-end justify-between min-h-[220px] gap-2">
-        {data.map((item) => (
-          <div key={item.month} className="flex-1 flex flex-col items-center gap-2 group">
-             {/* Tooltip (optional hover effect) */}
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -mt-8 bg-gray-800 text-white text-xs rounded py-1 px-2 pointer-events-none">
-              {item.value}
-            </div>
-            
-            <div className="w-full bg-gray-200 rounded-t-lg relative flex flex-col justify-end" style={{ height: '100%' }}>
-              <div
-                className="w-full bg-indigo-400 rounded-t-lg transition-all duration-1000 ease-out hover:bg-indigo-500"
-                style={{ 
-                  height: `${(item.value / maxValue) * 100}%`,
-                  minHeight: item.value > 0 ? '4px' : '0' 
+      {/* Line Graph Container */}
+      <div className="flex-1 min-h-[220px]">
+        {hasData ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+              <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" />
+              <XAxis
+                dataKey="period"
+                tickLine={false}
+                axisLine={false}
+                tick={{ fill: '#6b7280', fontSize: 12 }}
+              />
+              <YAxis
+                allowDecimals={false}
+                tickLine={false}
+                axisLine={false}
+                width={32}
+                tick={{ fill: '#6b7280', fontSize: 12 }}
+                domain={[0, (dataMax: number) => Math.max(5, Math.ceil(dataMax * 1.2))]}
+              />
+              <Tooltip
+                cursor={{ stroke: '#cbd5f5', strokeDasharray: '4 4' }}
+                contentStyle={{
+                  borderRadius: '12px',
+                  border: '1px solid #e5e7eb',
+                  boxShadow: '0 10px 25px rgba(15, 23, 42, 0.08)',
+                  fontSize: '12px',
                 }}
-              ></div>
-            </div>
-            <span className="text-xs text-gray-600 font-medium">{item.month}</span>
+              />
+              {series.map((line) => (
+                <Line
+                  key={line.key}
+                  type="monotone"
+                  dataKey={line.key}
+                  name={line.label}
+                  stroke={line.color}
+                  strokeDasharray={line.dash}
+                  strokeWidth={line.emphasis ? 3.25 : 2.5}
+                  dot={{ r: line.emphasis ? 4 : 3 }}
+                  activeDot={{ r: line.emphasis ? 6 : 5 }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-[260px] flex items-center justify-center text-sm text-gray-500">
+            No report activity in this period.
           </div>
-        ))}
+        )}
       </div>
 
-      <div className="mt-6 flex items-center gap-2">
-        <div className="w-3 h-3 bg-indigo-400 rounded"></div>
-        <span className="text-sm text-gray-600">{currentYear}</span>
+      <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-gray-600">
+        {series.map((item) => (
+          <div key={item.key} className="flex items-center gap-2">
+            <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+            <span>{item.label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
