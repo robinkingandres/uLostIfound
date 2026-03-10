@@ -29,12 +29,20 @@ export default function TotalReportsChart({
   onTimePeriodChange,
 }: TotalReportsChartProps) {
   const hasData = data.some((item) => item.lost || item.found || item.matched || item.claimed);
-  const series = [
+  type SeriesItem = {
+    key: keyof ChartData;
+    label: string;
+    color: string;
+    dash?: string;
+    emphasis?: boolean;
+  };
+
+  const series: SeriesItem[] = [
     { key: 'matched', label: 'Matched', color: '#f97316' },
     { key: 'claimed', label: 'Claimed', color: '#3b82f6' },
     { key: 'lost', label: 'Lost', color: '#ef4444', emphasis: true },
     { key: 'found', label: 'Found', color: '#22c55e', dash: '6 4' },
-  ] as const;
+  ];
 
   const getPeriodLabel = () => {
     switch (timePeriod) {

@@ -12,9 +12,10 @@ export default function ClaimedUnclaimedChart({ claimed, unclaimed }: ClaimedUnc
   const claimedPercentage = total > 0 ? (claimed / total) * 100 : 0;
   const unclaimedPercentage = total > 0 ? (unclaimed / total) * 100 : 0;
 
-  // Calculate degrees for the SVG stroke
-  const claimedDegrees = (claimedPercentage / 100) * 360;
-  const unclaimedDegrees = (unclaimedPercentage / 100) * 360;
+  const radius = 40;
+  const circumference = 2 * Math.PI * radius;
+  const claimedLength = total > 0 ? (claimed / total) * circumference : 0;
+  const unclaimedLength = total > 0 ? (unclaimed / total) * circumference : 0;
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-full min-h-[420px] flex flex-col">
@@ -27,7 +28,7 @@ export default function ClaimedUnclaimedChart({ claimed, unclaimed }: ClaimedUnc
             <circle
               cx="50"
               cy="50"
-              r="40"
+              r={radius}
               fill="none"
               stroke="#e5e7eb" // gray-200
               strokeWidth="20"
@@ -37,11 +38,11 @@ export default function ClaimedUnclaimedChart({ claimed, unclaimed }: ClaimedUnc
             <circle
               cx="50"
               cy="50"
-              r="40"
+              r={radius}
               fill="none"
               stroke="#f87171"
               strokeWidth="20"
-              strokeDasharray={`${unclaimedDegrees} 360`}
+              strokeDasharray={`${unclaimedLength} ${circumference}`}
               // Ensure it starts after the claimed segment if you want them to touch, 
               // or keep existing logic if it stacks correctly. 
               // The original logic just overlaid them. 
@@ -52,13 +53,13 @@ export default function ClaimedUnclaimedChart({ claimed, unclaimed }: ClaimedUnc
             <circle
               cx="50"
               cy="50"
-              r="40"
+              r={radius}
               fill="none"
               stroke="#60a5fa"
               strokeWidth="20"
-              strokeDasharray={`${claimedDegrees} 360`}
+              strokeDasharray={`${claimedLength} ${circumference}`}
               // Offset it backwards by the unclaimed amount so they don't overlap if they sum to 360
-              strokeDashoffset={-unclaimedDegrees}
+              strokeDashoffset={-unclaimedLength}
             />
           </svg>
         </div>
