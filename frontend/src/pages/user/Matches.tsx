@@ -14,7 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 type MatchCategory = 'All' | 'AI Matches' | 'Pending' | 'Verified' | 'Complete';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface MatchItem {
   id: number;

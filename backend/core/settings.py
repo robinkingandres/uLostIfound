@@ -21,6 +21,19 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+# Detect environment early so storage config can branch safely.
+IS_RAILWAY_ENV = any(
+    os.environ.get(key)
+    for key in ['RAILWAY_ENVIRONMENT', 'RAILWAY_PROJECT_ID', 'RAILWAY_PUBLIC_DOMAIN']
+)
+IS_LOCAL_DEV = DEBUG and not IS_RAILWAY_ENV
+
+# Cloudinary config (used in production). Local dev falls back to filesystem storage.
+CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME')
+CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY')
+CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET')
+USE_CLOUDINARY = (not IS_LOCAL_DEV) and all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET])
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -67,20 +80,29 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
-    'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
-    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET')
-}
-
-STORAGES = {
-    "default": {
-        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-    },
-}
+if USE_CLOUDINARY:
+    CLOUDINARY_STORAGE = {
+        'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
+        'API_KEY': CLOUDINARY_API_KEY,
+        'API_SECRET': CLOUDINARY_API_SECRET
+    }
+    STORAGES = {
+        "default": {
+            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
 
 # Database
 DATABASES = {
@@ -151,11 +173,6 @@ CSRF_TRUSTED_ORIGINS = [
 
 # 3. Cookie security settings
 # Local HTTP development cannot use Secure cookies. Production must use Secure+None.
-IS_RAILWAY_ENV = any(
-    os.environ.get(key)
-    for key in ['RAILWAY_ENVIRONMENT', 'RAILWAY_PROJECT_ID', 'RAILWAY_PUBLIC_DOMAIN']
-)
-IS_LOCAL_DEV = DEBUG and not IS_RAILWAY_ENV
 
 if IS_LOCAL_DEV:
     CSRF_COOKIE_SAMESITE = 'Lax'

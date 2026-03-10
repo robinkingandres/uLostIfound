@@ -14,6 +14,8 @@ import UserHeader from '../../components/UserHeader';
 import Chatbot from '../../components/Chatbot';
 import chatbotIcon from '../../assets/chatbot.png';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 interface PublicUpdateItem {
   id: string;
   title: string;
@@ -403,7 +405,7 @@ export default function UserHome() {
                       <div className={`w-9 h-9 rounded-full flex items-center justify-center text-blue-500 border overflow-hidden shrink-0 ${isDark ? 'bg-blue-950/30 border-blue-800' : 'bg-blue-50 border-blue-100'}`}>
                         {report.reporterAvatar ? (
                           <img 
-                            src={report.reporterAvatar.startsWith('http') ? report.reporterAvatar : `http://localhost:8000${report.reporterAvatar}`} 
+                            src={report.reporterAvatar.startsWith('http') ? report.reporterAvatar : `${API_BASE}${report.reporterAvatar}`} 
                             alt="Reporter" 
                             className="w-full h-full object-cover"
                           />

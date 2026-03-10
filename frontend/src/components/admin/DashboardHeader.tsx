@@ -19,6 +19,8 @@ const ROUTE_HEADERS: Record<string, { title: string; subtitle: string }> = {
   "/report-found": { title: "Report Found", subtitle: "Submit details for a found item" },
 };
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 function getRouteHeader(pathname: string): { title: string; subtitle: string } {
   if (ROUTE_HEADERS[pathname]) return ROUTE_HEADERS[pathname];
   const segment = pathname.split("/").filter(Boolean).pop() || "Dashboard";
@@ -37,7 +39,7 @@ export default function DashboardHeader() {
   const roleTextClass = roleKey === 'guidance' ? 'text-emerald-600' : roleKey === 'admin' ? 'text-blue-600' : 'text-slate-600';
   const menuLinkClass = roleKey === 'guidance' ? 'hover:bg-emerald-50 hover:text-emerald-700' : roleKey === 'admin' ? 'hover:bg-blue-50 hover:text-blue-700' : 'hover:bg-slate-50 hover:text-slate-700';
   const accountSettingsPath = roleKey === 'guidance' ? '/guidance/settings' : '/admin/account-settings';
-  const avatarSrc = user?.avatar ? (user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`) : null;
+  const avatarSrc = user?.avatar ? (user.avatar.startsWith('http') ? user.avatar : `${API_BASE}${user.avatar}`) : null;
 
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
