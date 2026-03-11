@@ -70,10 +70,6 @@ function toDateKey(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function toTitleCase(v: string) {
-  return v.charAt(0).toUpperCase() + v.slice(1);
-}
-
 const EXPORT_COLUMNS = [
   'Date Reported',
   'Record Type',
@@ -442,7 +438,6 @@ export default function Analytics() {
 
   const kpis = data?.kpis;
   const timeframeText = timeframe === 'last7' ? 'Last 7 Days' : timeframe === 'last30' ? 'Last 30 Days' : 'Last 90 Days';
-  const rangeText = timeframe === 'last7' ? '7 Days' : timeframe === 'last30' ? '30 Days' : '90 Days';
 
   const toggleMetric = (metric: MetricKey) => {
     setActiveMetrics((prev) => {
