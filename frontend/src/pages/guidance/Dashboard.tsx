@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ClipboardList, Search, PackageCheck, X, Download, Printer, FilePenLine } from 'lucide-react';
 import DashboardHeader from '../../components/admin/DashboardHeader'; 
 import StatCard from '../../components/admin/StatCard'; 
-import { fetchReports, updateReport } from '../../services/api';
+import { fetchClaims, fetchReports, updateClaimContact, updateReport } from '../../services/api';
 import type { Report, ReportStatus } from '../../types/report';
 
 type StageKey = 'lost' | 'found' | 'claimed';
@@ -25,10 +25,15 @@ function getPublicStatusLabel(record: Report): PublicStatusOption {
   return record.type;
 }
 
-function buildRecordsPrintHtml(records: Report[], contextLabel: string) {
+function buildRecordsPrintHtml(records: Report[], contextLabel: string, showClaimant: boolean) {
   const generatedAt = new Date();
   const rows = records.map((r) => `
     <tr>
+      <td class="photo-cell">
+        ${r.image ? `<a href="${r.image}" target="_blank" rel="noopener">
+          <img src="${r.image}" alt="${r.itemName || 'Record photo'}" class="photo-img" />
+        </a>` : '<span class="no-photo">No image</span>'}
+      </td>
       <td>${r.id}</td>
       <td>${r.itemName}</td>
       <td>${r.type}</td>
@@ -37,6 +42,15 @@ function buildRecordsPrintHtml(records: Report[], contextLabel: string) {
       <td>${getDisplayStatus(r)}</td>
       <td>${r.date}</td>
       <td>${r.reporterName || r.reporterUsername || 'N/A'}</td>
+      ${showClaimant ? `
+        <td class="photo-cell">
+          ${r.claimantPhoto ? `<a href="${r.claimantPhoto}" target="_blank" rel="noopener">
+            <img src="${r.claimantPhoto}" alt="Claimant photo" class="photo-img" />
+          </a>` : '<span class="no-photo">No image</span>'}
+          <div style="margin-top:6px;font-size:11px;color:#374151;">${r.claimantName || 'Unknown'}</div>
+        </td>
+        <td>${r.claimantContact || 'N/A'}</td>
+      ` : ''}
     </tr>
   `).join('');
 
@@ -51,8 +65,12 @@ function buildRecordsPrintHtml(records: Report[], contextLabel: string) {
           h1 { margin: 0 0 8px 0; }
           .meta { color: #4b5563; font-size: 12px; margin-bottom: 16px; }
           table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-          th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; font-size: 12px; }
+          th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; font-size: 12px; vertical-align: top; }
           th { background: #f3f4f6; }
+          .photo-cell { width: 140px; }
+          .photo-img { width: 120px; height: 90px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb; }
+          .no-photo { color: #9ca3af; font-size: 11px; }
+          a { text-decoration: none; }
         </style>
       </head>
       <body>
@@ -61,6 +79,7 @@ function buildRecordsPrintHtml(records: Report[], contextLabel: string) {
         <table>
           <thead>
             <tr>
+              <th>Photo</th>
               <th>ID</th>
               <th>Item</th>
               <th>Type</th>
@@ -69,6 +88,7 @@ function buildRecordsPrintHtml(records: Report[], contextLabel: string) {
               <th>Status</th>
               <th>Date</th>
               <th>Reporter</th>
+              ${showClaimant ? '<th>Claimant</th><th>Claimant Contact</th>' : ''}
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -80,8 +100,8 @@ function buildRecordsPrintHtml(records: Report[], contextLabel: string) {
   return printHtml;
 }
 
-function openPrintableRecords(records: Report[], contextLabel: string) {
-  const printHtml = buildRecordsPrintHtml(records, contextLabel);
+function openPrintableRecords(records: Report[], contextLabel: string, showClaimant: boolean) {
+  const printHtml = buildRecordsPrintHtml(records, contextLabel, showClaimant);
 
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
@@ -94,77 +114,17 @@ function openPrintableRecords(records: Report[], contextLabel: string) {
   }, 300);
 }
 
-function pdfEscape(value: string) {
-  return value.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-}
-
-function downloadRecordsPdf(records: Report[], contextLabel: string) {
-  const generatedAt = new Date().toLocaleString();
-  const lines: string[] = [
-    `Guidance Records Export`,
-    `Context: ${contextLabel}`,
-    `Generated: ${generatedAt}`,
-    `Total Records: ${records.length}`,
-    ``,
-    `ID | Item | Type | Status | Date | Reporter`,
-    `------------------------------------------------------------`,
-  ];
-
-  records.forEach((r) => {
-    const line = [
-      `#${r.id}`,
-      r.itemName,
-      r.type,
-      getDisplayStatus(r),
-      r.date,
-      r.reporterName || r.reporterUsername || 'N/A',
-    ]
-      .map((part) => String(part).replace(/\s+/g, ' ').trim())
-      .join(' | ');
-    lines.push(line.slice(0, 120));
-  });
-
-  const textCommands = lines
-    .map((line, index) => {
-      const y = 800 - index * 14;
-      if (y < 40) return null;
-      return `BT /F1 10 Tf 50 ${y} Td (${pdfEscape(line)}) Tj ET`;
-    })
-    .filter(Boolean)
-    .join('\n');
-
-  const objects: string[] = [];
-  objects.push('1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj');
-  objects.push('2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj');
-  objects.push('3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj');
-  objects.push('4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj');
-  objects.push(`5 0 obj << /Length ${textCommands.length} >> stream\n${textCommands}\nendstream endobj`);
-
-  let pdf = '%PDF-1.4\n';
-  const offsets: number[] = [0];
-  objects.forEach((obj) => {
-    offsets.push(pdf.length);
-    pdf += `${obj}\n`;
-  });
-
-  const xrefStart = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n`;
-  pdf += '0000000000 65535 f \n';
-  for (let i = 1; i <= objects.length; i += 1) {
-    pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
-  }
-  pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
-
-  const blob = new Blob([pdf], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const safeContext = contextLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `guidance-${safeContext || 'records'}-${new Date().toISOString().slice(0, 10)}.pdf`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
+function downloadRecordsPdf(records: Report[], contextLabel: string, showClaimant: boolean) {
+  const printHtml = buildRecordsPrintHtml(records, contextLabel, showClaimant);
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+  printWindow.document.open();
+  printWindow.document.write(printHtml);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+  }, 300);
 }
 
 export default function GuidanceDashboard() {
@@ -177,6 +137,7 @@ export default function GuidanceDashboard() {
   const [dateFrom, setDateFrom] = useState(toDateInputValue(new Date(new Date().setMonth(new Date().getMonth() - 1))));
   const [dateTo, setDateTo] = useState(toDateInputValue(new Date()));
   const [editingReport, setEditingReport] = useState<Report | null>(null);
+  const [claimEdit, setClaimEdit] = useState<{ id: number; claimantName: string; claimantContact: string } | null>(null);
   const [editForm, setEditForm] = useState({
     itemName: '',
     personName: '',
@@ -188,6 +149,7 @@ export default function GuidanceDashboard() {
   });
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState('');
+  const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -247,6 +209,7 @@ export default function GuidanceDashboard() {
   const openEdit = (record: Report) => {
     setEditError('');
     setEditingReport(record);
+    setClaimEdit(null);
     setEditForm({
       itemName: record.itemName || '',
       personName: (record.personName || '').trim(),
@@ -256,6 +219,19 @@ export default function GuidanceDashboard() {
       date: record.date || '',
       publicStatus: getPublicStatusLabel(record),
     });
+    if (record.status === 'Claimed') {
+      fetchClaims(record.id)
+        .then((claims) => {
+          const claimed = claims.find((c) => c.status === 'Claimed') || claims[0];
+          if (!claimed) return;
+          setClaimEdit({
+            id: claimed.id,
+            claimantName: claimed.claimantName || '',
+            claimantContact: claimed.claimantContact || '',
+          });
+        })
+        .catch((err) => console.error(err));
+    }
   };
 
   const saveEdit = async () => {
@@ -263,6 +239,20 @@ export default function GuidanceDashboard() {
     setEditBusy(true);
     setEditError('');
     try {
+      if (editForm.publicStatus === 'Claimed') {
+        if (!claimEdit) {
+          setEditError('No claim record found for this report.');
+          return;
+        }
+        if (!claimEdit.claimantContact.trim()) {
+          setEditError('Claimant contact number is required for claimed records.');
+          return;
+        }
+        await updateClaimContact(claimEdit.id, {
+          claimantName: claimEdit.claimantName.trim(),
+          claimantContact: claimEdit.claimantContact.trim(),
+        });
+      }
       let nextType = editingReport.type;
       let nextStatus: ReportStatus = 'Verified';
 
@@ -279,7 +269,7 @@ export default function GuidanceDashboard() {
         nextStatus = 'Verified';
       }
 
-      await updateReport(editingReport.id, {
+      const updated = await updateReport(editingReport.id, {
         itemName: editForm.itemName.trim(),
         personName: editForm.personName.trim(),
         category: editForm.category,
@@ -290,7 +280,17 @@ export default function GuidanceDashboard() {
         status: nextStatus,
       });
       setEditingReport(null);
-      await loadData();
+      setReports((prev) =>
+        prev.map((report) =>
+          report.id === editingReport.id
+            ? {
+                ...report,
+                ...updated,
+                image: updated.image || report.image,
+              }
+            : report
+        )
+      );
     } catch (err) {
       console.error(err);
       setEditError('Failed to update post. Please try again.');
@@ -300,6 +300,7 @@ export default function GuidanceDashboard() {
   };
 
   const openModalFromCard = (nextStage: StageKey) => {
+    loadData();
     setStage(nextStage);
     if (nextStage === 'lost') {
       setTypeFilter('Lost');
@@ -321,6 +322,7 @@ export default function GuidanceDashboard() {
     : stage === 'found'
       ? 'Found Item Records'
       : 'Claimed Item Records';
+  const showClaimant = stage === 'claimed';
 
   if (loading) {
     return (
@@ -473,14 +475,14 @@ export default function GuidanceDashboard() {
                 </div>
                 <div className="flex items-end gap-2">
                   <button
-                    onClick={() => openPrintableRecords(modalRecords, modalTitle)}
+                    onClick={() => openPrintableRecords(modalRecords, modalTitle, showClaimant)}
                     className="flex-1 h-10 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 text-white px-3 text-sm hover:bg-emerald-700"
                   >
                     <Printer className="w-4 h-4" />
                     Print
                   </button>
                   <button
-                    onClick={() => downloadRecordsPdf(modalRecords, modalTitle)}
+                    onClick={() => downloadRecordsPdf(modalRecords, modalTitle, showClaimant)}
                     className="flex-1 h-10 inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white text-gray-700 px-3 text-sm hover:bg-gray-50"
                   >
                     <Download className="w-4 h-4" />
@@ -501,13 +503,20 @@ export default function GuidanceDashboard() {
                       <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
                       <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Date</th>
                       <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Reporter</th>
+                      {showClaimant ? (
+                        <>
+                          <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Claimant</th>
+                          <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Contact</th>
+                        </>
+                      ) : null}
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Image</th>
                       <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {modalRecords.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No records match the selected filters.</td>
+                        <td colSpan={showClaimant ? 10 : 8} className="px-4 py-8 text-center text-gray-500">No records match the selected filters.</td>
                       </tr>
                     ) : (
                       modalRecords.map((record) => (
@@ -518,6 +527,46 @@ export default function GuidanceDashboard() {
                           <td className="px-4 py-3 text-sm text-gray-700">{getDisplayStatus(record)}</td>
                           <td className="px-4 py-3 text-sm text-gray-500">{new Date(record.date).toLocaleDateString()}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{record.reporterName || record.reporterUsername || 'N/A'}</td>
+                          {showClaimant ? (
+                            <>
+                              <td className="px-4 py-3">
+                              {record.claimantPhoto ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewImage({ src: record.claimantPhoto as string, alt: 'Claimant' })}
+                                  className="inline-flex items-center justify-center cursor-zoom-in"
+                                >
+                                    <img
+                                      src={record.claimantPhoto}
+                                      alt="Claimant"
+                                      className="h-10 w-10 rounded-md object-cover border border-gray-200"
+                                    />
+                                  </button>
+                              ) : (
+                                <span className="text-xs text-gray-400">No image</span>
+                              )}
+                              <div className="mt-1 text-xs text-gray-600">{record.claimantName || 'Unknown'}</div>
+                            </td>
+                              <td className="px-4 py-3 text-sm text-gray-700">{record.claimantContact || 'N/A'}</td>
+                            </>
+                          ) : null}
+                          <td className="px-4 py-3">
+                            {record.image ? (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewImage({ src: record.image, alt: record.itemName })}
+                                className="inline-flex items-center justify-center cursor-zoom-in"
+                              >
+                                <img
+                                  src={record.image}
+                                  alt={record.itemName}
+                                  className="h-10 w-10 rounded-md object-cover border border-gray-200"
+                                />
+                              </button>
+                            ) : (
+                              <span className="text-xs text-gray-400">No image</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-right">
                             <button
                               type="button"
@@ -536,6 +585,28 @@ export default function GuidanceDashboard() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setPreviewImage(null)}
+            className="absolute top-3 right-3 sm:top-5 sm:right-5 bg-black/60 hover:bg-black/75 text-white rounded-full p-2"
+            aria-label="Close image preview"
+          >
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+          <img
+            src={previewImage.src}
+            alt={previewImage.alt}
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
 
@@ -616,6 +687,39 @@ export default function GuidanceDashboard() {
                   </select>
                 </div>
               </div>
+              {editForm.publicStatus === 'Claimed' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600">Claimant Name</label>
+                    <input
+                      type="text"
+                      value={claimEdit?.claimantName || ''}
+                      onChange={(e) => {
+                        if (!claimEdit) return;
+                        setClaimEdit({ ...claimEdit, claimantName: e.target.value });
+                      }}
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      placeholder="Enter claimant full name"
+                      disabled={!claimEdit}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600">Claimant Contact Number</label>
+                    <input
+                      type="text"
+                      value={claimEdit?.claimantContact || ''}
+                      onChange={(e) => {
+                        if (!claimEdit) return;
+                        setClaimEdit({ ...claimEdit, claimantContact: e.target.value });
+                      }}
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      placeholder="e.g., 0917-123-4567"
+                      required
+                      disabled={!claimEdit}
+                    />
+                  </div>
+                </div>
+              ) : null}
               <div>
                 <label className="text-xs font-semibold text-gray-600">Description</label>
                 <textarea

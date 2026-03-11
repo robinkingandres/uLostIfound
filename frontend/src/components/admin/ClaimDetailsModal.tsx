@@ -71,6 +71,8 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
 
   const reportImgSrc = claim.reportImage || "";
   const claimantImgSrc = claim.claimant_photo || claim.claimantPhoto || "";
+  const claimantIdImgSrc = claim.claimant_id_photo || claim.claimantIdPhoto || "";
+  const authorizationLetterSrc = claim.authorization_letter || claim.authorizationLetter || "";
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 p-4 flex items-center justify-center" onClick={onClose}>
@@ -117,6 +119,7 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
               <div className="text-xs font-semibold text-gray-500">Claimant</div>
               <div className="mt-1 font-bold text-gray-900">{claim.claimantName}</div>
               <div className="text-xs text-gray-500 italic">{claim.claimantRole}</div>
+              <div className="text-xs text-gray-500 mt-1">{claim.claimantContact || "No contact number"}</div>
               <div className="mt-3">
                 <div className="text-xs font-semibold text-gray-500 mb-2">Claimant Photo</div>
                 {!claimantImgSrc ? (
@@ -141,6 +144,44 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
                   </a>
                 )}
               </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-100 p-4">
+              <div className="text-xs font-semibold text-gray-500 mb-2">Valid ID / Student ID</div>
+              {!claimantIdImgSrc ? (
+                <div className="text-sm text-red-600 font-semibold">
+                  Missing ID photo. Required before release.
+                </div>
+              ) : (
+                <a href={claimantIdImgSrc} target="_blank" rel="noreferrer" className="block group relative">
+                  <img
+                    src={claimantIdImgSrc}
+                    alt="Claimant ID"
+                    className="w-full max-h-56 object-cover rounded-xl border border-gray-200 bg-gray-50"
+                  />
+                  <div className="hidden group-hover:block absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                    Click to expand
+                  </div>
+                </a>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-gray-100 p-4">
+              <div className="text-xs font-semibold text-gray-500 mb-2">Authorization Letter</div>
+              {!authorizationLetterSrc ? (
+                <div className="text-sm text-gray-500 italic">No authorization letter uploaded.</div>
+              ) : (
+                <a href={authorizationLetterSrc} target="_blank" rel="noreferrer" className="block group relative">
+                  <img
+                    src={authorizationLetterSrc}
+                    alt="Authorization letter"
+                    className="w-full max-h-56 object-cover rounded-xl border border-gray-200 bg-gray-50"
+                  />
+                  <div className="hidden group-hover:block absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                    Click to expand
+                  </div>
+                </a>
+              )}
             </div>
 
             <div className="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/50 p-4">

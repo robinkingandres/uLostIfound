@@ -298,6 +298,57 @@ class ClaimViewSet(viewsets.ModelViewSet):
     serializer_class = ClaimSerializer
     permission_classes = [permissions.IsAuthenticated] 
 
+    def _handle_status_change(self, updated_claim, new_status):
+        message = ""
+
+        if new_status == 'Approved':
+            message = f"Your claim for '{updated_claim.report.item_name}' has been Verified. Please proceed to the Guidance Office for physical verification and release."
+        elif new_status == 'Rejected':
+            reason = updated_claim.rejection_reason
+            if reason:
+                message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected. Reason: {reason}"
+            else:
+                message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected."
+        elif new_status == 'Claimed':
+            if not updated_claim.claimant_photo:
+                raise exceptions.ValidationError(
+                    {"detail": "Claimant photo is required before releasing an item."}
+                )
+            if not updated_claim.claimant_id_photo:
+                raise exceptions.ValidationError(
+                    {"detail": "Valid ID / Student ID photo is required before releasing an item."}
+                )
+            message = f"Success! The item '{updated_claim.report.item_name}' has been released to you by the Guidance Office."
+
+            report = updated_claim.report
+            report.status = 'Claimed'
+            report.save()
+
+            related_matches = AIMatch.objects.filter(
+                Q(lost_report=report) | Q(found_report=report)
+            ).exclude(status='Rejected')
+            related_matches.update(
+                match_score=100.0,
+                status='Approved'
+            )
+
+            counterpart_report_ids = set()
+            for match in related_matches.select_related('lost_report', 'found_report'):
+                if match.lost_report_id == report.id:
+                    counterpart_report_ids.add(match.found_report_id)
+                elif match.found_report_id == report.id:
+                    counterpart_report_ids.add(match.lost_report_id)
+
+            if counterpart_report_ids:
+                Report.objects.filter(id__in=counterpart_report_ids).exclude(status='Claimed').update(status='Claimed')
+
+        if message and updated_claim.claimant:
+            Notification.objects.create(
+                recipient=updated_claim.claimant,
+                message=message,
+                report=updated_claim.report
+            )
+
     def perform_create(self, serializer):
         user = self.request.user
         claimant = user
@@ -309,12 +360,29 @@ class ClaimViewSet(viewsets.ModelViewSet):
                 raise exceptions.ValidationError(
                     {"claimantId": "Selected claimant does not exist."}
                 )
+        claimant_full_name = (self.request.data.get('claimantNameInput') or '').strip()
+        validated_full_name = (serializer.validated_data.get('claimant_full_name') or '').strip()
+        is_manual_claim = bool(
+            (user.role in ['Admin', 'Guidance'] or user.is_superuser)
+            and (claimant_full_name or validated_full_name)
+            and not claimant_id
+        )
+        if is_manual_claim:
+            claimant = None
         try:
-            serializer.save(claimant=claimant)
+            created_claim = serializer.save(claimant=claimant)
         except IntegrityError:
             raise exceptions.ValidationError(
                 {"detail": "You already submitted a claim for this item."}
             )
+
+        is_privileged = (user.role in ['Admin', 'Guidance'] or user.is_superuser)
+        if is_privileged and created_claim.status != 'Claimed':
+            created_claim.refresh_from_db()
+            if created_claim.claimant_photo and created_claim.claimant_id_photo:
+                created_claim.status = 'Claimed'
+                created_claim.save(update_fields=['status'])
+                self._handle_status_change(created_claim, 'Claimed')
 
     def get_queryset(self):
         user = self.request.user
@@ -372,62 +440,7 @@ class ClaimViewSet(viewsets.ModelViewSet):
         new_status = updated_claim.status
 
         if old_status != new_status:
-            message = ""
-            
-            # Admin/Guidance verification step (optional)
-            if new_status == 'Approved':
-                message = f"Your claim for '{updated_claim.report.item_name}' has been Verified. Please proceed to the Guidance Office for physical verification and release."
-            
-            # Rejection (By either Admin or Guidance)
-            elif new_status == 'Rejected':
-                # Check if a specific reason was provided
-                reason = updated_claim.rejection_reason
-                if reason:
-                    message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected. Reason: {reason}"
-                else:
-                    message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected."
-            
-            # Guidance Release
-            elif new_status == 'Claimed':
-                if not updated_claim.claimant_photo:
-                    raise exceptions.ValidationError(
-                        {"detail": "Claimant photo is required before releasing an item."}
-                    )
-                message = f"Success! The item '{updated_claim.report.item_name}' has been released to you by the Guidance Office."
-                
-                # Update parent report
-                report = updated_claim.report
-                report.status = 'Claimed'
-                report.save()
-
-                # Mark related AI matches as completed confidence.
-                related_matches = AIMatch.objects.filter(
-                    Q(lost_report=report) | Q(found_report=report)
-                ).exclude(status='Rejected')
-                related_matches.update(
-                    match_score=100.0,
-                    status='Approved'
-                )
-
-                # Also mark counterpart matched reports as claimed so lost posts
-                # do not remain visible as Lost/Matched after release.
-                counterpart_report_ids = set()
-                for match in related_matches.select_related('lost_report', 'found_report'):
-                    if match.lost_report_id == report.id:
-                        counterpart_report_ids.add(match.found_report_id)
-                    elif match.found_report_id == report.id:
-                        counterpart_report_ids.add(match.lost_report_id)
-
-                if counterpart_report_ids:
-                    Report.objects.filter(id__in=counterpart_report_ids).exclude(status='Claimed').update(status='Claimed')
-
-            # Create the notification object if a message was generated
-            if message:
-                Notification.objects.create(
-                    recipient=updated_claim.claimant,
-                    message=message,
-                    report=updated_claim.report
-                )
+            self._handle_status_change(updated_claim, new_status)
     # --- FIX END ---
 
 # --- NOTIFICATION VIEWSET ---
@@ -919,10 +932,10 @@ class AdminAnalyticsView(APIView):
             if date_from_param:
                 date_from = datetime.strptime(date_from_param, '%Y-%m-%d').date()
             else:
-                default_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 365)
+                default_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 90)
                 date_from = today - timedelta(days=default_days - 1)
         except ValueError:
-            fallback_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 365)
+            fallback_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 90)
             date_from = today - timedelta(days=fallback_days - 1)
 
         try:
@@ -969,18 +982,10 @@ class AdminAnalyticsView(APIView):
                     resolution_days.append(delta_days)
         avg_resolution_time_days = (sum(resolution_days) / len(resolution_days)) if resolution_days else 0
 
-        if timeframe == 'week':
-            trunc_func = TruncDay
-            period_step = 'day'
-            period_label = lambda d: d.strftime('%a')
-        elif timeframe == 'month':
-            trunc_func = TruncWeek
-            period_step = 'week'
-            period_label = lambda d: d.strftime('%b %d')
-        else:
-            trunc_func = TruncMonth
-            period_step = 'month'
-            period_label = lambda d: d.strftime('%b')
+        # Always return daily buckets for analytics ranges to keep x-axis accurate.
+        trunc_func = TruncDay
+        period_step = 'day'
+        period_label = lambda d: d.isoformat()
 
         period_reports = (
             reports_qs
@@ -1149,10 +1154,10 @@ class AdminAnalyticsExportDataView(APIView):
             if date_from_param:
                 date_from = datetime.strptime(date_from_param, '%Y-%m-%d').date()
             else:
-                default_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 365)
+                default_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 90)
                 date_from = today - timedelta(days=default_days - 1)
         except ValueError:
-            fallback_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 365)
+            fallback_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 90)
             date_from = today - timedelta(days=fallback_days - 1)
 
         try:

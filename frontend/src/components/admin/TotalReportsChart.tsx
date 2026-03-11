@@ -1,8 +1,7 @@
-import { ChevronDown } from 'lucide-react';
 import {
   CartesianGrid,
-  Line,
-  LineChart,
+  Area,
+  AreaChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,8 +18,8 @@ interface ChartData {
 
 interface TotalReportsChartProps {
   data: ChartData[];
-  timePeriod: 'weekly' | 'monthly' | 'semester';
-  onTimePeriodChange: (period: 'weekly' | 'monthly' | 'semester') => void;
+  timePeriod: 'last7' | 'last30' | 'last90';
+  onTimePeriodChange: (period: 'last7' | 'last30' | 'last90') => void;
 }
 
 export default function TotalReportsChart({ 
@@ -37,35 +36,47 @@ export default function TotalReportsChart({
   };
 
   const series: SeriesItem[] = [
-    { key: 'matched', label: 'Matched', color: '#f97316' },
-    { key: 'claimed', label: 'Claimed', color: '#3b82f6' },
-    { key: 'lost', label: 'Lost', color: '#ef4444', emphasis: true },
-    { key: 'found', label: 'Found', color: '#22c55e' },
+    { key: 'matched', label: 'matched', color: '#f97316' },
+    { key: 'claimed', label: 'claimed', color: '#3b82f6' },
+    { key: 'lost', label: 'lost', color: '#ef4444', emphasis: true },
+    { key: 'found', label: 'found', color: '#22c55e' },
   ];
 
   const formatDate = (value: Date) =>
-    value.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    value.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const buildChartData = () => {
+    const totalPoints = Math.max(data.length, timePeriod === 'last7' ? 7 : timePeriod === 'last30' ? 30 : 90);
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(today.getDate() - (totalPoints - 1));
+
+    return data.map((item, index) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + index);
+      return { ...item, label: formatDate(d) };
+    });
+  };
 
   const getPeriodLabel = () => {
     const today = new Date();
+    const start = new Date(today);
     switch (timePeriod) {
-      case 'weekly': {
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay());
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        return `Weekly Overview (${formatDate(weekStart)} - ${formatDate(weekEnd)})`;
-      }
-      case 'monthly': {
-        const monthLabel = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-        return `Monthly Overview (${monthLabel})`;
-      }
-      case 'semester':
-        return 'Semester Overview (Last 5 months)';
+      case 'last7':
+        start.setDate(today.getDate() - 6);
+        return `Last 7 Days (${formatDate(start)} - ${formatDate(today)})`;
+      case 'last30':
+        start.setDate(today.getDate() - 29);
+        return `Last 30 Days (${formatDate(start)} - ${formatDate(today)})`;
+      case 'last90':
+        start.setDate(today.getDate() - 89);
+        return `Last 90 Days (${formatDate(start)} - ${formatDate(today)})`;
       default:
-        return 'Monthly Overview';
+        return 'Last 30 Days';
     }
   };
+
+  const chartData = buildChartData();
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-full min-h-[420px] flex flex-col">
@@ -75,23 +86,23 @@ export default function TotalReportsChart({
           <p className="text-gray-600 text-sm">{getPeriodLabel()}</p>
         </div>
 
-        {/* Filters - Top Right */}
-        <div className="flex gap-2 items-end">
-          {/* Time Period Dropdown */}
-          <div className="relative">
-            <div className="relative">
-              <select
-                value={timePeriod}
-                onChange={(e) => onTimePeriodChange(e.target.value as 'weekly' | 'monthly' | 'semester')}
-                className="w-36 px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs text-gray-700 appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer"
-              >
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="semester">Semester</option>
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none" />
-            </div>
-          </div>
+        <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+          {([
+            { key: 'last90', label: 'Last 90 days' },
+            { key: 'last30', label: 'Last 30 days' },
+            { key: 'last7', label: 'Last 7 days' },
+          ] as const).map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onTimePeriodChange(item.key)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${
+                timePeriod === item.key ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -99,13 +110,23 @@ export default function TotalReportsChart({
       <div className="flex-1 min-h-[220px]">
         {hasData ? (
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+              <defs>
+                {series.map((item) => (
+                  <linearGradient key={item.key} id={`totalReports-${item.key}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={item.color} stopOpacity={0.32} />
+                    <stop offset="95%" stopColor={item.color} stopOpacity={0.02} />
+                  </linearGradient>
+                ))}
+              </defs>
               <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" />
               <XAxis
-                dataKey="period"
+                dataKey="label"
                 tickLine={false}
                 axisLine={false}
                 tick={{ fill: '#6b7280', fontSize: 12 }}
+                minTickGap={18}
+                interval="preserveStartEnd"
               />
               <YAxis
                 allowDecimals={false}
@@ -124,19 +145,20 @@ export default function TotalReportsChart({
                   fontSize: '12px',
                 }}
               />
-              {series.map((line) => (
-                <Line
-                  key={line.key}
+              {series.map((item) => (
+                <Area
+                  key={item.key}
                   type="monotone"
-                  dataKey={line.key}
-                  name={line.label}
-                  stroke={line.color}
-                  strokeWidth={line.emphasis ? 3.25 : 2.5}
-                  dot={{ r: line.emphasis ? 4 : 3 }}
-                  activeDot={{ r: line.emphasis ? 6 : 5 }}
+                  dataKey={item.key}
+                  name={item.label}
+                  stroke={item.color}
+                  fill={`url(#totalReports-${item.key})`}
+                  strokeWidth={item.emphasis ? 3 : 2.4}
+                  dot={{ r: item.emphasis ? 4 : 3 }}
+                  activeDot={{ r: item.emphasis ? 6 : 5 }}
                 />
               ))}
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         ) : (
           <div className="h-[260px] flex items-center justify-center text-sm text-gray-500">

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Eye, X, PackageCheck, Printer, FileText } from 'lucide-react';
 import DashboardHeader from '../../components/admin/DashboardHeader';
-import { fetchClaims, updateClaimStatus, fetchReports } from '../../services/api';
+import { fetchClaims, updateClaimStatus, fetchReports, updateClaimProof } from '../../services/api';
 import type { Claim } from '../../types/claim';
 import type { Report } from '../../types/report';
 
@@ -11,6 +11,12 @@ export default function ClaimReview() {
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'Pending' | 'Approved' | 'Claimed' | 'All'>('Pending');
+  const [idUpload, setIdUpload] = useState<File | null>(null);
+  const [idPreview, setIdPreview] = useState<string | null>(null);
+  const [letterUpload, setLetterUpload] = useState<File | null>(null);
+  const [letterPreview, setLetterPreview] = useState<string | null>(null);
+  const [contactDraft, setContactDraft] = useState('');
+  const [updateBusy, setUpdateBusy] = useState(false);
 
   // Load both claims and reports to map images
   const loadData = async () => {
@@ -51,10 +57,20 @@ export default function ClaimReview() {
     }
   };
 
+  const resetUploadState = () => {
+    setIdUpload(null);
+    setIdPreview(null);
+    setLetterUpload(null);
+    setLetterPreview(null);
+    setContactDraft('');
+  };
+
   const handlePrintClaimReport = (claim: Claim) => {
     const reportImage = claim.reportImage || getReportImage(claim.itemName);
     const proofImage = claim.proof_image || claim.proofImage || '';
     const claimantPhoto = claim.claimant_photo || claim.claimantPhoto || '';
+    const claimantIdPhoto = claim.claimant_id_photo || claim.claimantIdPhoto || '';
+    const authorizationLetter = claim.authorization_letter || claim.authorizationLetter || '';
     const html = `
       <!doctype html>
       <html>
@@ -82,6 +98,7 @@ export default function ClaimReview() {
               <div class="label">Student Claimant</div>
               <div class="value">${claim.claimantName}</div>
               <div class="value">${claim.claimantRole}</div>
+              <div class="value">Contact: ${claim.claimantContact || 'N/A'}</div>
             </div>
             <div class="card">
               <div class="label">Item</div>
@@ -114,6 +131,14 @@ export default function ClaimReview() {
           <h2>Claimant Identification Photo</h2>
           <div class="card">
             ${claimantPhoto ? `<img src="${claimantPhoto}" alt="Claimant Photo" />` : '<div class="value">No claimant photo uploaded.</div>'}
+          </div>
+          <h2>Valid ID / Student ID</h2>
+          <div class="card">
+            ${claimantIdPhoto ? `<img src="${claimantIdPhoto}" alt="Claimant ID" />` : '<div class="value">No ID photo uploaded.</div>'}
+          </div>
+          <h2>Authorization Letter</h2>
+          <div class="card">
+            ${authorizationLetter ? `<img src="${authorizationLetter}" alt="Authorization Letter" />` : '<div class="value">No authorization letter uploaded.</div>'}
           </div>
         </body>
       </html>
@@ -322,6 +347,7 @@ export default function ClaimReview() {
                     <p className="text-xs font-bold text-gray-500 uppercase mb-2">Student Details</p>
                     <p className="text-sm font-semibold text-gray-900">{selectedClaim.claimantName}</p>
                     <p className="text-xs text-gray-500">{selectedClaim.claimantRole}</p>
+                    <p className="text-xs text-gray-500">{selectedClaim.claimantContact || 'No contact number provided'}</p>
                     <p className="text-xs text-gray-500 mt-2">Claim ID: #{selectedClaim.id}</p>
                     <p className="text-xs text-gray-500">Date: {new Date(selectedClaim.date).toLocaleDateString()}</p>
                   </div>
@@ -377,6 +403,98 @@ export default function ClaimReview() {
                       </div>
                     )}
                   </div>
+
+                  <div className="md:col-span-2 bg-white border border-gray-200 rounded-xl p-4">
+                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">Valid ID / Student ID Photo</p>
+                    {selectedClaim.claimant_id_photo || selectedClaim.claimantIdPhoto ? (
+                      <img
+                        src={selectedClaim.claimant_id_photo || selectedClaim.claimantIdPhoto || ''}
+                        alt="Claimant ID"
+                        className="w-full md:w-80 h-56 object-cover rounded-lg border border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-full rounded-lg border border-dashed border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                        Missing ID photo. Upload is required before release.
+                      </div>
+                    )}
+                    {!(selectedClaim.claimant_id_photo || selectedClaim.claimantIdPhoto) && (
+                      <div className="mt-3 space-y-2">
+                        {idPreview ? (
+                          <div className="relative w-full md:w-80 rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                            <img src={idPreview} alt="ID preview" className="w-full h-56 object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => { setIdUpload(null); setIdPreview(null); }}
+                              className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-indigo-200 text-indigo-700 text-sm font-semibold cursor-pointer hover:bg-indigo-50">
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setIdUpload(file);
+                                setIdPreview(URL.createObjectURL(file));
+                              }}
+                            />
+                            Upload ID Photo
+                          </label>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="md:col-span-2 bg-white border border-gray-200 rounded-xl p-4">
+                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">Authorization Letter</p>
+                    {selectedClaim.authorization_letter || selectedClaim.authorizationLetter ? (
+                      <img
+                        src={selectedClaim.authorization_letter || selectedClaim.authorizationLetter || ''}
+                        alt="Authorization letter"
+                        className="w-full md:w-80 h-56 object-cover rounded-lg border border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-full rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+                        No authorization letter uploaded.
+                      </div>
+                    )}
+                    {!(selectedClaim.authorization_letter || selectedClaim.authorizationLetter) && (
+                      <div className="mt-3 space-y-2">
+                        {letterPreview ? (
+                          <div className="relative w-full md:w-80 rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                            <img src={letterPreview} alt="Letter preview" className="w-full h-56 object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => { setLetterUpload(null); setLetterPreview(null); }}
+                              className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-amber-200 text-amber-700 text-sm font-semibold cursor-pointer hover:bg-amber-50">
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setLetterUpload(file);
+                                setLetterPreview(URL.createObjectURL(file));
+                              }}
+                            />
+                            Upload Authorization Letter
+                          </label>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -387,6 +505,44 @@ export default function ClaimReview() {
               {/* Guidance can release directly from Pending or Approved */}
               {(selectedClaim.status === 'Approved' || selectedClaim.status === 'Pending') && (
                  <>
+                    {(idUpload || letterUpload || contactDraft.trim()) && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            setUpdateBusy(true);
+                            await updateClaimProof(
+                              selectedClaim.id,
+                              selectedClaim.proofDescription || '',
+                              null,
+                              null,
+                              idUpload,
+                              letterUpload,
+                              contactDraft.trim() || undefined
+                            );
+                            await loadData();
+                            setSelectedClaim((prev) => {
+                              if (!prev) return prev;
+                              return {
+                                ...prev,
+                                claimant_id_photo: idUpload ? 'updating' : prev.claimant_id_photo,
+                                authorization_letter: letterUpload ? 'updating' : prev.authorization_letter,
+                                claimantContact: contactDraft.trim() || prev.claimantContact,
+                              } as Claim;
+                            });
+                            resetUploadState();
+                          } catch (err) {
+                            alert('Failed to upload missing documents.');
+                          } finally {
+                            setUpdateBusy(false);
+                          }
+                        }}
+                        className="px-4 py-3 bg-white border border-indigo-200 text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors"
+                        disabled={updateBusy}
+                      >
+                        {updateBusy ? 'Saving...' : 'Save Documents'}
+                      </button>
+                    )}
                     <button 
                         onClick={() => handleAction(selectedClaim.id, 'Rejected')}
                         className="px-6 py-3 bg-white border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center gap-2"
@@ -395,7 +551,10 @@ export default function ClaimReview() {
                     </button>
 
                     <button 
-                        disabled={!(selectedClaim.claimant_photo || selectedClaim.claimantPhoto)}
+                        disabled={!(
+                          (selectedClaim.claimant_photo || selectedClaim.claimantPhoto) &&
+                          (selectedClaim.claimant_id_photo || selectedClaim.claimantIdPhoto || idUpload)
+                        )}
                         onClick={() => handleAction(selectedClaim.id, 'Claimed')}
                         className="w-full px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >

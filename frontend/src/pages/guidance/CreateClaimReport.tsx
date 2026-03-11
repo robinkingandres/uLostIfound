@@ -15,6 +15,7 @@ export default function CreateClaimReport() {
     reportId: '',
     claimantName: '',
     claimantSchoolId: '',
+    claimantContact: '',
     proofDescription: '',
   });
 
@@ -22,11 +23,17 @@ export default function CreateClaimReport() {
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [claimantPhoto, setClaimantPhoto] = useState<File | null>(null);
   const [claimantPreview, setClaimantPreview] = useState<string | null>(null);
+  const [claimantIdPhoto, setClaimantIdPhoto] = useState<File | null>(null);
+  const [claimantIdPreview, setClaimantIdPreview] = useState<string | null>(null);
+  const [authorizationLetter, setAuthorizationLetter] = useState<File | null>(null);
+  const [authorizationPreview, setAuthorizationPreview] = useState<string | null>(null);
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
   const [showItemDetails, setShowItemDetails] = useState(false);
 
   const proofInputRef = useRef<HTMLInputElement>(null);
   const claimantPhotoRef = useRef<HTMLInputElement>(null);
+  const claimantIdRef = useRef<HTMLInputElement>(null);
+  const authorizationRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -45,6 +52,7 @@ export default function CreateClaimReport() {
     load();
   }, []);
 
+
   const selectedReport = useMemo(
     () => reports.find((r) => String(r.id) === form.reportId) || null,
     [reports, form.reportId]
@@ -52,7 +60,7 @@ export default function CreateClaimReport() {
 
   const onSelectFile = (
     e: React.ChangeEvent<HTMLInputElement>,
-    kind: 'proof' | 'claimant'
+    kind: 'proof' | 'claimant' | 'id' | 'letter'
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -68,9 +76,15 @@ export default function CreateClaimReport() {
     if (kind === 'proof') {
       setProofImage(file);
       setProofPreview(URL.createObjectURL(file));
-    } else {
+    } else if (kind === 'claimant') {
       setClaimantPhoto(file);
       setClaimantPreview(URL.createObjectURL(file));
+    } else if (kind === 'id') {
+      setClaimantIdPhoto(file);
+      setClaimantIdPreview(URL.createObjectURL(file));
+    } else {
+      setAuthorizationLetter(file);
+      setAuthorizationPreview(URL.createObjectURL(file));
     }
   };
 
@@ -79,12 +93,16 @@ export default function CreateClaimReport() {
     setError('');
     setSuccess('');
 
-    if (!form.reportId || !form.claimantName.trim() || !form.proofDescription.trim()) {
+    if (!form.reportId || !form.claimantName.trim() || !form.proofDescription.trim() || !form.claimantContact.trim()) {
       setError('Please complete all required fields.');
       return;
     }
-    if (!claimantPhoto) {
+    if (!claimantPhoto && !claimantPreview) {
       setError('Claimant photo is required.');
+      return;
+    }
+    if (!claimantIdPhoto && !claimantIdPreview) {
+      setError('Valid ID / Student ID photo is required.');
       return;
     }
 
@@ -95,17 +113,24 @@ export default function CreateClaimReport() {
         form.proofDescription.trim(),
         proofImage,
         claimantPhoto,
+        claimantIdPhoto,
+        authorizationLetter,
+        form.claimantContact.trim(),
         {
           claimantName: form.claimantName.trim(),
           claimantSchoolId: form.claimantSchoolId.trim(),
         }
       );
       setSuccess('Claim report created successfully.');
-      setForm({ reportId: '', claimantName: '', claimantSchoolId: '', proofDescription: '' });
+      setForm({ reportId: '', claimantName: '', claimantSchoolId: '', claimantContact: '', proofDescription: '' });
       setProofImage(null);
       setProofPreview(null);
       setClaimantPhoto(null);
       setClaimantPreview(null);
+      setClaimantIdPhoto(null);
+      setClaimantIdPreview(null);
+      setAuthorizationLetter(null);
+      setAuthorizationPreview(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create claim report.');
     } finally {
@@ -197,6 +222,7 @@ export default function CreateClaimReport() {
                     <p className="text-xs uppercase font-bold text-gray-500">Claimant (Walk-in)</p>
                     <p className="text-sm font-semibold text-gray-900 mt-1">{form.claimantName.trim() || '-'}</p>
                     <p className="text-xs text-gray-500">{form.claimantSchoolId.trim() || 'No school ID provided'}</p>
+                    <p className="text-xs text-gray-500">{form.claimantContact.trim() || 'Contact number required'}</p>
                   </div>
                 </div>
 
@@ -209,6 +235,17 @@ export default function CreateClaimReport() {
                       onChange={(e) => setForm((p) => ({ ...p, claimantSchoolId: e.target.value }))}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50/50"
                       placeholder="e.g., 2020-123456"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-gray-700">Claimant Contact Number <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={form.claimantContact}
+                      onChange={(e) => setForm((p) => ({ ...p, claimantContact: e.target.value }))}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50/50"
+                      placeholder="e.g., 0917-123-4567"
+                      required
                     />
                   </div>
                 </div>
@@ -258,6 +295,46 @@ export default function CreateClaimReport() {
                       <button type="button" onClick={() => claimantPhotoRef.current?.click()} className="w-full border-2 border-dashed border-emerald-300 rounded-xl p-4 flex flex-col items-center gap-2 hover:bg-emerald-50/50">
                         <UserCircle2 className="w-6 h-6 text-emerald-500" />
                         <span className="text-sm font-semibold text-emerald-700">Upload Claimant Photo</span>
+                        <span className="text-xs text-gray-500">Required for release documentation</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Valid ID / Student ID Photo <span className="text-red-500">*</span></label>
+                    <input ref={claimantIdRef} type="file" className="hidden" accept="image/*" onChange={(e) => onSelectFile(e, 'id')} />
+                    {claimantIdPreview ? (
+                      <div className="relative w-full rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
+                        <img src={claimantIdPreview} alt="Claimant ID" className="w-full h-44 object-cover cursor-zoom-in" onClick={() => setZoomSrc(claimantIdPreview)} />
+                        <button type="button" onClick={() => { setClaimantIdPhoto(null); setClaimantIdPreview(null); }} className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => claimantIdRef.current?.click()} className="w-full border-2 border-dashed border-indigo-300 rounded-xl p-4 flex flex-col items-center gap-2 hover:bg-indigo-50/50">
+                        <Upload className="w-6 h-6 text-indigo-500" />
+                        <span className="text-sm font-semibold text-indigo-700">Upload ID Photo</span>
+                        <span className="text-xs text-gray-500">Required to confirm claimant identity</span>
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Authorization Letter (Optional)</label>
+                    <input ref={authorizationRef} type="file" className="hidden" accept="image/*" onChange={(e) => onSelectFile(e, 'letter')} />
+                    {authorizationPreview ? (
+                      <div className="relative w-full rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
+                        <img src={authorizationPreview} alt="Authorization Letter" className="w-full h-44 object-cover cursor-zoom-in" onClick={() => setZoomSrc(authorizationPreview)} />
+                        <button type="button" onClick={() => { setAuthorizationLetter(null); setAuthorizationPreview(null); }} className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => authorizationRef.current?.click()} className="w-full border-2 border-dashed border-amber-300 rounded-xl p-4 flex flex-col items-center gap-2 hover:bg-amber-50/50">
+                        <FileText className="w-6 h-6 text-amber-500" />
+                        <span className="text-sm font-semibold text-amber-700">Upload Authorization Letter</span>
+                        <span className="text-xs text-gray-500">Use when claimant is not the owner</span>
                       </button>
                     )}
                   </div>

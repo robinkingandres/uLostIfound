@@ -50,13 +50,21 @@ export default function ReportFoundSuccess() {
           )}
         </p>
 
-        {/* Back Home Button */}
-        <button 
-          onClick={() => navigate(isGuidanceReporter ? '/guidance/dashboard' : '/home')}
-          className="mt-12 font-semibold hover:underline transition-all active:scale-95 text-cyan-500"
-        >
-          {isGuidanceReporter ? 'Return to Guidance Dashboard' : 'Return to Home'}
-        </button>
+        {/* Action Buttons */}
+        <div className="mt-10 flex flex-col gap-3 w-full">
+          <button
+            onClick={() => navigate('/report-found')}
+            className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#29b6f6] hover:bg-[#039be5] active:scale-95 transition-all shadow-md shadow-cyan-100"
+          >
+            Report Another Found Item
+          </button>
+          <button 
+            onClick={() => navigate(isGuidanceReporter ? '/guidance/dashboard' : '/home')}
+            className="w-full py-3 rounded-xl text-sm font-bold text-cyan-600 border border-cyan-200 hover:bg-cyan-50 active:scale-95 transition-all"
+          >
+            {isGuidanceReporter ? 'Return to Guidance Dashboard' : 'Return to Home'}
+          </button>
+        </div>
 
       </main>
     </div>

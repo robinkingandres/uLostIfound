@@ -20,6 +20,11 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
 
   const [claimantPhoto, setClaimantPhoto] = useState<File | null>(null);
   const [claimantPhotoPreview, setClaimantPhotoPreview] = useState<string | null>(null);
+  const [claimantIdPhoto, setClaimantIdPhoto] = useState<File | null>(null);
+  const [claimantIdPreview, setClaimantIdPreview] = useState<string | null>(null);
+  const [authorizationLetter, setAuthorizationLetter] = useState<File | null>(null);
+  const [authorizationPreview, setAuthorizationPreview] = useState<string | null>(null);
+  const [claimantContact, setClaimantContact] = useState('');
 
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewTarget, setPreviewTarget] = useState<string | null>(null);
@@ -30,6 +35,8 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
 
   const proofImageInputRef = useRef<HTMLInputElement>(null);
   const claimantPhotoInputRef = useRef<HTMLInputElement>(null);
+  const claimantIdInputRef = useRef<HTMLInputElement>(null);
+  const authorizationInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchSiteSettings()
@@ -57,14 +64,22 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
             null;
 
           const existingClaimantPhoto = current.claimant_photo || current.claimantPhoto || null;
+          const existingClaimantIdPhoto = current.claimant_id_photo || current.claimantIdPhoto || null;
+          const existingAuthorizationLetter = current.authorization_letter || current.authorizationLetter || null;
 
           setDescription(current.proofDescription || '');
           setProofImagePreview(existingProofImage);
           setClaimantPhotoPreview(existingClaimantPhoto);
+          setClaimantIdPreview(existingClaimantIdPhoto);
+          setAuthorizationPreview(existingAuthorizationLetter);
+          setClaimantContact(current.claimantContact || '');
         } else {
           setDescription('');
           setProofImagePreview(null);
           setClaimantPhotoPreview(null);
+          setClaimantIdPreview(null);
+          setAuthorizationPreview(null);
+          setClaimantContact('');
         }
       } catch {
         if (!mounted) return;
@@ -115,6 +130,26 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
     setError('');
   };
 
+  const handleClaimantIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!validateImageFile(file, 'ID')) return;
+
+    setClaimantIdPhoto(file);
+    setClaimantIdPreview(URL.createObjectURL(file));
+    setError('');
+  };
+
+  const handleAuthorizationLetterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!validateImageFile(file, 'authorization letter')) return;
+
+    setAuthorizationLetter(file);
+    setAuthorizationPreview(URL.createObjectURL(file));
+    setError('');
+  };
+
   const removeProofImage = () => {
     setProofImage(null);
     setProofImagePreview(null);
@@ -125,6 +160,18 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
     setClaimantPhoto(null);
     setClaimantPhotoPreview(null);
     if (claimantPhotoInputRef.current) claimantPhotoInputRef.current.value = '';
+  };
+
+  const removeClaimantIdPhoto = () => {
+    setClaimantIdPhoto(null);
+    setClaimantIdPreview(null);
+    if (claimantIdInputRef.current) claimantIdInputRef.current.value = '';
+  };
+
+  const removeAuthorizationLetter = () => {
+    setAuthorizationLetter(null);
+    setAuthorizationPreview(null);
+    if (authorizationInputRef.current) authorizationInputRef.current.value = '';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -149,6 +196,11 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
       setLoading(false);
       return;
     }
+    if (!claimantIdPhoto && !claimantIdPreview) {
+      setError('Valid ID / Student ID photo is required.');
+      setLoading(false);
+      return;
+    }
 
     if (hasNonEditableExistingClaim) {
       setError('You already submitted a claim for this item.');
@@ -158,10 +210,26 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
 
     try {
       if (isPendingExistingClaim && existingClaim) {
-        await updateClaimProof(existingClaim.id, description, proofImage, claimantPhoto);
+        await updateClaimProof(
+          existingClaim.id,
+          description,
+          proofImage,
+          claimantPhoto,
+          claimantIdPhoto,
+          authorizationLetter,
+          claimantContact.trim() || undefined
+        );
         alert('Claim form updated successfully. Admin will continue reviewing your claim.');
       } else {
-        await createClaim(reportId, description, proofImage, claimantPhoto);
+        await createClaim(
+          reportId,
+          description,
+          proofImage,
+          claimantPhoto,
+          claimantIdPhoto,
+          authorizationLetter,
+          claimantContact.trim() || undefined
+        );
         alert('Claim form submitted successfully.');
       }
 
@@ -171,6 +239,11 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
       setProofImagePreview(null);
       setClaimantPhoto(null);
       setClaimantPhotoPreview(null);
+      setClaimantIdPhoto(null);
+      setClaimantIdPreview(null);
+      setAuthorizationLetter(null);
+      setAuthorizationPreview(null);
+      setClaimantContact('');
       setExistingClaim(null);
     } catch (err) {
       console.error(err);
@@ -236,6 +309,18 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
               <p className="text-sm font-semibold text-gray-900 mt-1">{user?.name || user?.username || 'Student'}</p>
               <p className="text-xs text-gray-500">{user?.userId || 'No school ID'}</p>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-bold text-gray-700">Contact Number (Optional)</label>
+            <input
+              type="text"
+              value={claimantContact}
+              onChange={(e) => setClaimantContact(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none bg-gray-50/50 focus:bg-white transition-all"
+              placeholder="e.g., 0917-123-4567"
+              disabled={hasNonEditableExistingClaim}
+            />
           </div>
 
           <div className="space-y-1.5">
@@ -338,6 +423,98 @@ export default function ClaimModal({ reportId, itemName, isOpen, onClose }: Clai
                 <UserCircle2 className="w-7 h-7 text-emerald-500" />
                 <span className="text-sm font-semibold text-emerald-700">Upload Claimant Photo</span>
                 <span className="text-xs text-gray-500">Required for release documentation</span>
+              </button>
+            )}
+          </div>
+
+          <input
+            type="file"
+            ref={claimantIdInputRef}
+            accept="image/*"
+            onChange={handleClaimantIdChange}
+            className="hidden"
+          />
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+              <Camera className="w-4 h-4 text-gray-400" />
+              Valid ID / Student ID Photo <span className="text-red-500">*</span>
+            </label>
+
+            {claimantIdPreview ? (
+              <div className="relative w-full sm:w-80 rounded-xl border border-gray-200 overflow-hidden bg-gray-50 group">
+                <img
+                  src={claimantIdPreview}
+                  alt="Claimant ID"
+                  className="w-full h-48 object-cover cursor-zoom-in"
+                  onClick={() => openPreview(claimantIdPreview)}
+                />
+                {!hasNonEditableExistingClaim && (
+                  <button
+                    type="button"
+                    onClick={removeClaimantIdPhoto}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => claimantIdInputRef.current?.click()}
+                disabled={hasNonEditableExistingClaim}
+                className="w-full sm:w-80 border-2 border-dashed border-indigo-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-indigo-50/50 transition-colors"
+              >
+                <Upload className="w-7 h-7 text-indigo-500" />
+                <span className="text-sm font-semibold text-indigo-700">Upload ID Photo</span>
+                <span className="text-xs text-gray-500">Required for identity verification</span>
+              </button>
+            )}
+          </div>
+
+          <input
+            type="file"
+            ref={authorizationInputRef}
+            accept="image/*"
+            onChange={handleAuthorizationLetterChange}
+            className="hidden"
+          />
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-gray-400" />
+              Authorization Letter (Optional)
+            </label>
+
+            {authorizationPreview ? (
+              <div className="relative w-full sm:w-80 rounded-xl border border-gray-200 overflow-hidden bg-gray-50 group">
+                <img
+                  src={authorizationPreview}
+                  alt="Authorization letter"
+                  className="w-full h-48 object-cover cursor-zoom-in"
+                  onClick={() => openPreview(authorizationPreview)}
+                />
+                {!hasNonEditableExistingClaim && (
+                  <button
+                    type="button"
+                    onClick={removeAuthorizationLetter}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => authorizationInputRef.current?.click()}
+                disabled={hasNonEditableExistingClaim}
+                className="w-full sm:w-80 border-2 border-dashed border-amber-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-amber-50/50 transition-colors"
+              >
+                <Upload className="w-7 h-7 text-amber-500" />
+                <span className="text-sm font-semibold text-amber-700">Upload Authorization Letter</span>
+                <span className="text-xs text-gray-500">Use when claimant is not the owner</span>
               </button>
             )}
           </div>

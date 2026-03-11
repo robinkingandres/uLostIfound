@@ -20,4 +20,8 @@ export interface Report {
   status: ReportStatus;
   date: string;
   image: string;
+  returnedByPhoto?: string | null;
+  claimantName?: string | null;
+  claimantPhoto?: string | null;
+  claimantContact?: string | null;
 }

@@ -60,7 +60,13 @@ interface DashboardStats {
   reportsByMonth: { period: string; lost: number; found: number; matched: number; claimed: number }[];
 }
 
-export const fetchDashboardStats = async (timePeriod: string = 'monthly'): Promise<DashboardStats> => {
+const dashboardTimePeriodMap: Record<'last7' | 'last30' | 'last90', string> = {
+  last7: 'weekly',
+  last30: 'monthly',
+  last90: 'semester',
+};
+
+export const fetchDashboardStats = async (timePeriod: 'last7' | 'last30' | 'last90' = 'last30'): Promise<DashboardStats> => {
     const csrfToken = await fetchCsrfToken(); 
 
     if (!csrfToken) {
@@ -68,7 +74,7 @@ export const fetchDashboardStats = async (timePeriod: string = 'monthly'): Promi
     }
     
     const url = new URL(DASHBOARD_STATS_URL, window.location.origin);
-    url.searchParams.append('time_period', timePeriod);
+    url.searchParams.append('time_period', dashboardTimePeriodMap[timePeriod] ?? 'monthly');
     
     const response = await fetch(url.toString(), { 
       credentials: 'include', 
@@ -94,6 +100,9 @@ export const createClaim = async (
   proofDescription: string,
   proofImage: File | null,
   claimantPhoto: File | null,
+  claimantIdPhoto: File | null,
+  authorizationLetter: File | null,
+  claimantContact?: string,
   options?: {
     claimantId?: number;
     claimantName?: string;
@@ -115,6 +124,15 @@ export const createClaim = async (
   }
   if (claimantPhoto) {
     formData.append('claimantPhoto', claimantPhoto);
+  }
+  if (claimantIdPhoto) {
+    formData.append('claimantIdPhoto', claimantIdPhoto);
+  }
+  if (authorizationLetter) {
+    formData.append('authorizationLetter', authorizationLetter);
+  }
+  if (claimantContact) {
+    formData.append('claimantContact', claimantContact);
   }
   if (options?.claimantId) {
     formData.append('claimantId', options.claimantId.toString());
@@ -165,7 +183,10 @@ export const updateClaimProof = async (
   claimId: number,
   proofDescription: string,
   proofImage?: File | null,
-  claimantPhoto?: File | null
+  claimantPhoto?: File | null,
+  claimantIdPhoto?: File | null,
+  authorizationLetter?: File | null,
+  claimantContact?: string
 ): Promise<Claim> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
@@ -178,6 +199,15 @@ export const updateClaimProof = async (
   if (claimantPhoto) {
     formData.append('claimantPhoto', claimantPhoto);
   }
+  if (claimantIdPhoto) {
+    formData.append('claimantIdPhoto', claimantIdPhoto);
+  }
+  if (authorizationLetter) {
+    formData.append('authorizationLetter', authorizationLetter);
+  }
+  if (claimantContact) {
+    formData.append('claimantContact', claimantContact);
+  }
 
   const response = await fetch(`${CLAIM_URL}${claimId}/`, {
     method: 'PATCH',
@@ -189,6 +219,30 @@ export const updateClaimProof = async (
   if (!response.ok) {
     const detail = await parseErrorResponse(response);
     throw new Error(detail || 'Failed to update claim proof');
+  }
+  return response.json();
+};
+
+export const updateClaimContact = async (claimId: number, payload: { claimantName?: string; claimantContact?: string }): Promise<Claim> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
+
+  const response = await fetch(`${CLAIM_URL}${claimId}/`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify({
+      claimantNameInput: payload.claimantName,
+      claimantContact: payload.claimantContact,
+    }),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const detail = await parseErrorResponse(response);
+    throw new Error(detail || 'Failed to update claimant contact');
   }
   return response.json();
 };
@@ -225,7 +279,11 @@ export const updateClaimStatus = async (
 //                      REPORT CRUD FUNCTIONS
 // =================================================================
 
-export const createReport = async (data: ReportPayload, imageFile: File | null): Promise<Report> => {
+export const createReport = async (
+  data: ReportPayload,
+  imageFile: File | null,
+  returnedByPhoto?: File | null
+): Promise<Report> => {
   const csrfToken = await fetchCsrfToken();
   
   if (!csrfToken) {
@@ -240,6 +298,9 @@ export const createReport = async (data: ReportPayload, imageFile: File | null):
 
   if (imageFile) {
     formData.append('image', imageFile);
+  }
+  if (returnedByPhoto) {
+    formData.append('returnedByPhoto', returnedByPhoto);
   }
 
   const response = await fetch(REPORT_URL, {

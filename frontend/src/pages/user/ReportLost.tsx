@@ -280,7 +280,7 @@ export default function ReportLost() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-gray-700">When did you lose it? <span className="text-red-500">*</span></label>
+                  <label className="text-sm font-bold text-gray-700">Date Lost <span className="text-red-500">*</span></label>
                   <input 
                     type="date" 
                     name="dateLost" 

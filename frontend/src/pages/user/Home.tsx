@@ -190,6 +190,12 @@ export default function UserHome() {
   const unreadPublicUpdates = publicUpdates.filter((u) => !u.read).length;
 
   const filteredReports = reports.filter((report) => {
+    const hideClaimedFoundDuplicate =
+      report.status === 'Claimed' &&
+      report.type === 'Found' &&
+      (report.isMatched || report.publicStatus === 'Matched');
+    if (hideClaimedFoundDuplicate) return false;
+
     const statusMeta = getStatusMeta(report);
     const matchesSearch =
       report.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||

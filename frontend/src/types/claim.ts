@@ -11,6 +11,11 @@ export interface Claim {
   proof_image?: string | null;
   claimantPhoto?: string | null;
   claimant_photo?: string | null;
+  claimantIdPhoto?: string | null;
+  claimant_id_photo?: string | null;
+  authorizationLetter?: string | null;
+  authorization_letter?: string | null;
+  claimantContact?: string | null;
   proofImageUrl?: string | null;
   proofImageBase64?: string | null;
   date: string;

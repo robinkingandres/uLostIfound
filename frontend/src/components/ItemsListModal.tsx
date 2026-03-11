@@ -1,4 +1,5 @@
-import { X, Download, FileText } from 'lucide-react';
+import { useState } from 'react';
+import { X, Download, FileText, Image as ImageIcon } from 'lucide-react';
 import type { Report } from '../types/report';
 import type { Claim } from '../types/claim';
 
@@ -12,6 +13,8 @@ interface ItemsListModalProps {
 
 export default function ItemsListModal({ isOpen, onClose, title, items, type }: ItemsListModalProps) {
   if (!isOpen) return null;
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [previewAlt, setPreviewAlt] = useState<string>('');
 
   const formatDate = (dateString: string) => {
     try {
@@ -23,6 +26,26 @@ export default function ItemsListModal({ isOpen, onClose, title, items, type }: 
   };
 
   const generateReceipt = (item: Report | Claim) => {
+    const reportImage =
+      type === 'reports'
+        ? (item as Report).image
+        : (item as Claim).reportImage || '';
+    const proofImage =
+      type === 'claims'
+        ? ((item as Claim).proof_image || (item as Claim).proofImage || '')
+        : '';
+    const claimantPhoto =
+      type === 'claims'
+        ? ((item as Claim).claimant_photo || (item as Claim).claimantPhoto || '')
+        : '';
+    const claimantIdPhoto =
+      type === 'claims'
+        ? ((item as Claim).claimant_id_photo || (item as Claim).claimantIdPhoto || '')
+        : '';
+    const authorizationLetter =
+      type === 'claims'
+        ? ((item as Claim).authorization_letter || (item as Claim).authorizationLetter || '')
+        : '';
     const receiptContent = `
 <!DOCTYPE html>
 <html>
@@ -99,6 +122,8 @@ export default function ItemsListModal({ isOpen, onClose, title, items, type }: 
     .status-claimed { background: #d4edda; color: #155724; }
     .status-rejected { background: #f8d7da; color: #721c24; }
     .status-approved { background: #d1ecf1; color: #0c5460; }
+    .photo-block { margin: 16px 0; }
+    .photo-block img { max-width: 240px; max-height: 180px; border: 1px solid #e5e7eb; border-radius: 8px; }
   </style>
 </head>
 <body>
@@ -110,6 +135,12 @@ export default function ItemsListModal({ isOpen, onClose, title, items, type }: 
 
   <div class="receipt-info">
     <h2>${type === 'reports' ? 'Item Report Details' : 'Item Claim Details'}</h2>
+    ${reportImage ? `
+      <div class="photo-block">
+        <span class="label">Photo:</span><br />
+        <img src="${reportImage}" alt="Item photo" />
+      </div>
+    ` : ''}
     ${type === 'reports' ? `
       <div class="info-row">
         <span class="label">Item Name:</span>
@@ -153,6 +184,10 @@ export default function ItemsListModal({ isOpen, onClose, title, items, type }: 
         <span class="value">${(item as Claim).claimantName}</span>
       </div>
       <div class="info-row">
+        <span class="label">Contact Number:</span>
+        <span class="value">${(item as Claim).claimantContact || 'N/A'}</span>
+      </div>
+      <div class="info-row">
         <span class="label">Claimant Role:</span>
         <span class="value">${(item as Claim).claimantRole}</span>
       </div>
@@ -168,6 +203,30 @@ export default function ItemsListModal({ isOpen, onClose, title, items, type }: 
         <span class="label">Proof Description:</span>
         <span class="value">${(item as Claim).proofDescription}</span>
       </div>
+      ${proofImage ? `
+        <div class="photo-block">
+          <span class="label">Proof Image:</span><br />
+          <img src="${proofImage}" alt="Proof image" />
+        </div>
+      ` : ''}
+      ${claimantPhoto ? `
+        <div class="photo-block">
+          <span class="label">Claimant Photo:</span><br />
+          <img src="${claimantPhoto}" alt="Claimant photo" />
+        </div>
+      ` : ''}
+      ${claimantIdPhoto ? `
+        <div class="photo-block">
+          <span class="label">Valid ID / Student ID:</span><br />
+          <img src="${claimantIdPhoto}" alt="Claimant ID" />
+        </div>
+      ` : ''}
+      ${authorizationLetter ? `
+        <div class="photo-block">
+          <span class="label">Authorization Letter:</span><br />
+          <img src="${authorizationLetter}" alt="Authorization letter" />
+        </div>
+      ` : ''}
     `}
   </div>
 
@@ -210,7 +269,7 @@ export default function ItemsListModal({ isOpen, onClose, title, items, type }: 
         </div>
 
         {/* Items List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+    <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {items.length === 0 ? (
             <div className="text-center py-10 text-gray-400">
               <FileText className="w-12 h-12 mx-auto mb-2 opacity-20" />
@@ -222,8 +281,40 @@ export default function ItemsListModal({ isOpen, onClose, title, items, type }: 
                 key={item.id}
                 className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-gray-300 transition-colors"
               >
-                <div className="flex justify-between items-start">
+                <div className="flex gap-4">
+                  {type === 'reports' && (item as Report).image && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreviewSrc((item as Report).image);
+                        setPreviewAlt((item as Report).itemName);
+                      }}
+                      className="shrink-0"
+                      aria-label="View full image"
+                    >
+                      <img
+                        src={(item as Report).image}
+                        alt={(item as Report).itemName}
+                        className="w-16 h-16 rounded-lg object-cover border border-gray-200"
+                      />
+                    </button>
+                  )}
                   <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      {type === 'reports' && (item as Report).image && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPreviewSrc((item as Report).image);
+                            setPreviewAlt((item as Report).itemName);
+                          }}
+                          className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                          View Photo
+                        </button>
+                      )}
+                    </div>
                     <h4 className="font-bold text-gray-900 mb-1">
                       {type === 'reports' ? (item as Report).itemName : (item as Claim).itemName}
                     </h4>
@@ -262,8 +353,8 @@ export default function ItemsListModal({ isOpen, onClose, title, items, type }: 
                           </p>
                         </>
                       )}
-                    </div>
                   </div>
+                </div>
                   <button
                     onClick={() => generateReceipt(item)}
                     className="ml-4 p-2 bg-[#29b6f6] text-white rounded-lg hover:bg-[#0288d1] transition-colors flex items-center gap-2 text-xs font-medium"
@@ -278,6 +369,28 @@ export default function ItemsListModal({ isOpen, onClose, title, items, type }: 
           )}
         </div>
       </div>
+
+      {previewSrc && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewSrc(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setPreviewSrc(null)}
+            className="absolute top-3 right-3 sm:top-5 sm:right-5 bg-black/60 hover:bg-black/75 text-white rounded-full p-2"
+            aria-label="Close image preview"
+          >
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+          <img
+            src={previewSrc}
+            alt={previewAlt || 'Preview'}
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

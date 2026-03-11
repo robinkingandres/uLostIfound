@@ -27,7 +27,7 @@ interface DashboardData {
     reportsByMonth: ChartData[];
 }
 
-type TimePeriod = 'weekly' | 'monthly' | 'semester';
+type TimePeriod = 'last7' | 'last30' | 'last90';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardData>({
@@ -41,7 +41,7 @@ export default function AdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>('monthly');
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('last30');
 
   useEffect(() => {
     const loadStats = async () => {

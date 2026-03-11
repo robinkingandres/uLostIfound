@@ -72,6 +72,8 @@ export default function ReportFound() {
 
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [returnedByPhoto, setReturnedByPhoto] = useState<File | null>(null);
+  const [returnedByPreviewUrl, setReturnedByPreviewUrl] = useState<string | null>(null);
   
   // 3. UI States
   const [loading, setLoading] = useState(false);
@@ -81,11 +83,13 @@ export default function ReportFound() {
   // 4. Modal/Feature States
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const [hasChatNotification, setHasChatNotification] = useState(true);
-  const [isZoomOpen, setIsZoomOpen] = useState(false);
+  const [zoomImageSrc, setZoomImageSrc] = useState<string | null>(null);
+  const [zoomImageAlt, setZoomImageAlt] = useState<string>('');
   const [isOtherLocation, setIsOtherLocation] = useState(false);
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const returnedByInputRef = useRef<HTMLInputElement>(null);
 
   // --- LOGIC ---
 
@@ -116,6 +120,9 @@ export default function ReportFound() {
   useEffect(() => {
     return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
   }, [previewUrl]);
+  useEffect(() => {
+    return () => { if (returnedByPreviewUrl) URL.revokeObjectURL(returnedByPreviewUrl); };
+  }, [returnedByPreviewUrl]);
 
   // Handle Location Dropdown vs Custom Input
   const handleLocationSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -148,6 +155,19 @@ export default function ReportFound() {
     }
   };
 
+  const handleReturnedByPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size >= 8 * 1024 * 1024) {
+        setError("Image size exceeds limit. Only below 8MB images are allowed.");
+        return;
+      }
+      setReturnedByPhoto(file);
+      setReturnedByPreviewUrl(URL.createObjectURL(file));
+      setError('');
+    }
+  };
+
   const triggerFileInput = () => {
     fileInputRef.current?.click();
   };
@@ -157,6 +177,15 @@ export default function ReportFound() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+  const removeReturnedByPhoto = () => {
+    setReturnedByPhoto(null);
+    if (returnedByPreviewUrl) URL.revokeObjectURL(returnedByPreviewUrl);
+    setReturnedByPreviewUrl(null);
+  };
+
+  const triggerReturnedByInput = () => {
+    returnedByInputRef.current?.click();
   };
 
   const handleOpenChatbot = () => {
@@ -176,6 +205,12 @@ export default function ReportFound() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+    if (isGuidanceReporter && !returnedByPhoto) {
+      setError('A Returned By photo is required for Guidance reports.');
+      setLoading(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
     try {
       const payload: ReportPayload = {
@@ -188,7 +223,7 @@ export default function ReportFound() {
         type: 'Found',
       };
       
-      await createReport(payload, image);
+      await createReport(payload, image, returnedByPhoto);
       setIsSuccess(true);
       
       setTimeout(() => {
@@ -206,7 +241,8 @@ export default function ReportFound() {
   const today = new Date().toISOString().split("T")[0];
   const isPhotoEvidenceError =
     error === 'Image size exceeds limit. Only below 8MB images are allowed.' ||
-    error === 'An image of the found item is required for verification.';
+    error === 'An image of the found item is required for verification.' ||
+    error === 'A Returned By photo is required for Guidance reports.';
 
   return (
     <div className={isGuidanceReporter ? "flex h-screen bg-gray-50 overflow-hidden" : "min-h-screen bg-gray-50/30 font-sans text-gray-800 relative pb-20"}>
@@ -219,17 +255,21 @@ export default function ReportFound() {
       {isGuidanceReporter ? <DashboardHeader /> : null}
 
       {/* --- ZOOM MODAL --- */}
-      {isZoomOpen && previewUrl && (
+      {zoomImageSrc && (
         <div 
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 animate-in fade-in duration-200"
-          onClick={() => setIsZoomOpen(false)}
+          onClick={() => setZoomImageSrc(null)}
         >
-          <button className="absolute top-4 right-4 p-3 text-white bg-white/10 rounded-full z-[110] hover:bg-white/20 transition-colors">
+          <button
+            type="button"
+            onClick={() => setZoomImageSrc(null)}
+            className="absolute top-4 right-4 p-3 text-white bg-white/10 rounded-full z-[110] hover:bg-white/20 transition-colors"
+          >
             <X className="w-6 h-6" />
           </button>
           <img 
-            src={previewUrl} 
-            alt="Zoomed Preview" 
+            src={zoomImageSrc} 
+            alt={zoomImageAlt || 'Zoomed Preview'} 
             className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
             onClick={(e) => e.stopPropagation()} 
           />
@@ -387,7 +427,7 @@ export default function ReportFound() {
               {/* Image Upload with Preview */}
               <div className="space-y-3 pt-2">
                 <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-gray-400" /> Photo Evidence <span className="text-red-500">*</span>
+                  <Camera className="w-4 h-4 text-gray-400" /> Add Photo of Item <span className="text-red-500">*</span>
                 </label>
                 {isPhotoEvidenceError && (
                   <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-xs rounded-xl flex items-center gap-2">
@@ -400,7 +440,16 @@ export default function ReportFound() {
                   <div className="relative w-full aspect-video sm:w-72 rounded-xl border border-gray-200 overflow-hidden bg-gray-50 group shadow-sm">
                     <img src={previewUrl} alt="Preview" className="w-full h-full object-contain" />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-4 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
-                      <button type="button" onClick={() => setIsZoomOpen(true)} className="p-2.5 bg-white rounded-full text-gray-700 hover:scale-110 transition-transform"><Eye className="w-5 h-5" /></button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setZoomImageSrc(previewUrl);
+                          setZoomImageAlt(formData.itemTitle || 'Add Photo of Item');
+                        }}
+                        className="p-2.5 bg-white rounded-full text-gray-700 hover:scale-110 transition-transform"
+                      >
+                        <Eye className="w-5 h-5" />
+                      </button>
                       <button type="button" onClick={removeImage} className="p-2.5 bg-white rounded-full text-red-500 hover:scale-110 transition-transform"><X className="w-5 h-5" /></button>
                     </div>
                   </div>
@@ -424,6 +473,52 @@ export default function ReportFound() {
                   onChange={handleImageChange} 
                 />
               </div>
+
+              {isGuidanceReporter && (
+                <div className="space-y-3 pt-2">
+                  <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-gray-400" /> Returned By: <span className="text-red-500">*</span>
+                  </label>
+                  <p className="text-xs text-gray-400">Photo of the person who surrendered the item.</p>
+
+                  {returnedByPreviewUrl ? (
+                    <div className="relative w-full aspect-video sm:w-72 rounded-xl border border-gray-200 overflow-hidden bg-gray-50 group shadow-sm">
+                      <img src={returnedByPreviewUrl} alt="Returned By Preview" className="w-full h-full object-contain" />
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-4 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setZoomImageSrc(returnedByPreviewUrl);
+                            setZoomImageAlt('Returned By Photo');
+                          }}
+                          className="p-2.5 bg-white rounded-full text-gray-700 hover:scale-110 transition-transform"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        <button type="button" onClick={removeReturnedByPhoto} className="p-2.5 bg-white rounded-full text-red-500 hover:scale-110 transition-transform"><X className="w-5 h-5" /></button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={triggerReturnedByInput}
+                        className="flex items-center justify-center gap-2 px-6 py-3 border border-dashed border-cyan-300 rounded-xl text-cyan-600 text-sm font-bold bg-cyan-50/50 hover:bg-cyan-50 transition-colors"
+                      >
+                        <Upload className="w-4 h-4" /> Upload a Photo
+                      </button>
+                      <span className="text-xs text-gray-400 italic">Required</span>
+                    </div>
+                  )}
+                  <input
+                    ref={returnedByInputRef}
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleReturnedByPhotoChange}
+                  />
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="pt-6 flex flex-col-reverse sm:flex-row gap-4 w-full">

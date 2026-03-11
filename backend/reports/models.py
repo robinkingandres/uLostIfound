@@ -37,6 +37,12 @@ class Report(models.Model):
     status = models.CharField(max_length=10, choices=REPORT_STATUS_CHOICES, default='Pending')
     date_reported = models.DateTimeField(auto_now_add=True)
     image = models.ImageField(upload_to='report_images/', null=True, blank=True)
+    returned_by_photo = models.ImageField(
+        upload_to='returned_by_photos/',
+        null=True,
+        blank=True,
+        help_text="Photo of the person who returned the found item (Guidance reports only)."
+    )
 
     class Meta:
         ordering = ['-date_reported']
@@ -56,7 +62,13 @@ class Claim(models.Model):
     )
 
     report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='claims')
-    claimant = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='claims')
+    claimant = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='claims',
+        null=True,
+        blank=True
+    )
     claimant_full_name = models.CharField(
         max_length=255,
         blank=True,
@@ -77,6 +89,24 @@ class Claim(models.Model):
         blank=True,
         help_text="Photo of the claimant for in-person identity verification and release documentation."
     )
+    claimant_id_photo = models.ImageField(
+        upload_to='claimant_id_photos/',
+        null=True,
+        blank=True,
+        help_text="Photo of claimant's valid ID or student ID."
+    )
+    authorization_letter = models.ImageField(
+        upload_to='authorization_letters/',
+        null=True,
+        blank=True,
+        help_text="Authorization letter when claimant is not the owner."
+    )
+    claimant_contact = models.CharField(
+        max_length=30,
+        blank=True,
+        default='',
+        help_text="Optional contact number for the claimant."
+    )
     status = models.CharField(max_length=10, choices=CLAIM_STATUS_CHOICES, default='Pending')
     date_created = models.DateTimeField(auto_now_add=True)
     rejection_reason = models.TextField(blank=True, null=True)
@@ -87,6 +117,7 @@ class Claim(models.Model):
             models.UniqueConstraint(
                 fields=['report', 'claimant'],
                 name='unique_claim_per_user_per_report',
+                condition=models.Q(claimant__isnull=False),
             ),
         ]
 
