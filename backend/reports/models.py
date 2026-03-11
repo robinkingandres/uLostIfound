@@ -122,7 +122,13 @@ class Claim(models.Model):
         ]
 
     def __str__(self):
-        return f"Claim for {self.report.item_name} by {self.claimant.username}"
+        if self.claimant_full_name:
+            claimant_label = self.claimant_full_name
+        elif self.claimant:
+            claimant_label = self.claimant.username
+        else:
+            claimant_label = "Unknown claimant"
+        return f"Claim for {self.report.item_name} by {claimant_label}"
     
 class Notification(models.Model):
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')

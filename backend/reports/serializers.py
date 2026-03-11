@@ -24,7 +24,7 @@ class ReportSerializer(serializers.ModelSerializer):
     itemName = serializers.CharField(source='item_name', required=True)
     personName = serializers.CharField(source='person_name', required=False, allow_blank=True)
     date = serializers.DateField(source='date_lost_or_found', required=True)
-    returnedByPhoto = serializers.SerializerMethodField(read_only=True)
+    returnedByPhoto = serializers.ImageField(source='returned_by_photo', required=False, allow_null=True)
 
     class Meta:
         model = Report
@@ -55,14 +55,15 @@ class ReportSerializer(serializers.ModelSerializer):
             return avatar.url if avatar else None
         return None
 
-    def get_returnedByPhoto(self, obj):
-        photo = obj.returned_by_photo
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        photo = instance.returned_by_photo
         if not photo:
-            return None
+            data['returnedByPhoto'] = None
+            return data
         request = self.context.get('request')
-        if request:
-            return request.build_absolute_uri(photo.url)
-        return photo.url
+        data['returnedByPhoto'] = request.build_absolute_uri(photo.url) if request else photo.url
+        return data
 
     def get_isMatched(self, obj):
         annotated = getattr(obj, 'has_active_match', None)
