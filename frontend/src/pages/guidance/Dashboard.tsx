@@ -4,7 +4,8 @@ import { ClipboardList, Search, PackageCheck, X, Download, Printer, FilePenLine 
 import DashboardHeader from '../../components/admin/DashboardHeader'; 
 import StatCard from '../../components/admin/StatCard'; 
 import { fetchClaims, fetchReports, updateClaimContact, updateReport } from '../../services/api';
-import type { Report, ReportStatus } from '../../types/report';
+import type { Claim } from '../../types/claim';
+import type { Report, ReportStatus, ReportType } from '../../types/report';
 
 type StageKey = 'lost' | 'found' | 'claimed';
 type StatusFilter = 'all' | 'Pending' | 'Verified' | 'Claimed';
@@ -129,6 +130,7 @@ function downloadRecordsPdf(records: Report[], contextLabel: string, showClaiman
 
 export default function GuidanceDashboard() {
   const [reports, setReports] = useState<Report[]>([]);
+  const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRecordsModalOpen, setIsRecordsModalOpen] = useState(false);
   const [stage, setStage] = useState<StageKey>('lost');
@@ -153,8 +155,22 @@ export default function GuidanceDashboard() {
 
   const loadData = useCallback(async () => {
     try {
-      const reportsData = await fetchReports();
-      setReports(reportsData);
+      const [reportsResult, claimsResult] = await Promise.allSettled([
+        fetchReports(),
+        fetchClaims(),
+      ]);
+
+      if (reportsResult.status === 'fulfilled') {
+        setReports(reportsResult.value);
+      } else {
+        console.error(reportsResult.reason);
+      }
+
+      if (claimsResult.status === 'fulfilled') {
+        setClaims(claimsResult.value);
+      } else {
+        console.error(claimsResult.reason);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -186,10 +202,41 @@ export default function GuidanceDashboard() {
 
   const lostCount = reports.filter((r) => r.type === 'Lost').length;
   const foundCount = reports.filter((r) => r.type === 'Found').length;
-  const claimed = reports.filter((r) => r.status === 'Claimed').length;
+  const claimedClaims = useMemo(
+    () => claims.filter((c) => c.status === 'Claimed'),
+    [claims]
+  );
+  const claimed = claimedClaims.length;
+
+  const claimedRecords = useMemo<Report[]>(
+    () =>
+      claimedClaims.map((claim) => ({
+        id: claim.reportRecordId ?? claim.id,
+        reporter: 0,
+        reporterName: claim.reporterName || '',
+        reporterRole: claim.reporterRole || '',
+        reporterSchoolId: claim.reporterSchoolId || '',
+        reporterUsername: claim.reporterName || '',
+        itemName: claim.itemName,
+        personName: '',
+        description: claim.reportDescription || '',
+        type: (claim.reportType || 'Found') as ReportType,
+        category: claim.reportCategory || '',
+        location: claim.reportLocation || '',
+        status: 'Claimed',
+        date: claim.reportDate || claim.date,
+        image: claim.reportImage || '',
+        returnedByPhoto: null,
+        claimantName: claim.claimantName || '',
+        claimantPhoto: claim.claimantPhoto || claim.claimant_photo || null,
+        claimantContact: claim.claimantContact || null,
+      })),
+    [claimedClaims]
+  );
 
   const modalRecords = useMemo(() => {
-    const filtered = reports.filter((r) => {
+    const source = stage === 'claimed' ? claimedRecords : reports;
+    const filtered = source.filter((r) => {
       const statusMatches =
         statusFilter === 'all'
           ? true
@@ -204,7 +251,7 @@ export default function GuidanceDashboard() {
     });
 
     return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [reports, statusFilter, typeFilter, dateFrom, dateTo]);
+  }, [stage, claimedRecords, reports, statusFilter, typeFilter, dateFrom, dateTo]);
 
   const openEdit = (record: Report) => {
     setEditError('');

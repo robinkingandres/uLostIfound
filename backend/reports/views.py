@@ -491,12 +491,17 @@ class ActivityFeedView(APIView):
 
         # 4. Format Claims
         for c in recent_claims:
-            user_name = f"{c.claimant.first_name} {c.claimant.last_name}".strip() or c.claimant.username
-            
+            if c.claimant:
+                user_name = f"{c.claimant.first_name} {c.claimant.last_name}".strip() or c.claimant.username
+                role = c.claimant.role
+            else:
+                user_name = c.claimant_full_name.strip() or "Walk-in claimant"
+                role = "Guest"
+
             activities.append({
                 'id': f'claim-{c.id}',
                 'user': user_name,
-                'role': c.claimant.role,
+                'role': role,
                 'action': 'Submitted a claim for',
                 'item': c.report.item_name,
                 'timestamp': c.date_created
@@ -1099,7 +1104,7 @@ class AdminAnalyticsView(APIView):
             reports_qs
             .values('location')
             .annotate(count=Count('id'))
-            .order_by('-count')[:8]
+            .order_by('-count')
         )
         locations = [
             {'name': item['location'] or 'Unspecified', 'count': item['count']}

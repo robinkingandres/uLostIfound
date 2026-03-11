@@ -43,7 +43,7 @@ const lineColors = {
   matched: '#f97316',
 };
 
-const statusColors = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#64748b'];
+const lostFoundColors = ['#ef4444', '#22c55e'];
 
 const metricApiMap: Record<MetricKey, 'lost' | 'found' | 'claims' | 'ai'> = {
   lost: 'lost',
@@ -201,10 +201,10 @@ function exportDashboardPdfWithGraphs(
         <h1>Admin Analytics Dashboard</h1>
         <div class="meta">Range: ${escapeHtml(data.filters.date_from)} to ${escapeHtml(data.filters.date_to)} | Category: ${escapeHtml(data.filters.category)}</div>
           <div class="summary">
-          <div class="chip">Total Reports: ${data.kpis.total_reports}</div>
-          <div class="chip">Claimed: ${data.kpis.claims_submitted}</div>
+          <div class="chip">Daily Reports Added: ${data.kpis.reports_today}</div>
+          <div class="chip">Items Claimed Today: ${data.kpis.claims_today}</div>
           <div class="chip">Resolution Rate: ${data.kpis.resolution_rate}%</div>
-          <div class="chip">Matched: ${data.kpis.ai_matches_generated}</div>
+          <div class="chip">Items Matched Today: ${data.kpis.ai_matches_today}</div>
         </div>
         <h2>Graph Snapshot</h2>
         <div class="charts">${chartBlocks}</div>
@@ -381,9 +381,19 @@ export default function Analytics() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo, category, timeframe, activeMetrics]);
 
-  const statusChartData = useMemo(() => {
+  const lostFoundChartData = useMemo(() => {
     if (!data) return [];
-    return Object.entries(data.status_breakdown).map(([name, value]) => ({ name: toTitleCase(name), value }));
+    const totals = data.trends.reduce(
+      (acc, item) => ({
+        lost: acc.lost + (item.lost ?? 0),
+        found: acc.found + (item.found ?? 0),
+      }),
+      { lost: 0, found: 0 }
+    );
+    return [
+      { name: 'Lost', value: totals.lost },
+      { name: 'Found', value: totals.found },
+    ];
   }, [data]);
 
   const categories = useMemo(() => {
@@ -420,6 +430,11 @@ export default function Analytics() {
       };
     });
   }, [data, dateFrom]);
+
+  const locationChartHeight = useMemo(() => {
+    if (!data?.locations?.length) return 320;
+    return Math.max(320, data.locations.length * 32);
+  }, [data]);
 
   if (error) {
     return <div className="p-8 text-red-600 font-semibold">{error}</div>;
@@ -565,10 +580,10 @@ export default function Analytics() {
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           [
-            { title: 'Total Reports', today: `+${kpis.reports_today} today`, value: kpis.total_reports, foot: `${kpis.total_reports.toLocaleString()} total` },
-            { title: 'Claimed', today: `+${kpis.claims_today} today`, value: kpis.claims_submitted, foot: `${kpis.claims_submitted.toLocaleString()} total` },
+            { title: 'Daily Reports Added', today: `+${kpis.reports_today} today`, value: kpis.reports_today, foot: `${kpis.total_reports.toLocaleString()} total` },
+            { title: 'Items Claimed Today', today: `+${kpis.claims_today} today`, value: kpis.claims_today, foot: `${kpis.claims_submitted.toLocaleString()} total` },
             { title: 'Resolution Rate', today: `${kpis.claims_resolved.toLocaleString()} resolved`, value: `${kpis.resolution_rate}%`, foot: `${kpis.avg_resolution_time_days} days avg` },
-            { title: 'Matched', today: `+${kpis.ai_matches_today} today`, value: kpis.ai_matches_generated, foot: `${kpis.ai_matches_generated.toLocaleString()} total` },
+            { title: 'Items Matched Today', today: `+${kpis.ai_matches_today} today`, value: kpis.ai_matches_today, foot: `${kpis.ai_matches_generated.toLocaleString()} total` },
           ].map((card, i) => (
             <motion.button
               type="button"
@@ -803,9 +818,9 @@ export default function Analytics() {
         <div
           className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
           data-dashboard-chart
-          data-chart-title={`Status: Last ${rangeText}`}
+          data-chart-title="Lost vs Found"
         >
-          <h2 className="font-semibold text-gray-900">Status: Last {rangeText}</h2>
+          <h2 className="font-semibold text-gray-900">Lost vs Found</h2>
           {loading || !data ? (
             <div className="mt-4"><SkeletonPanel /></div>
           ) : (
@@ -813,18 +828,18 @@ export default function Analytics() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={statusChartData}
+                    data={lostFoundChartData}
                     dataKey="value"
                     nameKey="name"
                     innerRadius={55}
                     outerRadius={95}
                     paddingAngle={2}
-                    onClick={(entry: any) => setDetail({ title: `Status - ${entry.name}`, rows: [entry.payload] })}
+                    onClick={(entry: any) => setDetail({ title: `Lost vs Found - ${entry.name}`, rows: [entry.payload] })}
                     isAnimationActive
                     animationDuration={900}
                   >
-                    {statusChartData.map((_, index) => (
-                      <Cell key={index} fill={statusColors[index % statusColors.length]} />
+                    {lostFoundChartData.map((_, index) => (
+                      <Cell key={index} fill={lostFoundColors[index % lostFoundColors.length]} />
                     ))}
                   </Pie>
                   <Tooltip />
@@ -838,26 +853,28 @@ export default function Analytics() {
         <div
           className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
           data-dashboard-chart
-          data-chart-title="Top Locations"
+          data-chart-title="Top Locations for Lost and Found Items"
         >
-          <h2 className="font-semibold text-gray-900">Top Locations</h2>
+          <h2 className="font-semibold text-gray-900">Top Locations for Lost and Found Items</h2>
           {loading || !data ? (
             <div className="mt-4"><SkeletonPanel /></div>
           ) : (
-            <div className="h-80 mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.locations} layout="vertical" margin={{ left: 30 }} onClick={(state: any) => {
-                  const active = state?.activePayload?.[0]?.payload as { name: string; count: number } | undefined;
-                  if (!active) return;
-                  setDetail({ title: `Location - ${active.name}`, rows: [active] });
-                }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis type="number" />
-                  <YAxis type="category" dataKey="name" width={110} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#14b8a6" radius={[0, 8, 8, 0]} isAnimationActive animationDuration={900} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="mt-4 max-h-[420px] overflow-y-auto">
+              <div style={{ height: locationChartHeight }} className="min-h-[320px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data.locations} layout="vertical" margin={{ left: 30 }} onClick={(state: any) => {
+                    const active = state?.activePayload?.[0]?.payload as { name: string; count: number } | undefined;
+                    if (!active) return;
+                    setDetail({ title: `Location - ${active.name}`, rows: [active] });
+                  }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis type="number" allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" width={110} />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#14b8a6" radius={[0, 8, 8, 0]} isAnimationActive animationDuration={900} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           )}
         </div>

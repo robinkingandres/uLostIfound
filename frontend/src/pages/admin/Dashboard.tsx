@@ -98,7 +98,7 @@ export default function AdminDashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <InfoCard title="Pending reports" value={stats.pendingReports} />
+          <InfoCard title="Unclaimed items" value={stats.totalUnclaimedItems} />
           <InfoCard title="Registered users" value={stats.totalUsers} />
         </div>
 
