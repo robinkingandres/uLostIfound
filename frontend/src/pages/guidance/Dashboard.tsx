@@ -43,6 +43,8 @@ function buildRecordsPrintHtml(records: Report[], contextLabel: string, showClai
       <td>${getDisplayStatus(r)}</td>
       <td>${r.date}</td>
       <td>${r.reporterName || r.reporterUsername || 'N/A'}</td>
+      <td>${(r.personName || '').trim() || 'N/A'}</td>
+      <td>${[r.grade, r.section].map((v) => (v || '').trim()).filter(Boolean).join(' - ') || 'N/A'}</td>
       ${showClaimant ? `
         <td class="photo-cell">
           ${r.claimantPhoto ? `<a href="${r.claimantPhoto}" target="_blank" rel="noopener">
@@ -89,6 +91,8 @@ function buildRecordsPrintHtml(records: Report[], contextLabel: string, showClai
               <th>Status</th>
               <th>Date</th>
               <th>Reporter</th>
+              <th>Person</th>
+              <th>Grade/Section</th>
               ${showClaimant ? '<th>Claimant</th><th>Claimant Contact</th>' : ''}
             </tr>
           </thead>
@@ -143,6 +147,8 @@ export default function GuidanceDashboard() {
   const [editForm, setEditForm] = useState({
     itemName: '',
     personName: '',
+    grade: '',
+    section: '',
     category: '',
     location: '',
     description: '',
@@ -219,6 +225,8 @@ export default function GuidanceDashboard() {
         reporterUsername: claim.reporterName || '',
         itemName: claim.itemName,
         personName: '',
+        grade: '',
+        section: '',
         description: claim.reportDescription || '',
         type: (claim.reportType || 'Found') as ReportType,
         category: claim.reportCategory || '',
@@ -260,6 +268,8 @@ export default function GuidanceDashboard() {
     setEditForm({
       itemName: record.itemName || '',
       personName: (record.personName || '').trim(),
+      grade: (record.grade || '').trim(),
+      section: (record.section || '').trim(),
       category: record.category || '',
       location: record.location || '',
       description: record.description || '',
@@ -319,6 +329,8 @@ export default function GuidanceDashboard() {
       const updated = await updateReport(editingReport.id, {
         itemName: editForm.itemName.trim(),
         personName: editForm.personName.trim(),
+        grade: editForm.grade.trim(),
+        section: editForm.section.trim(),
         category: editForm.category,
         location: editForm.location.trim(),
         description: editForm.description.trim(),
@@ -550,6 +562,8 @@ export default function GuidanceDashboard() {
                       <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
                       <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Date</th>
                       <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Reporter</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Person</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Grade/Section</th>
                       {showClaimant ? (
                         <>
                           <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Claimant</th>
@@ -563,7 +577,7 @@ export default function GuidanceDashboard() {
                   <tbody className="divide-y divide-gray-50">
                     {modalRecords.length === 0 ? (
                       <tr>
-                        <td colSpan={showClaimant ? 10 : 8} className="px-4 py-8 text-center text-gray-500">No records match the selected filters.</td>
+                        <td colSpan={showClaimant ? 12 : 10} className="px-4 py-8 text-center text-gray-500">No records match the selected filters.</td>
                       </tr>
                     ) : (
                       modalRecords.map((record) => (
@@ -574,6 +588,8 @@ export default function GuidanceDashboard() {
                           <td className="px-4 py-3 text-sm text-gray-700">{getDisplayStatus(record)}</td>
                           <td className="px-4 py-3 text-sm text-gray-500">{new Date(record.date).toLocaleDateString()}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{record.reporterName || record.reporterUsername || 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{(record.personName || '').trim() || 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{[record.grade, record.section].map((v) => (v || '').trim()).filter(Boolean).join(' - ') || 'N/A'}</td>
                           {showClaimant ? (
                             <>
                               <td className="px-4 py-3">
@@ -682,6 +698,26 @@ export default function GuidanceDashboard() {
                     onChange={(e) => setEditForm((prev) => ({ ...prev, personName: e.target.value }))}
                     className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                     placeholder="GUIDANCE if blank"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600">Grade</label>
+                  <input
+                    type="text"
+                    value={editForm.grade}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, grade: e.target.value }))}
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    placeholder="e.g., 10"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600">Section</label>
+                  <input
+                    type="text"
+                    value={editForm.section}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, section: e.target.value }))}
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    placeholder="e.g., Einstein"
                   />
                 </div>
                 <div>

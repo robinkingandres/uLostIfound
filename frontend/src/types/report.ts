@@ -11,8 +11,24 @@ export interface Report {
   reporterAvatar?: string | null; // Reporter's profile picture URL
   isMatched?: boolean;
   publicStatus?: 'Lost' | 'Found' | 'Matched' | 'Claimed';
+  matchId?: number | null;
+  matchStatus?: string | null;
+  matchedReport?: {
+    id: number;
+    type: ReportType;
+    itemName: string;
+    category: string;
+    image?: string | null;
+    reporterName: string;
+    reporterAvatar?: string | null;
+    personName?: string;
+    grade?: string;
+    section?: string;
+  } | null;
   itemName: string;
   personName?: string;
+  grade?: string;
+  section?: string;
   description: string;
   type: ReportType;
   category: string;

@@ -53,22 +53,35 @@ export default function ReportFound() {
   const { user } = useAuth();
   const isGuidanceReporter = user?.role === 'Guidance';
 
+  const isOthersCategory = (value: string) => value.trim().toLowerCase() === 'others';
+
   // --- STATE ---
   
   // 1. Chatbot Database State
   const [reports, setReports] = useState<Report[]>([]);
-  const [categories, setCategories] = useState<string[]>(['Phone', 'Wallet', 'ID', 'Electronics', 'Clothing', 'Others']);
+  const [categories, setCategories] = useState<string[]>([
+    'School Supplies',
+    'Tech & Gadgets',
+    'Books & Modules',
+    'Daily Essentials',
+    'Food & Clothes',
+    'Others',
+  ]);
   const [showChatbot, setShowChatbot] = useState(true);
 
   // 2. Form State
   const [formData, setFormData] = useState({
     itemTitle: '',
     personName: '',
-    category: 'Phone',
+    grade: '',
+    section: '',
+    category: 'School Supplies',
     dateFound: '',
     location: '',
     description: '',
   });
+  const [isOtherCategory, setIsOtherCategory] = useState(false);
+  const [otherCategory, setOtherCategory] = useState('');
 
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -86,6 +99,16 @@ export default function ReportFound() {
   const [zoomImageSrc, setZoomImageSrc] = useState<string | null>(null);
   const [zoomImageAlt, setZoomImageAlt] = useState<string>('');
   const [isOtherLocation, setIsOtherLocation] = useState(false);
+  const categoryTouchedRef = useRef(false);
+  const CATEGORY_LABELS: Record<string, string> = {
+    'School Supplies': 'School Supplies(Pens, notebooks, paper, markers, glue, and scissors)',
+    'Tech & Gadgets': 'Tech & Gadgets(Laptop, tablet, calculator, chargers, and flash drives)',
+    'Books & Modules': 'Books & Modules(Textbooks, printed modules, and notebook)',
+    'Daily Essentials': 'Daily Essentials(ID, umbrella, sanitizer, tissues, and alcohol)',
+    'Food & Clothes': 'Food & Clothes(Water bottle, snacks, jacket, and PE uniform)',
+    'Others': 'Others(Specify)',
+  };
+  const getCategoryLabel = (value: string) => CATEGORY_LABELS[value] ?? value;
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -102,10 +125,13 @@ export default function ReportFound() {
           fetchSiteSettings(),
         ]);
         setReports(data);
-        const dynamicCategories = siteSettings.categories?.map((c) => c.name) || [];
-        if (dynamicCategories.length > 0) {
-          setCategories(dynamicCategories);
-          setFormData((prev) => ({ ...prev, category: dynamicCategories[0] }));
+        const nextCategory = categories[0] || 'Others';
+        setFormData((prev) => {
+          if (categoryTouchedRef.current) return prev;
+          return { ...prev, category: nextCategory };
+        });
+        if (!categoryTouchedRef.current) {
+          setIsOtherCategory(isOthersCategory(nextCategory));
         }
         setShowChatbot(siteSettings.user_home_chatbot_visible);
         setHasChatNotification(siteSettings.user_home_chat_notification_dot);
@@ -139,6 +165,12 @@ export default function ReportFound() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    if (name === 'category') {
+      categoryTouchedRef.current = true;
+      const nextIsOther = isOthersCategory(value);
+      setIsOtherCategory(nextIsOther);
+      if (!nextIsOther) setOtherCategory('');
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
   };
  
@@ -211,12 +243,20 @@ export default function ReportFound() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+    if (isOtherCategory && !otherCategory.trim()) {
+      setError('Please specify the category.');
+      setLoading(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
     try {
       const payload: ReportPayload = {
         itemName: formData.itemTitle,
         personName: formData.personName.trim(),
-        category: formData.category,
+        grade: formData.grade.trim(),
+        section: formData.section.trim(),
+        category: isOtherCategory ? otherCategory.trim() : formData.category,
         date: formData.dateFound,
         location: formData.location,
         description: formData.description,
@@ -311,18 +351,42 @@ export default function ReportFound() {
             </div>
 
             <form onSubmit={handleSubmit} className="w-full space-y-6">
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-gray-700">
-                  Person Name <span className="text-xs font-normal text-gray-500">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  name="personName"
-                  value={formData.personName}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
-                  placeholder="Enter name if known"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-gray-700">
+                    Person Name <span className="text-xs font-normal text-gray-500">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="personName"
+                    value={formData.personName}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                    placeholder="Enter name if known"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-gray-700">Grade & Section</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      name="grade"
+                      value={formData.grade}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                      placeholder="Grade"
+                    />
+                    <input
+                      type="text"
+                      name="section"
+                      value={formData.section}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                      placeholder="Section"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Item Title */}
@@ -351,11 +415,21 @@ export default function ReportFound() {
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm appearance-none bg-gray-50/50 cursor-pointer focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none focus:bg-white transition-all"
                     >
                       {categories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
+                        <option key={cat} value={cat}>{getCategoryLabel(cat)}</option>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
+                  {isOtherCategory && (
+                    <input
+                      type="text"
+                      value={otherCategory}
+                      onChange={(e) => setOtherCategory(e.target.value)}
+                      className="mt-3 w-full px-4 py-3 border border-cyan-500 rounded-xl text-sm outline-none animate-in slide-in-from-top-2 duration-300 ring-2 ring-cyan-100 bg-white"
+                      placeholder="Please specify category"
+                      autoFocus
+                    />
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-bold text-gray-700">Date Found <span className="text-red-500">*</span></label>

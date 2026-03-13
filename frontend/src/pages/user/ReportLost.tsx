@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Upload,
@@ -11,16 +11,12 @@ import {
   Loader2
 } from 'lucide-react';
 
-// Assets
 import chatbotIcon from '../../assets/chatbot.png';
-
-// Components
 import Chatbot from '../../components/Chatbot';
 import UserHeader from '../../components/UserHeader';
 import GuidanceSidebar from '../../components/guidance/GuidanceSidebar';
 import DashboardHeader from '../../components/admin/DashboardHeader';
 
-// API & Auth
 import {
   createReport,
   type ReportPayload,
@@ -35,43 +31,62 @@ export default function ReportLost() {
   const { user } = useAuth();
   const isGuidanceReporter = user?.role === 'Guidance';
 
-  // --- STATE ---
+  const isOthersCategory = (value: string) => value.trim().toLowerCase() === 'others';
+
   const [dbReports, setDbReports] = useState<Report[]>([]);
-  const [categories, setCategories] = useState<string[]>(['Phone', 'Wallet', 'ID', 'Electronics', 'Others']);
+  const [categories, setCategories] = useState<string[]>([
+    'School Supplies',
+    'Tech & Gadgets',
+    'Books & Modules',
+    'Daily Essentials',
+    'Food & Clothes',
+    'Others'
+  ]);
   const [showChatbot, setShowChatbot] = useState(true);
   
   const [formData, setFormData] = useState({
     itemTitle: '',
     personName: '',
-    category: 'Phone',
+    grade: '',
+    section: '',
+    category: 'School Supplies',
     dateLost: '',
     location: '',
     description: '',
   });
+  const [isOtherCategory, setIsOtherCategory] = useState(false);
+  const [otherCategory, setOtherCategory] = useState('');
 
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   
-  // UI States
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
   
-  // Feature States
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const [hasChatNotification, setHasChatNotification] = useState(true);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [isOtherLocation, setIsOtherLocation] = useState(false);
+  const categoryTouchedRef = useRef(false);
 
-  // --- LOGIC ---
+  const CATEGORY_LABELS: Record<string, string> = {
+    'School Supplies': 'School Supplies(Pens, notebooks, paper, markers, glue, and scissors)',
+    'Tech & Gadgets': 'Tech & Gadgets(Laptop, tablet, calculator, chargers, and flash drives)',
+    'Books & Modules': 'Books & Modules(Textbooks and printed modules)',
+    'Daily Essentials': 'Daily Essentials(ID, umbrella, sanitizer, tissues, and alcohol)',
+    'Food & Clothes': 'Food & Clothes(Water bottle, snacks, jacket, and PE uniform)',
+    'Others': 'Others(Specify)',
+  };
 
-  // Location Dropdown Handler
+  const getCategoryLabel = (value: string) => CATEGORY_LABELS[value] ?? value;
+
   const handleLocationSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedValue = e.target.value;
 
     if (selectedValue === "Other") {
       setIsOtherLocation(true);
-      setFormData(prev => ({ ...prev, location: "" })); // Clear for custom input
+      setFormData(prev => ({ ...prev, location: "" }));
     } else {
       setIsOtherLocation(false);
       setFormData(prev => ({ ...prev, location: selectedValue }));
@@ -87,11 +102,16 @@ export default function ReportLost() {
             fetchSiteSettings(),
           ]);
           setDbReports(reportsData);
-          const dynamicCategories = siteSettings.categories?.map((c) => c.name) || [];
-          if (dynamicCategories.length > 0) {
-            setCategories(dynamicCategories);
-            setFormData((prev) => ({ ...prev, category: dynamicCategories[0] }));
+          
+          const nextCategory = categories[0] || 'Others';
+          setFormData((prev) => {
+            if (categoryTouchedRef.current) return prev;
+            return { ...prev, category: nextCategory };
+          });
+          if (!categoryTouchedRef.current) {
+            setIsOtherCategory(isOthersCategory(nextCategory));
           }
+          
           setShowChatbot(siteSettings.user_home_chatbot_visible);
           setHasChatNotification(siteSettings.user_home_chat_notification_dot);
         } catch (err) {
@@ -102,13 +122,18 @@ export default function ReportLost() {
     }
   }, [user]);
 
-  // Cleanup preview URL
   useEffect(() => {
     return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
   }, [previewUrl]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    if (name === 'category') {
+      categoryTouchedRef.current = true;
+      const nextIsOther = isOthersCategory(value);
+      setIsOtherCategory(nextIsOther);
+      if (!nextIsOther) setOtherCategory('');
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -138,9 +163,15 @@ export default function ReportLost() {
     setIsSuccess(false);
     setError('');
 
-    // Basic Validation
     if (!formData.itemTitle || !formData.personName || !formData.dateLost || !formData.location || !formData.description) {
       setError('Please fill out all required fields marked with *');
+      setLoading(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (isOtherCategory && !otherCategory.trim()) {
+      setError('Please specify the category.');
       setLoading(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -150,7 +181,9 @@ export default function ReportLost() {
       const payload: ReportPayload = {
         itemName: formData.itemTitle,
         personName: formData.personName.trim(),
-        category: formData.category,
+        grade: formData.grade.trim(),
+        section: formData.section.trim(),
+        category: isOtherCategory ? otherCategory.trim() : formData.category,
         date: formData.dateLost,
         location: formData.location,
         description: formData.description,
@@ -180,7 +213,6 @@ export default function ReportLost() {
       <div className={isGuidanceReporter ? "flex-1 flex flex-col overflow-hidden" : ""}>
       {isGuidanceReporter ? <DashboardHeader /> : null}
 
-      {/* --- ZOOM MODAL --- */}
       {isZoomOpen && previewUrl && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 animate-in fade-in duration-200"
@@ -198,7 +230,6 @@ export default function ReportLost() {
         </div>
       )}
 
-      {/* --- MAIN FORM --- */}
       <main className={isGuidanceReporter ? "flex-1 overflow-auto p-8" : "max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col items-center"}>
         <div className="w-full bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 sm:p-10 flex flex-col items-start">
@@ -233,20 +264,43 @@ export default function ReportLost() {
             </div>
 
             <form onSubmit={handleSubmit} className="w-full space-y-6">
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-gray-700">Person Name <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  name="personName"
-                  required
-                  value={formData.personName}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
-                  placeholder="e.g., Juan Dela Cruz"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-gray-700">Person Name <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    name="personName"
+                    required
+                    value={formData.personName}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                    placeholder="e.g., Juan Dela Cruz"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-gray-700">Grade & Section</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      name="grade"
+                      value={formData.grade}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                      placeholder="Grade"
+                    />
+                    <input
+                      type="text"
+                      name="section"
+                      value={formData.section}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                      placeholder="Section"
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Item Title */}
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-gray-700">Item Name <span className="text-red-500">*</span></label>
                 <input 
@@ -260,7 +314,6 @@ export default function ReportLost() {
                 />
               </div>
 
-              {/* Category & Date Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
                 <div className="space-y-1.5">
                   <label className="text-sm font-bold text-gray-700">Category <span className="text-red-500">*</span></label>
@@ -272,11 +325,21 @@ export default function ReportLost() {
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm appearance-none bg-gray-50/50 cursor-pointer focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none focus:bg-white transition-all"
                     >
                       {categories.map((cat) => (
-                        <option key={cat} value={cat}>{cat}</option>
+                        <option key={cat} value={cat}>{getCategoryLabel(cat)}</option>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
+                  {isOtherCategory && (
+                    <input
+                      type="text"
+                      value={otherCategory}
+                      onChange={(e) => setOtherCategory(e.target.value)}
+                      className="mt-3 w-full px-4 py-3 border border-cyan-500 rounded-xl text-sm outline-none animate-in slide-in-from-top-2 duration-300 ring-2 ring-cyan-100 bg-white"
+                      placeholder="Please specify category"
+                      autoFocus
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -293,7 +356,6 @@ export default function ReportLost() {
                 </div>
               </div>
 
-              {/* Location Section */}
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-gray-700 flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-gray-400" />
@@ -343,7 +405,6 @@ export default function ReportLost() {
                 </div>
               </div>
 
-              {/* Description */}
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-gray-700">Description <span className="text-red-500">*</span></label>
                 <textarea
@@ -357,7 +418,6 @@ export default function ReportLost() {
                 />
               </div>
 
-              {/* Image Upload with Preview */}
               <div className="space-y-3 pt-2">
                 <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
                   <Camera className="w-4 h-4 text-gray-400" />
@@ -390,7 +450,6 @@ export default function ReportLost() {
                 <input id="imageUploadLost" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
               </div>
 
-              {/* Action Buttons */}
               <div className="pt-6 flex flex-col-reverse sm:flex-row gap-4 w-full">
                 <button 
                   type="button" 
@@ -423,7 +482,6 @@ export default function ReportLost() {
         </div>
       </main>
 
-      {/* Floating Chatbot */}
       {!isGuidanceReporter && showChatbot && (
         <>
           <div className="fixed bottom-6 right-6 z-50">
@@ -445,7 +503,6 @@ export default function ReportLost() {
             </button>
           </div>
           
-          {/* 4. CHATBOT CONNECTED TO DATABASE */}
           <Chatbot 
             isOpen={isChatbotOpen} 
             onClose={() => setIsChatbotOpen(false)} 

@@ -19,10 +19,15 @@ class ReportSerializer(serializers.ModelSerializer):
     claimantName = serializers.SerializerMethodField(read_only=True)
     claimantPhoto = serializers.SerializerMethodField(read_only=True)
     claimantContact = serializers.SerializerMethodField(read_only=True)
+    matchId = serializers.SerializerMethodField(read_only=True)
+    matchStatus = serializers.SerializerMethodField(read_only=True)
+    matchedReport = serializers.SerializerMethodField(read_only=True)
     # ------------------
 
     itemName = serializers.CharField(source='item_name', required=True)
     personName = serializers.CharField(source='person_name', required=False, allow_blank=True)
+    grade = serializers.CharField(source='person_grade', required=False, allow_blank=True)
+    section = serializers.CharField(source='person_section', required=False, allow_blank=True)
     date = serializers.DateField(source='date_lost_or_found', required=True)
     returnedByPhoto = serializers.ImageField(source='returned_by_photo', required=False, allow_null=True)
 
@@ -33,7 +38,8 @@ class ReportSerializer(serializers.ModelSerializer):
             'reporterSchoolId', 'reporterUsername',
             'isMatched', 'publicStatus',
             'claimantName', 'claimantPhoto', 'claimantContact',
-            'itemName', 'personName', 'description', 'type', 'category', 
+            'matchId', 'matchStatus', 'matchedReport',
+            'itemName', 'personName', 'grade', 'section', 'description', 'type', 'category',
             'location', 'status', 'date', 'image', 'returnedByPhoto', 'date_reported'
         ]
         read_only_fields = ['id', 'reporter', 'reporterName', 'reporterRole', 'reporterSchoolId', 'reporterUsername', 'date_reported']
@@ -64,6 +70,21 @@ class ReportSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         data['returnedByPhoto'] = request.build_absolute_uri(photo.url) if request else photo.url
         return data
+
+    def to_internal_value(self, data):
+        # Accept snake_case/camelCase aliases for grade/section inputs.
+        if hasattr(data, 'copy'):
+            data = data.copy()
+        if isinstance(data, dict):
+            if 'person_grade' in data and 'grade' not in data:
+                data['grade'] = data.get('person_grade')
+            if 'person_section' in data and 'section' not in data:
+                data['section'] = data.get('person_section')
+            if 'personGrade' in data and 'grade' not in data:
+                data['grade'] = data.get('personGrade')
+            if 'personSection' in data and 'section' not in data:
+                data['section'] = data.get('personSection')
+        return super().to_internal_value(data)
 
     def get_isMatched(self, obj):
         annotated = getattr(obj, 'has_active_match', None)
@@ -111,6 +132,63 @@ class ReportSerializer(serializers.ModelSerializer):
         if not claim:
             return None
         return claim.claimant_contact or None
+
+    def _get_active_match(self, obj):
+        cached = getattr(obj, '_active_match_cache', None)
+        if cached is not None:
+            return cached
+        match = (
+            AIMatch.objects
+            .filter(Q(lost_report=obj) | Q(found_report=obj))
+            .exclude(status='Rejected')
+            .select_related('lost_report__reporter', 'found_report__reporter')
+            .order_by('-match_score', '-date_created')
+            .first()
+        )
+        setattr(obj, '_active_match_cache', match)
+        return match
+
+    def get_matchId(self, obj):
+        match = self._get_active_match(obj)
+        return match.id if match else None
+
+    def get_matchStatus(self, obj):
+        match = self._get_active_match(obj)
+        return match.status if match else None
+
+    def _build_report_preview(self, report):
+        if not report:
+            return None
+        reporter = report.reporter
+        full_name = f"{reporter.first_name} {reporter.last_name}".strip()
+        reporter_name = full_name if full_name else reporter.username
+        avatar = reporter.avatar
+        request = self.context.get('request')
+        avatar_url = None
+        if avatar:
+            avatar_url = request.build_absolute_uri(avatar.url) if request else avatar.url
+        image_url = None
+        if report.image:
+            image_url = request.build_absolute_uri(report.image.url) if request else report.image.url
+        return {
+            'id': report.id,
+            'type': report.type,
+            'itemName': report.item_name,
+            'category': report.category,
+            'image': image_url,
+            'reporterName': reporter_name,
+            'reporterAvatar': avatar_url,
+            'personName': report.person_name or '',
+            'grade': report.person_grade or '',
+            'section': report.person_section or '',
+        }
+
+    def get_matchedReport(self, obj):
+        match = self._get_active_match(obj)
+        if not match:
+            return None
+        counterpart = match.found_report if match.lost_report_id == obj.id else match.lost_report
+        return self._build_report_preview(counterpart)
         
     def create(self, validated_data):
         validated_data['item_name'] = validated_data.pop('item_name')

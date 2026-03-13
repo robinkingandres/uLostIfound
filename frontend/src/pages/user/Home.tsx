@@ -5,6 +5,7 @@ import {
   MapPin,
   Tag,
   User as UserIcon,
+  CheckCheck,
   Clock,
   X
 } from 'lucide-react';
@@ -16,6 +17,46 @@ import chatbotIcon from '../../assets/chatbot.png';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+const CATEGORY_V2 = [
+  'School Supplies',
+  'Tech & Gadgets',
+  'Books & Modules',
+  'Daily Essentials',
+  'Food & Clothes',
+  'Others',
+];
+
+const LEGACY_CATEGORY_MAP: Record<string, string> = {
+  electronics: 'Tech & Gadgets',
+  phone: 'Tech & Gadgets',
+  documents: 'Books & Modules',
+  clothing: 'Food & Clothes',
+  accessories: 'Food & Clothes',
+  wallet: 'Food & Clothes',
+  id: 'Food & Clothes',
+  other: 'Others',
+  others: 'Others',
+  'school supplies (ballpen, paper, notebook)': 'School Supplies',
+  'electronics & gadgets (laptop / tablet, scientific calculator, charger / power bank, flash drive)': 'Tech & Gadgets',
+  'books & notebooks (textbooks, subject notebooks, printed modules, planner / journal)': 'Books & Modules',
+  'personal care & hygiene (hand sanitizer, pocket tissue, lip balm, small umbrella)': 'Daily Essentials',
+  'food & beverage (water bottle, lunchbox, snacks)': 'Food & Clothes',
+  'clothing & accessories (school id, extra sweater or jacket, pe uniform / gym clothes)': 'Food & Clothes',
+  'art & project materials (colored pencils or markers, glue stick, scissors, construction paper)': 'School Supplies',
+  'school supplies(pens, notebooks, paper, markers, glue, and scissors)': 'School Supplies',
+  'tech & gadgets(laptop, tablet, calculator, chargers, and flash drives)': 'Tech & Gadgets',
+  'books & modules(textbooks, printed modules, and notebook)': 'Books & Modules',
+  'daily essentials(id, umbrella, sanitizer, tissues, and alcohol)': 'Daily Essentials',
+  'food & clothes(water bottle, snacks, jacket, and pe uniform)': 'Food & Clothes',
+};
+
+const normalizeCategory = (value: string) => {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return trimmed;
+  const key = trimmed.toLowerCase();
+  return LEGACY_CATEGORY_MAP[key] ?? trimmed;
+};
+
 interface PublicUpdateItem {
   id: string;
   title: string;
@@ -23,6 +64,10 @@ interface PublicUpdateItem {
   timeLabel: string;
   read: boolean;
 }
+
+type FeedItem =
+  | { kind: 'report'; report: Report }
+  | { kind: 'match'; matchId: number; lost: Report; found: Report };
 
 export default function UserHome() {
   // Data States
@@ -207,21 +252,46 @@ export default function UserHome() {
       (statusFilter === 'Claimed' && report.status === 'Claimed') ||
       (statusFilter === 'Lost' && statusMeta.itemType === 'Lost' && statusMeta.badgeLabel !== 'Claimed') ||
       (statusFilter === 'Found' && statusMeta.itemType === 'Found' && statusMeta.badgeLabel !== 'Claimed');
-    const matchesCategory = categoryFilter === 'All Categories' || report.category === categoryFilter;
+    const matchesCategory =
+      categoryFilter === 'All Categories' ||
+      normalizeCategory(report.category) === categoryFilter;
 
     return matchesSearch && matchesType && matchesCategory;
   });
 
-  const categoryOptions = siteSettings?.categories?.map((c) => c.name) || [
-    'Phone',
-    'Wallet',
-    'ID',
-    'Electronics',
-    'Documents',
-    'Clothing',
-    'Accessories',
-    'Others',
-  ];
+  const toFeedItems = (items: Report[]): FeedItem[] => {
+    const seenMatches = new Set<number>();
+    const results: FeedItem[] = [];
+    items.forEach((report) => {
+      if (report.matchId && report.matchedReport) {
+        if (seenMatches.has(report.matchId)) return;
+        const counterpart: Report = {
+          ...report,
+          id: report.matchedReport.id,
+          type: report.matchedReport.type,
+          itemName: report.matchedReport.itemName,
+          category: report.matchedReport.category,
+          image: report.matchedReport.image || '',
+          reporterName: report.matchedReport.reporterName,
+          reporterAvatar: report.matchedReport.reporterAvatar || null,
+          personName: report.matchedReport.personName || '',
+          grade: report.matchedReport.grade || '',
+          section: report.matchedReport.section || '',
+        };
+        const found = report.type === 'Found' ? report : counterpart;
+        const lost = report.type === 'Lost' ? report : counterpart;
+        seenMatches.add(report.matchId);
+        results.push({ kind: 'match', matchId: report.matchId, lost, found });
+      } else {
+        results.push({ kind: 'report', report });
+      }
+    });
+    return results;
+  };
+
+  const feedItems = toFeedItems(filteredReports);
+
+  const categoryOptions = CATEGORY_V2;
   
   const getTopBadgeColor = (report: Report) => {
     const statusMeta = getStatusMeta(report);
@@ -249,6 +319,31 @@ export default function UserHome() {
     if (personName) return personName;
     if (report.reporterRole === 'Guidance') return 'GUIDANCE';
     return report.reporterName || report.reporterUsername || report.reporter || 'User';
+  };
+
+  const normalizeText = (value: unknown) => {
+    if (typeof value === 'string') return value;
+    if (value === null || value === undefined) return '';
+    return String(value);
+  };
+
+  const getGradeSectionLabel = (report: Report) => {
+    const rawGrade =
+      (report.grade as string | undefined) ??
+      (report as { person_grade?: string }).person_grade ??
+      (report as { personGrade?: string }).personGrade ??
+      '';
+    const rawSection =
+      (report.section as string | undefined) ??
+      (report as { person_section?: string }).person_section ??
+      (report as { personSection?: string }).personSection ??
+      '';
+    const grade = normalizeText(rawGrade).trim();
+    const section = normalizeText(rawSection).trim();
+    if (!grade && !section) return '';
+    if (grade && section) return `Grade ${grade} - ${section}`;
+    if (grade) return `Grade ${grade}`;
+    return `Section ${section}`;
   };
 
   if (loading) {
@@ -355,7 +450,157 @@ export default function UserHome() {
 
         {/* Items Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8">
-          {filteredReports.map((report) => {
+          {feedItems.map((item) => {
+            if (item.kind === 'match') {
+              const { lost, found, matchId } = item;
+              const displayImage = found.image || lost.image;
+              const ownerName = getDisplayReporterName(lost);
+              const finderName = getDisplayReporterName(found);
+              const ownerLabel = getGradeSectionLabel(lost);
+              const finderLabel = getGradeSectionLabel(found);
+              return (
+                <div
+                  key={`match-${matchId}`}
+                  className={`group rounded-3xl border shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col relative overflow-hidden lg:col-span-2 ${
+                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
+                  }`}
+                >
+                  <div className={`relative h-52 sm:h-64 w-full overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
+                    <div className="grid grid-cols-2 h-full">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImage({ src: lost.image, alt: lost.itemName })}
+                        className="relative w-full h-full"
+                        aria-label="View lost item image"
+                      >
+                        {lost.image ? (
+                          <img
+                            src={lost.image}
+                            alt={lost.itemName}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className={`w-full h-full flex items-center justify-center text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            No Lost Image
+                          </div>
+                        )}
+                        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-white bg-rose-500/90">
+                          Lost
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImage({ src: found.image, alt: found.itemName })}
+                        className="relative w-full h-full"
+                        aria-label="View found item image"
+                      >
+                        {found.image ? (
+                          <img
+                            src={found.image}
+                            alt={found.itemName}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className={`w-full h-full flex items-center justify-center text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            No Found Image
+                          </div>
+                        )}
+                        <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-white bg-cyan-500/90">
+                          Found
+                        </div>
+                      </button>
+                    </div>
+                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg bg-indigo-500">
+                      SUCCESSFUL MATCH
+                    </div>
+                  </div>
+
+                  <div className="p-4 sm:p-6 flex-1 flex flex-col">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase font-bold tracking-widest text-indigo-600 mb-2">
+                      Successful Match
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-6 mb-4">
+                      <h3 className={`text-lg sm:text-2xl font-extrabold leading-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                        {lost.itemName} ↔ {found.itemName}
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6">
+                      <div className={`rounded-2xl border p-4 ${isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-100 bg-slate-50'}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className={`text-[11px] uppercase font-bold tracking-widest ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Owner (Lost)</p>
+                        </div>
+                        <p className={`mt-2 text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{lost.itemName}</p>
+                        <p className={`mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{lost.location}</p>
+                        <div className={`mt-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{lost.date}</span>
+                        </div>
+                      </div>
+                      <div className={`rounded-2xl border p-4 ${isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-100 bg-slate-50'}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className={`text-[11px] uppercase font-bold tracking-widest ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Finder (Found)</p>
+                        </div>
+                        <p className={`mt-2 text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{found.itemName}</p>
+                        <p className={`mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{found.location}</p>
+                        <div className={`mt-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{found.date}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={`mt-auto pt-4 sm:pt-5 border-t ${isDark ? 'border-slate-800' : 'border-slate-50'}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-blue-500 border overflow-hidden shrink-0 ${isDark ? 'bg-blue-950/30 border-blue-800' : 'bg-blue-50 border-blue-100'}`}>
+                            {found.reporterAvatar ? (
+                              <img
+                                src={found.reporterAvatar.startsWith('http') ? found.reporterAvatar : `${API_BASE}${found.reporterAvatar}`}
+                                alt="Finder"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <UserIcon className="w-4 h-4" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className={`text-xs font-bold uppercase tracking-tight ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{finderName}</div>
+                            {finderLabel && (
+                              <div className={`text-[10px] font-semibold tracking-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{finderLabel}</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-center justify-center gap-1 text-indigo-500">
+                          <CheckCheck className="w-5 h-5" />
+                          <span className="text-[9px] font-bold uppercase tracking-widest">Success</span>
+                        </div>
+                        <div className="flex items-center gap-2 min-w-0 justify-end">
+                          <div className="min-w-0 text-right">
+                            <div className={`text-xs font-bold uppercase tracking-tight ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{ownerName}</div>
+                            {ownerLabel && (
+                              <div className={`text-[10px] font-semibold tracking-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{ownerLabel}</div>
+                            )}
+                          </div>
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-blue-500 border overflow-hidden shrink-0 ${isDark ? 'bg-blue-950/30 border-blue-800' : 'bg-blue-50 border-blue-100'}`}>
+                            {lost.reporterAvatar ? (
+                              <img
+                                src={lost.reporterAvatar.startsWith('http') ? lost.reporterAvatar : `${API_BASE}${lost.reporterAvatar}`}
+                                alt="Owner"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <UserIcon className="w-4 h-4" />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            const report = item.report;
             return (
               <div
                 key={report.id}
@@ -407,7 +652,7 @@ export default function UserHome() {
 
                   {/* Card Footer */}
                   <div className={`mt-auto pt-4 sm:pt-5 border-t flex items-center justify-between ${isDark ? 'border-slate-800' : 'border-slate-50'}`}>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <div className={`w-9 h-9 rounded-full flex items-center justify-center text-blue-500 border overflow-hidden shrink-0 ${isDark ? 'bg-blue-950/30 border-blue-800' : 'bg-blue-50 border-blue-100'}`}>
                         {report.reporterAvatar ? (
                           <img 
@@ -419,9 +664,16 @@ export default function UserHome() {
                           <UserIcon className="w-4 h-4" />
                         )}
                       </div>
-                      <span className={`text-xs font-bold uppercase tracking-tight line-clamp-1 max-w-[120px] ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                    <div className="min-w-0 flex flex-col">
+                      <div className={`text-xs font-bold uppercase tracking-tight break-words whitespace-normal leading-snug ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
                         {getDisplayReporterName(report)}
-                      </span>
+                      </div>
+                      {getGradeSectionLabel(report) && (
+                        <div className={`mt-1 text-[10px] font-semibold tracking-tight break-words whitespace-normal leading-snug ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {getGradeSectionLabel(report)}
+                        </div>
+                      )}
+                    </div>
                     </div>
 
                     <span className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border border-transparent ${getPublicStatusBadge(report)}`}>

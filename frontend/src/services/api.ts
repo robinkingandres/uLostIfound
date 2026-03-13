@@ -38,6 +38,8 @@ const parseErrorResponse = async (response: Response): Promise<string> => {
 export interface ReportPayload {
   itemName: string; 
   personName?: string;
+  grade?: string;
+  section?: string;
   description: string;
   type: ReportType;
   category: string;
@@ -944,6 +946,37 @@ export interface AdminAnalyticsExportResponse {
 
 const ADMIN_ANALYTICS_URL = `${API_URL}/admin/analytics/`;
 const ADMIN_ANALYTICS_EXPORT_DATA_URL = `${API_URL}/admin/analytics/export-data/`;
+const ADMIN_AI_MATCH_PERFORMANCE_URL = `${API_URL}/admin/analytics/ai-match-performance/`;
+const ADMIN_HONESTY_RANKING_URL = `${API_URL}/admin/analytics/honesty-ranking/`;
+
+export interface AdminAIMatchPerformanceResponse {
+  filters: {
+    date_from: string;
+    date_to: string;
+    category: string;
+  };
+  donut: {
+    successful_matches: number;
+    unmatched_reports: number;
+  };
+  histogram: Array<{ bucket: string; count: number }>;
+  avg_time_to_match_days: number;
+}
+
+export interface HonestyRankingRow {
+  rank: number;
+  identifier: string;
+  surrender_count: number;
+}
+
+export interface AdminHonestyRankingResponse {
+  filters: {
+    date_from: string;
+    date_to: string;
+    category: string;
+  };
+  results: HonestyRankingRow[];
+}
 
 export const fetchAdminAnalytics = async (params?: {
   date_from?: string;
@@ -995,6 +1028,50 @@ export const fetchAdminAnalyticsExportData = async (params?: {
 
   if (!response.ok) {
     throw new Error('Failed to fetch export data');
+  }
+  return response.json();
+};
+
+export const fetchAdminAIMatchPerformance = async (params?: {
+  date_from?: string;
+  date_to?: string;
+  category?: string;
+}): Promise<AdminAIMatchPerformanceResponse> => {
+  const url = new URL(ADMIN_AI_MATCH_PERFORMANCE_URL, window.location.origin);
+  if (params?.date_from) url.searchParams.set('date_from', params.date_from);
+  if (params?.date_to) url.searchParams.set('date_to', params.date_to);
+  if (params?.category) url.searchParams.set('category', params.category);
+
+  const response = await fetch(url.toString(), {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const msg = await parseErrorResponse(response);
+    throw new Error(`Failed to fetch AI match performance (${response.status}): ${msg}`);
+  }
+  return response.json();
+};
+
+export const fetchAdminHonestyRanking = async (params?: {
+  date_from?: string;
+  date_to?: string;
+  category?: string;
+}): Promise<AdminHonestyRankingResponse> => {
+  const url = new URL(ADMIN_HONESTY_RANKING_URL, window.location.origin);
+  if (params?.date_from) url.searchParams.set('date_from', params.date_from);
+  if (params?.date_to) url.searchParams.set('date_to', params.date_to);
+  if (params?.category) url.searchParams.set('category', params.category);
+
+  const response = await fetch(url.toString(), {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const msg = await parseErrorResponse(response);
+    throw new Error(`Failed to fetch honesty ranking (${response.status}): ${msg}`);
   }
   return response.json();
 };

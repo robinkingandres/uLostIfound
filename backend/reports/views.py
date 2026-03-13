@@ -3,8 +3,29 @@ from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model 
-from django.db.models import Q, Count, Avg, F, Sum, Exists, OuterRef
-from django.db.models.functions import TruncMonth, TruncDay, TruncWeek, TruncYear, TruncHour
+from django.db.models import (
+    Q,
+    Count,
+    Avg,
+    F,
+    Sum,
+    Exists,
+    OuterRef,
+    Value,
+    CharField,
+)
+from django.db.models.functions import (
+    TruncMonth,
+    TruncDay,
+    TruncWeek,
+    TruncYear,
+    TruncHour,
+    Coalesce,
+    Concat,
+    Trim,
+    NullIf,
+    Greatest,
+)
 from django.utils import timezone
 from datetime import timedelta, datetime, date
 from django.db import IntegrityError
@@ -1140,6 +1161,164 @@ class AdminAnalyticsView(APIView):
             'locations': locations,
         }
         return Response(data, status=status.HTTP_200_OK)
+
+
+def _parse_admin_date_range(request, *, default_days=30):
+    today = timezone.localdate()
+    date_from_param = (request.query_params.get('date_from') or '').strip()
+    date_to_param = (request.query_params.get('date_to') or '').strip()
+
+    try:
+        date_from = datetime.strptime(date_from_param, '%Y-%m-%d').date() if date_from_param else (today - timedelta(days=default_days - 1))
+    except ValueError:
+        date_from = today - timedelta(days=default_days - 1)
+
+    try:
+        date_to = datetime.strptime(date_to_param, '%Y-%m-%d').date() if date_to_param else today
+    except ValueError:
+        date_to = today
+
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
+
+    return date_from, date_to
+
+
+class AdminAIMatchPerformanceView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request, format=None):
+        date_from, date_to = _parse_admin_date_range(request)
+        category = (request.query_params.get('category') or 'all').strip()
+
+        reports_qs = Report.objects.filter(date_reported__date__range=(date_from, date_to))
+        matches_qs = AIMatch.objects.filter(date_created__date__range=(date_from, date_to))
+
+        if category and category.lower() != 'all':
+            reports_qs = reports_qs.filter(category=category)
+            matches_qs = matches_qs.filter(Q(lost_report__category=category) | Q(found_report__category=category))
+
+        successful_match_exists = Exists(
+            AIMatch.objects.filter(
+                Q(lost_report_id=OuterRef('pk')) | Q(found_report_id=OuterRef('pk')),
+                status='Approved',
+            )
+        )
+        reports_qs = reports_qs.annotate(has_successful_match=successful_match_exists)
+        successful_reports = reports_qs.filter(has_successful_match=True).count()
+        unmatched_reports = reports_qs.filter(has_successful_match=False).count()
+
+        approved_matches = list(
+            matches_qs.filter(status='Approved')
+            .select_related('lost_report', 'found_report')
+            .only('date_created', 'lost_report__date_reported', 'found_report__date_reported')
+        )
+
+        bucket_defs = [
+            ('0d', lambda d: d == 0),
+            ('1d', lambda d: d == 1),
+            ('2d', lambda d: d == 2),
+            ('3-4d', lambda d: 3 <= d <= 4),
+            ('5-7d', lambda d: 5 <= d <= 7),
+            ('8-14d', lambda d: 8 <= d <= 14),
+            ('15-30d', lambda d: 15 <= d <= 30),
+            ('31+d', lambda d: d >= 31),
+        ]
+        bucket_counts = {label: 0 for (label, _) in bucket_defs}
+
+        deltas = []
+        for match in approved_matches:
+            lost_dt = getattr(match.lost_report, 'date_reported', None)
+            found_dt = getattr(match.found_report, 'date_reported', None)
+            later_report = None
+            if lost_dt and found_dt:
+                later_report = max(lost_dt, found_dt)
+            else:
+                later_report = lost_dt or found_dt
+            if not later_report or not match.date_created:
+                continue
+            delta_days = (match.date_created.date() - later_report.date()).days
+            if delta_days < 0:
+                continue
+            deltas.append(delta_days)
+            for label, predicate in bucket_defs:
+                if predicate(delta_days):
+                    bucket_counts[label] += 1
+                    break
+
+        histogram = [{'bucket': label, 'count': bucket_counts[label]} for (label, _) in bucket_defs]
+        avg_days = (sum(deltas) / len(deltas)) if deltas else 0.0
+
+        return Response({
+            'filters': {
+                'date_from': date_from.isoformat(),
+                'date_to': date_to.isoformat(),
+                'category': category,
+            },
+            'donut': {
+                'successful_matches': successful_reports,
+                'unmatched_reports': unmatched_reports,
+            },
+            'histogram': histogram,
+            'avg_time_to_match_days': round(avg_days, 1),
+        }, status=status.HTTP_200_OK)
+
+
+class AdminHonestyRankingView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request, format=None):
+        date_from, date_to = _parse_admin_date_range(request)
+        category = (request.query_params.get('category') or 'all').strip()
+
+        base_qs = Report.objects.filter(
+            type='Found',
+            date_reported__date__range=(date_from, date_to),
+        ).select_related('reporter')
+
+        if category and category.lower() != 'all':
+            base_qs = base_qs.filter(category=category)
+
+        full_name = Trim(
+            Concat(
+                Coalesce(F('reporter__first_name'), Value('')),
+                Value(' '),
+                Coalesce(F('reporter__last_name'), Value('')),
+            )
+        )
+        identifier_expr = Coalesce(
+            NullIf(full_name, Value('')),
+            NullIf(F('reporter__school_id'), Value('')),
+            NullIf(F('reporter__email'), Value('')),
+            NullIf(F('reporter__username'), Value('')),
+            Value('Unknown'),
+            output_field=CharField(),
+        )
+
+        leaders = list(
+            base_qs
+            .annotate(identifier=identifier_expr)
+            .values('identifier')
+            .annotate(surrender_count=Count('id'))
+            .order_by('-surrender_count', 'identifier')[:25]
+        )
+
+        payload = []
+        for idx, row in enumerate(leaders, start=1):
+            payload.append({
+                'rank': idx,
+                'identifier': row['identifier'],
+                'surrender_count': row['surrender_count'],
+            })
+
+        return Response({
+            'filters': {
+                'date_from': date_from.isoformat(),
+                'date_to': date_to.isoformat(),
+                'category': category,
+            },
+            'results': payload,
+        }, status=status.HTTP_200_OK)
 
 
 class AdminAnalyticsExportDataView(APIView):

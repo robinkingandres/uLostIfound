@@ -22,6 +22,8 @@ import {
   type AdminAnalyticsResponse,
   type AdminAnalyticsExportResponse,
 } from '../services/api';
+import AIMatchPerformance from '../components/admin/AIMatchPerformance';
+import HonestyLeaderboard from '../components/admin/HonestyLeaderboard';
 
 type Timeframe = 'last7' | 'last30' | 'last90';
 type MetricKey = 'lost' | 'found' | 'claimed' | 'matched';
@@ -727,59 +729,18 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div
-          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
-          data-dashboard-chart
-          data-chart-title={`Due Claims (${timeframeText})`}
-        >
-          <h2 className="font-semibold text-gray-900">Due Claims ({timeframeText})</h2>
-          {loading || !data ? (
-            <div className="mt-4"><SkeletonPanel /></div>
-          ) : (
-            <div className="h-80 mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.due_claims_monthly} onClick={(state: any) => {
-                  const active = state?.activePayload?.[0]?.payload as { month: string; count: number } | undefined;
-                  if (!active) return;
-                  setDetail({ title: `Due Claims - ${active.month}`, rows: [active] });
-                }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#ef4444" radius={[8, 8, 0, 0]} isAnimationActive animationDuration={900} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-
-        <div
-          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
-          data-dashboard-chart
-          data-chart-title={`Pending Claims (${timeframeText})`}
-        >
-          <h2 className="font-semibold text-gray-900">Pending Claims ({timeframeText})</h2>
-          {loading || !data ? (
-            <div className="mt-4"><SkeletonPanel /></div>
-          ) : (
-            <div className="h-80 mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.pending_claims_monthly} onClick={(state: any) => {
-                  const active = state?.activePayload?.[0]?.payload as { month: string; count: number } | undefined;
-                  if (!active) return;
-                  setDetail({ title: `Pending Claims - ${active.month}`, rows: [active] });
-                }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} isAnimationActive animationDuration={1000} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
+        <AIMatchPerformance
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          category={category}
+          onInspect={(title, rows) => setDetail({ title, rows })}
+        />
+        <HonestyLeaderboard
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          category={category}
+          onInspect={(title, rows) => setDetail({ title, rows })}
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

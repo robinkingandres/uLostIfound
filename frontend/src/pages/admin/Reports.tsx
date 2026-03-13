@@ -5,14 +5,16 @@ import ReportDetailsModal from '../../components/ReportDetailsModal';
 import { fetchReports, updateReportStatus } from '../../services/api';
 import type { Report, ReportStatus, ReportType } from '../../types/report';
 
-type FilterType = 'All' | 'Lost' | 'Found' | 'Verified' | 'Pending' | 'Rejected';
+type TypeFilter = 'All' | 'Lost' | 'Found';
+type StatusFilter = 'All' | 'Verified' | 'Claimed' | 'Rejected';
 
 export default function ManageReports() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
-  const [filter, setFilter] = useState<FilterType>('All');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('All');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Memoize fetch function to prevent unnecessary re-runs
@@ -21,18 +23,15 @@ export default function ManageReports() {
     setError('');
     
     // Map filters to API parameters
-    let typeFilter: ReportType | undefined = undefined;
-    let statusFilter: ReportStatus | undefined = undefined;
+    let apiTypeFilter: ReportType | undefined = undefined;
+    let apiStatusFilter: ReportStatus | undefined = undefined;
 
-    if (filter === 'Lost' || filter === 'Found') {
-      typeFilter = filter;
-    } else if (filter !== 'All') {
-      statusFilter = filter as ReportStatus;
-    }
+    if (typeFilter !== 'All') apiTypeFilter = typeFilter;
+    if (statusFilter !== 'All') apiStatusFilter = statusFilter as ReportStatus;
 
     try {
       // Call the new API function
-      const data = await fetchReports(typeFilter, statusFilter);
+      const data = await fetchReports(apiTypeFilter, apiStatusFilter);
       setReports(data);
     } catch (err) {
       console.error(err);
@@ -40,7 +39,7 @@ export default function ManageReports() {
     } finally {
       setLoading(false);
     }
-  }, [filter]); // Re-run whenever filter changes
+  }, [typeFilter, statusFilter]); // Re-run whenever filter changes
 
   useEffect(() => {
     loadReports();
@@ -59,15 +58,6 @@ export default function ManageReports() {
       console.error(`Failed to update status to ${newStatus}:`, err);
       alert(`Failed to update report status. Error: ${err}`);
     }
-  };
-
-  const handleFilterClick = async (option: FilterType) => {
-    // If the same filter is clicked again, explicitly refresh from DB.
-    if (option === filter) {
-      await loadReports();
-      return;
-    }
-    setFilter(option);
   };
 
 
@@ -149,20 +139,43 @@ export default function ManageReports() {
             </div>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
-            {(['All', 'Lost', 'Found', 'Verified', 'Pending', 'Rejected'] as FilterType[]).map((option) => (
-              <button
-                key={option}
-                onClick={() => { void handleFilterClick(option); }}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  filter === option
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {option}
-              </button>
-            ))}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div>
+                <div className="text-xs font-semibold text-gray-600 mb-2">Type</div>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+                  className="w-full sm:w-44 px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition"
+                >
+                  <option value="All">All</option>
+                  <option value="Lost">Lost</option>
+                  <option value="Found">Found</option>
+                </select>
+              </div>
+
+              <div>
+                <div className="text-xs font-semibold text-gray-600 mb-2">Status</div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                  className="w-full sm:w-44 px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition"
+                >
+                  <option value="All">All</option>
+                  <option value="Verified">Verified</option>
+                  <option value="Claimed">Claimed</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => { void loadReports(); }}
+              className="px-4 py-2 rounded-lg font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors self-start sm:self-auto"
+            >
+              Refresh
+            </button>
           </div>
         </div>
         

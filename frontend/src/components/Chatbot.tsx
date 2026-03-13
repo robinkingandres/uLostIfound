@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Send, Bot, RotateCcw, Search, FileText, MapPin, ShieldCheck, Bell } from 'lucide-react';
+import { X, Send, Bot, RotateCcw, Search, FileText, MapPin, ShieldCheck, Bell, ChevronRight } from 'lucide-react';
 
 // 1. Updated Interface to include 'type' (Lost vs Found)
 interface ReportItem {
@@ -317,16 +317,26 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
           </div>
 
           {/* QUICK ACTIONS */}
-          <div className="px-5 py-3 bg-white border-t border-gray-100 overflow-x-auto no-scrollbar flex gap-2 shrink-0">
-            {faqOptions.map((opt, i) => (
-              <button
-                key={i}
-                onClick={() => handleAction(opt.label)}
-                className="whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-[11px] font-bold text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all"
-              >
-                {opt.icon} {opt.label}
-              </button>
-            ))}
+          <div className="relative shrink-0">
+            <div className="px-5 py-3 bg-white border-t border-gray-100 overflow-x-auto no-scrollbar flex gap-2">
+              {faqOptions.map((opt, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleAction(opt.label)}
+                  className="whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-[11px] font-bold text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all"
+                >
+                  {opt.icon} {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Mobile hint: sideways scroll */}
+            <div className="pointer-events-none absolute right-0 top-0 h-full flex items-center pr-3">
+              <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 bg-gradient-to-l from-white via-white/95 to-transparent pl-8 py-1">
+                <span>Scroll</span>
+                <ChevronRight className="w-3 h-3" />
+              </div>
+            </div>
           </div>
 
           {/* INPUT */}

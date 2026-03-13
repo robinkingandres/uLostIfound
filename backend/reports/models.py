@@ -29,6 +29,18 @@ class Report(models.Model):
         default='',
         help_text="Name of the person linked to the report (owner/claimer). Required for lost reports."
     )
+    person_grade = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        help_text="Grade level of the person linked to the report."
+    )
+    person_section = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Section/room of the person linked to the report."
+    )
     description = models.TextField()
     type = models.CharField(max_length=10, choices=REPORT_TYPE_CHOICES)
     category = models.CharField(max_length=100)

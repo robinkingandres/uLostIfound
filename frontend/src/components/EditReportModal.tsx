@@ -3,7 +3,54 @@ import { X, Upload, ChevronDown } from 'lucide-react';
 import { updateReport } from '../services/api';
 import type { Report } from '../types/report';
 
-const CATEGORIES = ['Phone', 'Wallet', 'ID', 'Electronics', 'Clothing', 'Others'];
+const CATEGORIES = [
+  'School Supplies',
+  'Tech & Gadgets',
+  'Books & Modules',
+  'Daily Essentials',
+  'Food & Clothes',
+  'Others',
+];
+
+const CATEGORY_LABELS: Record<string, string> = {
+  'School Supplies': 'School Supplies(Pens, notebooks, paper, markers, glue, and scissors)',
+  'Tech & Gadgets': 'Tech & Gadgets(Laptop, tablet, calculator, chargers, and flash drives)',
+  'Books & Modules': 'Books & Modules(Textbooks, printed modules, and notebook)',
+  'Daily Essentials': 'Daily Essentials(ID, umbrella, sanitizer, tissues, and alcohol)',
+  'Food & Clothes': 'Food & Clothes(Water bottle, snacks, jacket, and PE uniform)',
+  'Others': 'Others(Specify)',
+};
+
+const LEGACY_CATEGORY_MAP: Record<string, string> = {
+  electronics: 'Tech & Gadgets',
+  phone: 'Tech & Gadgets',
+  documents: 'Books & Modules',
+  clothing: 'Food & Clothes',
+  accessories: 'Food & Clothes',
+  wallet: 'Food & Clothes',
+  id: 'Food & Clothes',
+  other: 'Others',
+  others: 'Others',
+  'school supplies (ballpen, paper, notebook)': 'School Supplies',
+  'electronics & gadgets (laptop / tablet, scientific calculator, charger / power bank, flash drive)': 'Tech & Gadgets',
+  'books & notebooks (textbooks, subject notebooks, printed modules, planner / journal)': 'Books & Modules',
+  'personal care & hygiene (hand sanitizer, pocket tissue, lip balm, small umbrella)': 'Daily Essentials',
+  'food & beverage (water bottle, lunchbox, snacks)': 'Food & Clothes',
+  'clothing & accessories (school id, extra sweater or jacket, pe uniform / gym clothes)': 'Food & Clothes',
+  'art & project materials (colored pencils or markers, glue stick, scissors, construction paper)': 'School Supplies',
+  'school supplies(pens, notebooks, paper, markers, glue, and scissors)': 'School Supplies',
+  'tech & gadgets(laptop, tablet, calculator, chargers, and flash drives)': 'Tech & Gadgets',
+  'books & modules(textbooks, printed modules, and notebook)': 'Books & Modules',
+  'daily essentials(id, umbrella, sanitizer, tissues, and alcohol)': 'Daily Essentials',
+  'food & clothes(water bottle, snacks, jacket, and pe uniform)': 'Food & Clothes',
+};
+
+const normalizeCategory = (value: string) => {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return trimmed;
+  const key = trimmed.toLowerCase();
+  return LEGACY_CATEGORY_MAP[key] ?? trimmed;
+};
 
 
 interface EditReportModalProps {
@@ -13,13 +60,18 @@ interface EditReportModalProps {
 }
 
 export default function EditReportModal({ report, onClose, onSuccess }: EditReportModalProps) {
+  const isOthersCategory = (value: string) => value.trim().toLowerCase() === 'others';
+  const normalizedCategory = normalizeCategory(report.category);
+  const initialCategory = CATEGORIES.includes(normalizedCategory) ? normalizedCategory : 'Others';
+
   const [formData, setFormData] = useState({
     itemName: report.itemName,
-    category: report.category,
+    category: initialCategory,
     date: report.date,
     location: report.location,
     description: report.description,
   });
+  const [otherCategory, setOtherCategory] = useState(initialCategory === 'Others' ? report.category : '');
   const [image, setImage] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -29,6 +81,7 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    if (name === 'category' && !isOthersCategory(value)) setOtherCategory('');
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -49,9 +102,13 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
     setLoading(true);
     setError('');
     try {
+      if (isOthersCategory(formData.category) && !otherCategory.trim()) {
+        setError('Please specify the category.');
+        return;
+      }
       await updateReport(report.id, {
         itemName: formData.itemName,
-        category: formData.category,
+        category: isOthersCategory(formData.category) ? otherCategory.trim() : formData.category,
         date: formData.date,
         location: formData.location,
         description: formData.description,
@@ -102,11 +159,21 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm appearance-none bg-gray-50 cursor-pointer"
                 >
                   {CATEGORIES.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                    <option key={cat} value={cat}>{CATEGORY_LABELS[cat] ?? cat}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
+              {isOthersCategory(formData.category) && (
+                <input
+                  type="text"
+                  value={otherCategory}
+                  onChange={(e) => setOtherCategory(e.target.value)}
+                  className="mt-3 w-full px-4 py-3 border border-cyan-500 rounded-xl text-sm outline-none ring-2 ring-cyan-100 bg-white"
+                  placeholder="Please specify category"
+                  autoFocus
+                />
+              )}
             </div>
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">Date *</label>
