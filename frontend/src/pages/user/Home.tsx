@@ -453,7 +453,6 @@ export default function UserHome() {
           {feedItems.map((item) => {
             if (item.kind === 'match') {
               const { lost, found, matchId } = item;
-              const displayImage = found.image || lost.image;
               const ownerName = getDisplayReporterName(lost);
               const finderName = getDisplayReporterName(found);
               const ownerLabel = getGradeSectionLabel(lost);

@@ -34,7 +34,7 @@ export default function ReportLost() {
   const isOthersCategory = (value: string) => value.trim().toLowerCase() === 'others';
 
   const [dbReports, setDbReports] = useState<Report[]>([]);
-  const [categories, setCategories] = useState<string[]>([
+  const [categories] = useState<string[]>([
     'School Supplies',
     'Tech & Gadgets',
     'Books & Modules',

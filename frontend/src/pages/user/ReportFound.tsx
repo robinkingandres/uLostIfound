@@ -59,7 +59,7 @@ export default function ReportFound() {
   
   // 1. Chatbot Database State
   const [reports, setReports] = useState<Report[]>([]);
-  const [categories, setCategories] = useState<string[]>([
+  const [categories] = useState<string[]>([
     'School Supplies',
     'Tech & Gadgets',
     'Books & Modules',
