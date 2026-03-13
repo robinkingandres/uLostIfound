@@ -4,7 +4,7 @@ import {
   Filter,
   MapPin,
   Tag,
-  User as UserIcon,
+  Bot,
   CheckCheck,
   Clock,
   X
@@ -90,6 +90,8 @@ export default function UserHome() {
     if (saved !== null) return saved === '1';
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
   });
+  const [showGuidanceToast, setShowGuidanceToast] = useState(false);
+  const [showChatbotBubble, setShowChatbotBubble] = useState(true);
   const previousSnapshotRef = useRef<Map<number, string>>(new Map());
   const hasInitialSnapshotRef = useRef(false);
 
@@ -203,6 +205,18 @@ export default function UserHome() {
       window.localStorage.setItem('public_home_dark_mode', isDark ? '1' : '0');
     }
   }, [isDark]);
+
+  useEffect(() => {
+    if (!showGuidanceToast) return;
+    const timer = window.setTimeout(() => setShowGuidanceToast(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [showGuidanceToast]);
+
+  useEffect(() => {
+    if (!showChatbotBubble) return;
+    const timer = window.setTimeout(() => setShowChatbotBubble(false), 6000);
+    return () => window.clearTimeout(timer);
+  }, [showChatbotBubble]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -320,6 +334,12 @@ export default function UserHome() {
     if (report.reporterRole === 'Guidance') return 'GUIDANCE';
     return report.reporterName || report.reporterUsername || report.reporter || 'User';
   };
+  const getReporterInitial = (report: Report) => {
+    const name = getDisplayReporterName(report).trim();
+    if (!name) return 'U';
+    const first = name[0].toUpperCase();
+    return /[A-Z]/.test(first) ? first : 'U';
+  };
 
   const normalizeText = (value: unknown) => {
     if (typeof value === 'string') return value;
@@ -392,10 +412,21 @@ export default function UserHome() {
             <span className="text-blue-600 text-[1.05em]">Lost and Found Managing System</span>
           </h1>
           <p className={`text-xs sm:text-sm md:text-base mt-2 sm:mt-4 ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
-            Public view: browse posted lost and found items.
+            Public view: browse posted lost and found items
           </p>
           <p className={`text-[11px] sm:text-xs mt-1.5 sm:mt-2 ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>
-            For reporting concerns, please proceed directly to the Guidance Office.
+            For reporting or claiming of items, please proceed directly to the{' '}
+            <button
+              type="button"
+              onClick={() => setShowGuidanceToast(true)}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-colors ${
+                isDark
+                  ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                  : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Guidance Office
+            </button>
           </p>
         </div>
                 
@@ -453,6 +484,7 @@ export default function UserHome() {
           {feedItems.map((item) => {
             if (item.kind === 'match') {
               const { lost, found, matchId } = item;
+              const displayImage = found.image || lost.image;
               const ownerName = getDisplayReporterName(lost);
               const finderName = getDisplayReporterName(found);
               const ownerLabel = getGradeSectionLabel(lost);
@@ -480,7 +512,7 @@ export default function UserHome() {
                           />
                         ) : (
                           <div className={`w-full h-full flex items-center justify-center text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            No Lost Image
+                            No Image
                           </div>
                         )}
                         <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-white bg-rose-500/90">
@@ -501,7 +533,7 @@ export default function UserHome() {
                           />
                         ) : (
                           <div className={`w-full h-full flex items-center justify-center text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            No Found Image
+                            No Image
                           </div>
                         )}
                         <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-white bg-cyan-500/90">
@@ -510,13 +542,13 @@ export default function UserHome() {
                       </button>
                     </div>
                     <div className="absolute top-3 right-3 sm:top-4 sm:right-4 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg bg-indigo-500">
-                      SUCCESSFUL MATCH
+                      MATCHED
                     </div>
                   </div>
 
                   <div className="p-4 sm:p-6 flex-1 flex flex-col">
                     <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase font-bold tracking-widest text-indigo-600 mb-2">
-                      Successful Match
+                      Matched
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-6 mb-4">
                       <h3 className={`text-lg sm:text-2xl font-extrabold leading-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
@@ -551,17 +583,17 @@ export default function UserHome() {
                     <div className={`mt-auto pt-4 sm:pt-5 border-t ${isDark ? 'border-slate-800' : 'border-slate-50'}`}>
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-blue-500 border overflow-hidden shrink-0 ${isDark ? 'bg-blue-950/30 border-blue-800' : 'bg-blue-50 border-blue-100'}`}>
-                            {found.reporterAvatar ? (
-                              <img
-                                src={found.reporterAvatar.startsWith('http') ? found.reporterAvatar : `${API_BASE}${found.reporterAvatar}`}
-                                alt="Finder"
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <UserIcon className="w-4 h-4" />
-                            )}
-                          </div>
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-blue-500 border overflow-hidden shrink-0 ${isDark ? 'bg-blue-950/30 border-blue-800' : 'bg-blue-50 border-blue-100'}`}>
+                          {found.reporterAvatar ? (
+                            <img
+                              src={found.reporterAvatar.startsWith('http') ? found.reporterAvatar : `${API_BASE}${found.reporterAvatar}`}
+                              alt="Finder"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                              <span className="text-xs font-bold text-blue-600">{getReporterInitial(found)}</span>
+                          )}
+                        </div>
                           <div className="min-w-0">
                             <div className={`text-xs font-bold uppercase tracking-tight ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{finderName}</div>
                             {finderLabel && (
@@ -588,7 +620,7 @@ export default function UserHome() {
                                 className="w-full h-full object-cover"
                               />
                             ) : (
-                              <UserIcon className="w-4 h-4" />
+                              <span className="text-xs font-bold text-blue-600">{getReporterInitial(lost)}</span>
                             )}
                           </div>
                         </div>
@@ -609,18 +641,24 @@ export default function UserHome() {
               >
                 {/* Image Section */}
                 <div className={`relative h-44 sm:h-56 w-full overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewImage({ src: report.image, alt: report.itemName })}
-                    className="w-full h-full"
-                    aria-label="View full image"
-                  >
-                    <img 
-                      src={report.image} 
-                      alt={report.itemName} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                    />
-                  </button>
+                  {report.image ? (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewImage({ src: report.image, alt: report.itemName })}
+                      className="w-full h-full"
+                      aria-label="View full image"
+                    >
+                      <img 
+                        src={report.image} 
+                        alt={report.itemName} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                      />
+                    </button>
+                  ) : (
+                    <div className={`w-full h-full flex items-center justify-center text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      No Image
+                    </div>
+                  )}
                   <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg ${getTopBadgeColor(report)}`}>
                     {getStatusMeta(report).badgeLabel}
                   </div>
@@ -660,7 +698,7 @@ export default function UserHome() {
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <UserIcon className="w-4 h-4" />
+                          <span className="text-xs font-bold text-blue-600">{getReporterInitial(report)}</span>
                         )}
                       </div>
                     <div className="min-w-0 flex flex-col">
@@ -699,22 +737,48 @@ export default function UserHome() {
         <>
           {/* Floating Chatbot */}
           <div className="fixed bottom-6 right-6 z-50">
-            <button
-              onClick={handleOpenChatbot}
-              className="relative group transition-transform duration-300 hover:scale-110 active:scale-95 outline-none"
-            >
-              <img
-                src={chatbotIcon}
-                alt="Chatbot"
-                className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md"
-              />
-              {hasChatNotification && siteSettings?.user_home_chat_notification_dot !== false && (
-                <div className="absolute top-1 right-1 flex h-4 w-4">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
+            <div className="relative">
+              {showChatbotBubble && (
+                <div className={`chatbot-bubble absolute bottom-full right-0 mb-3 w-56 sm:w-60 px-4 py-2.5 rounded-2xl rounded-br-md shadow-xl text-[11px] sm:text-xs font-semibold ${isDark ? 'bg-indigo-950/90 text-indigo-50 border border-indigo-800' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}>
+                  <span
+                    className={`absolute -bottom-1.5 right-6 h-3 w-3 rotate-45 border-r border-b ${isDark ? 'bg-indigo-950/90 border-indigo-800' : 'bg-indigo-50 border-indigo-200'}`}
+                  />
+                  <div className="flex items-start gap-2">
+                    <div className={`mt-0.5 h-7 w-7 rounded-xl flex items-center justify-center border ${isDark ? 'bg-indigo-900 border-indigo-700 text-indigo-100' : 'bg-indigo-100 border-indigo-200 text-indigo-600'}`}>
+                      <Bot className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] uppercase tracking-widest font-bold text-indigo-500">uLost AI</div>
+                      <div className="text-[11px] sm:text-xs leading-snug">Need help? Tap here.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowChatbotBubble(false)}
+                      className={`rounded-full p-1 transition-colors ${isDark ? 'hover:bg-indigo-900' : 'hover:bg-indigo-100'}`}
+                      aria-label="Dismiss"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               )}
-            </button>
+              <button
+                onClick={handleOpenChatbot}
+                className="relative group transition-transform duration-300 hover:scale-110 active:scale-95 outline-none"
+              >
+                <img
+                  src={chatbotIcon}
+                  alt="Chatbot"
+                  className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md"
+                />
+                {hasChatNotification && siteSettings?.user_home_chat_notification_dot !== false && (
+                  <div className="absolute top-1 right-1 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
+                  </div>
+                )}
+              </button>
+            </div>
           </div>
 
           <Chatbot
@@ -746,6 +810,40 @@ export default function UserHome() {
           />
         </div>
       )}
+
+      {showGuidanceToast && (
+        <div className="fixed bottom-24 left-1/2 z-[70] w-[92%] max-w-lg -translate-x-1/2">
+          <div className={`flex items-start gap-3 rounded-2xl border px-4 py-3 shadow-2xl text-xs sm:text-sm font-medium ${isDark ? 'bg-slate-900/95 border-slate-700 text-slate-100' : 'bg-white/95 border-slate-200 text-slate-700'} backdrop-blur`}>
+            <div className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full ${isDark ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-600'}`}>
+              <MapPin className="h-4 w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] uppercase tracking-widest font-bold text-blue-500">Guidance Office</div>
+              <div className="mt-0.5 text-[12px] sm:text-sm">
+                Located at ACG Building, Ground Floor, beside the Principal&apos;s Office.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowGuidanceToast(false)}
+              className={`ml-auto rounded-full p-1.5 transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .chatbot-bubble {
+          animation: chatbot-bubble-float 2.6s ease-in-out infinite;
+        }
+        @keyframes chatbot-bubble-float {
+          0%, 100% { transform: translateY(0); opacity: 0.95; }
+          50% { transform: translateY(-6px); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }
