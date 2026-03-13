@@ -948,6 +948,7 @@ const ADMIN_ANALYTICS_URL = `${API_URL}/admin/analytics/`;
 const ADMIN_ANALYTICS_EXPORT_DATA_URL = `${API_URL}/admin/analytics/export-data/`;
 const ADMIN_AI_MATCH_PERFORMANCE_URL = `${API_URL}/admin/analytics/ai-match-performance/`;
 const ADMIN_HONESTY_RANKING_URL = `${API_URL}/admin/analytics/honesty-ranking/`;
+const ADMIN_HONESTY_AWARDS_URL = `${API_URL}/admin/analytics/honesty-awards/`;
 
 export interface AdminAIMatchPerformanceResponse {
   filters: {
@@ -959,8 +960,15 @@ export interface AdminAIMatchPerformanceResponse {
     successful_matches: number;
     unmatched_reports: number;
   };
+  suggestions: {
+    accepted: number;
+    pending: number;
+    rejected: number;
+    total: number;
+    success_rate: number;
+  };
   histogram: Array<{ bucket: string; count: number }>;
-  avg_time_to_match_days: number;
+  avg_time_to_match_hours: number;
 }
 
 export interface HonestyRankingRow {
@@ -976,6 +984,26 @@ export interface AdminHonestyRankingResponse {
     category: string;
   };
   results: HonestyRankingRow[];
+}
+
+export interface HonestyAwardRow {
+  report_id: number;
+  found_by: string;
+  grade: string;
+  section: string;
+  date_found: string;
+  category: string;
+  item_name: string;
+  returned: boolean;
+}
+
+export interface AdminHonestyAwardsResponse {
+  filters: {
+    date_from: string;
+    date_to: string;
+    category: string;
+  };
+  results: HonestyAwardRow[];
 }
 
 export const fetchAdminAnalytics = async (params?: {
@@ -1072,6 +1100,30 @@ export const fetchAdminHonestyRanking = async (params?: {
   if (!response.ok) {
     const msg = await parseErrorResponse(response);
     throw new Error(`Failed to fetch honesty ranking (${response.status}): ${msg}`);
+  }
+  return response.json();
+};
+
+export const fetchAdminHonestyAwards = async (params?: {
+  date_from?: string;
+  date_to?: string;
+  category?: string;
+  limit?: number;
+}): Promise<AdminHonestyAwardsResponse> => {
+  const url = new URL(ADMIN_HONESTY_AWARDS_URL, window.location.origin);
+  if (params?.date_from) url.searchParams.set('date_from', params.date_from);
+  if (params?.date_to) url.searchParams.set('date_to', params.date_to);
+  if (params?.category) url.searchParams.set('category', params.category);
+  if (params?.limit) url.searchParams.set('limit', String(params.limit));
+
+  const response = await fetch(url.toString(), {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const msg = await parseErrorResponse(response);
+    throw new Error(`Failed to fetch honesty awards (${response.status}): ${msg}`);
   }
   return response.json();
 };

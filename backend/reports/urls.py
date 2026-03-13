@@ -13,6 +13,7 @@ from .views import (
     AdminAnalyticsExportDataView,
     AdminAIMatchPerformanceView,
     AdminHonestyRankingView,
+    AdminHonestyAwardsView,
 )
 
 
@@ -30,6 +31,7 @@ urlpatterns = [
     path('admin/analytics/export-data/', AdminAnalyticsExportDataView.as_view(), name='admin-analytics-export-data'),
     path('admin/analytics/ai-match-performance/', AdminAIMatchPerformanceView.as_view(), name='admin-ai-match-performance'),
     path('admin/analytics/honesty-ranking/', AdminHonestyRankingView.as_view(), name='admin-honesty-ranking'),
+    path('admin/analytics/honesty-awards/', AdminHonestyAwardsView.as_view(), name='admin-honesty-awards'),
     path('admin/ai/scan/', AIMatchViewSet.as_view({'post': 'scan_all'}), name='admin-ai-scan'),
     path('admin/ai/matches/', AIMatchViewSet.as_view({'get': 'list'}), name='admin-ai-matches-list'),
     path('admin/ai/matches/<int:pk>/', AIMatchViewSet.as_view({'patch': 'partial_update'}), name='admin-ai-matches-update'),

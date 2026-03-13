@@ -1227,6 +1227,7 @@ class AdminAIMatchPerformanceView(APIView):
         bucket_counts = {label: 0 for (label, _) in bucket_defs}
 
         deltas = []
+        delta_hours = []
         for match in approved_matches:
             lost_dt = getattr(match.lost_report, 'date_reported', None)
             found_dt = getattr(match.found_report, 'date_reported', None)
@@ -1237,9 +1238,11 @@ class AdminAIMatchPerformanceView(APIView):
                 later_report = lost_dt or found_dt
             if not later_report or not match.date_created:
                 continue
-            delta_days = (match.date_created.date() - later_report.date()).days
-            if delta_days < 0:
+            delta_seconds = (match.date_created - later_report).total_seconds()
+            if delta_seconds < 0:
                 continue
+            delta_hours.append(delta_seconds / 3600)
+            delta_days = (match.date_created.date() - later_report.date()).days
             deltas.append(delta_days)
             for label, predicate in bucket_defs:
                 if predicate(delta_days):
@@ -1247,7 +1250,13 @@ class AdminAIMatchPerformanceView(APIView):
                     break
 
         histogram = [{'bucket': label, 'count': bucket_counts[label]} for (label, _) in bucket_defs]
-        avg_days = (sum(deltas) / len(deltas)) if deltas else 0.0
+        avg_hours = (sum(delta_hours) / len(delta_hours)) if delta_hours else 0.0
+
+        accepted_count = matches_qs.filter(status='Approved').count()
+        pending_count = matches_qs.filter(status='Pending').count()
+        rejected_count = matches_qs.filter(status='Rejected').count()
+        total_suggestions = accepted_count + pending_count + rejected_count
+        success_rate = round((accepted_count / total_suggestions * 100), 1) if total_suggestions else 0.0
 
         return Response({
             'filters': {
@@ -1259,8 +1268,15 @@ class AdminAIMatchPerformanceView(APIView):
                 'successful_matches': successful_reports,
                 'unmatched_reports': unmatched_reports,
             },
+            'suggestions': {
+                'accepted': accepted_count,
+                'pending': pending_count,
+                'rejected': rejected_count,
+                'total': total_suggestions,
+                'success_rate': success_rate,
+            },
             'histogram': histogram,
-            'avg_time_to_match_days': round(avg_days, 1),
+            'avg_time_to_match_hours': round(avg_hours, 1),
         }, status=status.HTTP_200_OK)
 
 
@@ -1318,6 +1334,59 @@ class AdminHonestyRankingView(APIView):
                 'category': category,
             },
             'results': payload,
+        }, status=status.HTTP_200_OK)
+
+
+class AdminHonestyAwardsView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request, format=None):
+        date_from, date_to = _parse_admin_date_range(request)
+        category = (request.query_params.get('category') or 'all').strip()
+        limit_param = (request.query_params.get('limit') or '').strip()
+
+        try:
+            limit = int(limit_param) if limit_param else 50
+        except (TypeError, ValueError):
+            limit = 50
+
+        limit = max(1, min(limit, 200))
+
+        base_qs = Report.objects.filter(
+            type='Found',
+            date_lost_or_found__range=(date_from, date_to),
+        ).select_related('reporter')
+
+        if category and category.lower() != 'all':
+            base_qs = base_qs.filter(category=category)
+
+        base_qs = base_qs.order_by('-date_lost_or_found', '-date_reported')
+
+        results = []
+        for report in base_qs[:limit]:
+            reporter = report.reporter
+            reported_name = (report.person_name or '').strip()
+            full_name = f"{(reporter.first_name or '').strip()} {(reporter.last_name or '').strip()}".strip()
+            reporter_label = reported_name or full_name or getattr(reporter, 'username', '') or 'Unknown'
+
+            results.append({
+                'report_id': report.id,
+                'found_by': reporter_label,
+                'grade': report.person_grade or '',
+                'section': report.person_section or '',
+                'date_found': report.date_lost_or_found.isoformat() if report.date_lost_or_found else '',
+                'category': report.category or 'Uncategorized',
+                'item_name': report.item_name or '',
+                'returned': report.status == 'Claimed',
+            })
+
+        return Response({
+            'filters': {
+                'date_from': date_from.isoformat(),
+                'date_to': date_to.isoformat(),
+                'category': category,
+            },
+            'results': results,
         }, status=status.HTTP_200_OK)
 
 
