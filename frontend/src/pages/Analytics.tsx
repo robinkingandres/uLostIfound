@@ -660,25 +660,13 @@ export default function Analytics() {
       </div>
 
       {kpis && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
           <div className={`rounded-xl border p-3 ${kpis.resolution_rate >= 80 ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
             <div className="text-xs text-gray-600">Resolution Threshold</div>
             <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-gray-900">
               {kpis.resolution_rate >= 80 ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <AlertTriangle className="w-4 h-4 text-amber-600" />}
               {kpis.resolution_rate >= 80 ? 'Healthy (>=80%)' : 'Needs attention (<80%)'}
             </div>
-          </div>
-          <div className={`rounded-xl border p-3 ${kpis.overdue_claims > 7 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'}`}>
-            <div className="text-xs text-gray-600">Overdue Claims (&gt;7 days)</div>
-            <div className="mt-1 text-xl font-bold text-gray-900">{kpis.overdue_claims}</div>
-          </div>
-          <div className="rounded-xl border border-gray-200 p-3 bg-white">
-            <div className="text-xs text-gray-600">Pending Claims</div>
-            <div className="mt-1 text-xl font-bold text-gray-900">{kpis.pending_claims}</div>
-          </div>
-          <div className="rounded-xl border border-gray-200 p-3 bg-white">
-            <div className="text-xs text-gray-600">Avg Resolution Time</div>
-            <div className="mt-1 text-xl font-bold text-gray-900">{kpis.avg_resolution_time_days} days</div>
           </div>
         </div>
       )}
