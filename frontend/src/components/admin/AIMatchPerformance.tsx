@@ -42,10 +42,11 @@ export default function AIMatchPerformance({ dateFrom, dateTo, category, onInspe
     const pending = data?.suggestions?.pending ?? 0;
     const rejected = data?.suggestions?.rejected ?? 0;
     const total = data?.suggestions?.total ?? accepted + pending + rejected;
+    const decidedTotal = accepted + rejected;
     const successRate =
       data?.suggestions?.success_rate ??
-      (total > 0 ? Math.round((accepted / total) * 1000) / 10 : 0);
-    return { accepted, pending, rejected, total, successRate };
+      (decidedTotal > 0 ? Math.round((accepted / decidedTotal) * 1000) / 10 : 0);
+    return { accepted, pending, rejected, total, decidedTotal, successRate };
   }, [data]);
 
   return (
@@ -71,7 +72,7 @@ export default function AIMatchPerformance({ dateFrom, dateTo, category, onInspe
               key: 'success',
               title: 'Acceptance Rate',
               value: `${suggestionStats.successRate}%`,
-              foot: `${suggestionStats.accepted.toLocaleString()} / ${suggestionStats.total.toLocaleString()} accepted`,
+              foot: `${suggestionStats.accepted.toLocaleString()} / ${suggestionStats.decidedTotal.toLocaleString()} accepted`,
               className: 'border-sky-200 bg-sky-50 text-sky-900',
               inspect: () =>
                 onInspect?.('AI Match Success Rate', [
@@ -81,6 +82,7 @@ export default function AIMatchPerformance({ dateFrom, dateTo, category, onInspe
                     pending: suggestionStats.pending,
                     rejected: suggestionStats.rejected,
                     total: suggestionStats.total,
+                    decided_total: suggestionStats.decidedTotal,
                   },
                 ]),
             },
