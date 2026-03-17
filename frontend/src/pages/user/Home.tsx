@@ -329,10 +329,15 @@ export default function UserHome() {
   };
 
   const getDisplayReporterName = (report: Report) => {
-    const personName = (report.personName || '').trim();
+    const personName = normalizeText(report.personName).trim();
     if (personName) return personName;
     if (report.reporterRole === 'Guidance') return 'GUIDANCE';
-    return report.reporterName || report.reporterUsername || report.reporter || 'User';
+    const fallback =
+      report.reporterName ||
+      report.reporterUsername ||
+      report.reporter ||
+      'User';
+    return normalizeText(fallback);
   };
   const getReporterInitial = (report: Report) => {
     const name = getDisplayReporterName(report).trim();
@@ -484,7 +489,6 @@ export default function UserHome() {
           {feedItems.map((item) => {
             if (item.kind === 'match') {
               const { lost, found, matchId } = item;
-              const displayImage = found.image || lost.image;
               const ownerName = getDisplayReporterName(lost);
               const finderName = getDisplayReporterName(found);
               const ownerLabel = getGradeSectionLabel(lost);
