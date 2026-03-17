@@ -22,7 +22,6 @@ import {
 } from '../services/api';
 import AIMatchPerformance from '../components/admin/AIMatchPerformance';
 import HonestyAwardsPanel from '../components/admin/HonestyAwardsPanel';
-import HonestyLeaderboard from '../components/admin/HonestyLeaderboard';
 
 type Timeframe = 'last7' | 'last30' | 'last90';
 
@@ -551,14 +550,8 @@ export default function Analytics() {
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <AIMatchPerformance
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          category={category}
-          onInspect={(title, rows) => setDetail({ title, rows })}
-        />
-        <HonestyLeaderboard
           dateFrom={dateFrom}
           dateTo={dateTo}
           category={category}
