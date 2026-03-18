@@ -22,6 +22,9 @@ def send_resend_email(*, to_email, subject, text, html=None):
     if not from_email:
         return False, "Resend from email is not configured."
 
+    api_key = str(api_key).strip()
+    from_email = str(from_email).strip()
+
     payload = {
         "from": from_email,
         "to": [to_email],
