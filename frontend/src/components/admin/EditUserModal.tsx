@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, UserPlus } from 'lucide-react';
 import type { User, UserRole } from '../../types/user';
+import { useAdminTheme } from '../../contexts/AdminThemeContext';
 
 export type AddUserFormData = {
   username: string;
@@ -30,6 +31,7 @@ const YEAR_LEVEL_OPTIONS = [
 ] as const;
 
 export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate }: EditUserModalProps) {
+  const { isDark } = useAdminTheme();
   const isAddMode = user === null;
   const [formData, setFormData] = useState({
     username: '',
@@ -138,45 +140,53 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-md shadow-xl overflow-hidden">
-        <div className="flex justify-between items-center p-6 border-b border-gray-100">
-          <h3 className="text-lg font-bold text-gray-900">
+      <div className={`rounded-xl w-full max-w-md shadow-xl overflow-hidden ${isDark ? 'bg-slate-900' : 'bg-white'}`}>
+        <div className={`flex justify-between items-center p-6 border-b ${isDark ? 'border-slate-800' : 'border-gray-100'}`}>
+          <h3 className={`text-lg font-bold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
             {isAddMode ? 'Add User' : 'Edit User Account'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className={`transition-colors ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-gray-400 hover:text-gray-600'}`}>
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && <div className="text-red-500 text-sm bg-red-50 p-3 rounded">{error}</div>}
+          {error && <div className={`text-red-500 text-sm p-3 rounded ${isDark ? 'bg-red-500/10' : 'bg-red-50'}`}>{error}</div>}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
               Username
             </label>
             <input
               type="text"
               value={formData.username}
               onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${
+                isDark
+                  ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:ring-blue-400/40'
+                  : 'border border-gray-300 bg-white text-gray-900 focus:ring-blue-500'
+              }`}
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Email</label>
             <input
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${
+                isDark
+                  ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:ring-blue-400/40'
+                  : 'border border-gray-300 bg-white text-gray-900 focus:ring-blue-500'
+              }`}
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">School ID</label>
+            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>School ID</label>
             <input
               type="text"
               value={formData.userId}
@@ -185,17 +195,25 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
               onInput={(e) => e.currentTarget.setCustomValidity('')}
               inputMode="numeric"
               pattern="[0-9]+"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${
+                isDark
+                  ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:ring-blue-400/40'
+                  : 'border border-gray-300 bg-white text-gray-900 focus:ring-blue-500'
+              }`}
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Role</label>
             <select
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${
+                isDark
+                  ? 'border border-slate-700 bg-slate-950 text-slate-100 focus:ring-blue-400/40'
+                  : 'border border-gray-300 bg-white text-gray-900 focus:ring-blue-500'
+              }`}
             >
               {ROLE_OPTIONS.map((r) => (
                 <option key={r} value={r}>{r}</option>
@@ -206,11 +224,15 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           {formData.role === 'Student' && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
+                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Year Level</label>
                 <select
                   value={formData.yearLevel}
                   onChange={(e) => setFormData({ ...formData, yearLevel: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${
+                    isDark
+                      ? 'border border-slate-700 bg-slate-950 text-slate-100 focus:ring-blue-400/40'
+                      : 'border border-gray-300 bg-white text-gray-900 focus:ring-blue-500'
+                  }`}
                   required
                 >
                   <option value="">Select year level</option>
@@ -225,12 +247,16 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
 
           {isAddMode && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Password</label>
               <input
                 type="password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${
+                  isDark
+                    ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:ring-blue-400/40'
+                    : 'border border-gray-300 bg-white text-gray-900 focus:ring-blue-500'
+                }`}
                 required={isAddMode}
                 minLength={8}
                 placeholder="Min. 8 characters"
@@ -242,7 +268,11 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+              className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                isDark
+                  ? 'border border-slate-700 text-slate-200 hover:bg-slate-800'
+                  : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
             >
               Cancel
             </button>

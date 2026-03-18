@@ -1,6 +1,7 @@
 import { LayoutDashboard, FileText, Users, ShoppingCart, Sparkles, BarChart3 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import logo from '../../assets/logo.png';
+import { useAdminTheme } from '../../contexts/AdminThemeContext';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
@@ -12,9 +13,11 @@ const navItems = [
 ];
 
 export default function Sidebar() {
+  const { isDark } = useAdminTheme();
+
   return (
-    <div className="w-60 bg-indigo-900 h-screen sticky top-0 text-white flex flex-col overflow-y-auto">
-      <div className="p-6 flex flex-col items-center border-b border-indigo-800">
+    <div className={`w-60 h-screen sticky top-0 flex flex-col overflow-y-auto ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-indigo-900 text-white'}`}>
+      <div className={`p-6 flex flex-col items-center border-b ${isDark ? 'border-slate-800' : 'border-indigo-800'}`}>
         
         {/* ANIMATED LOGO SECTION */}
         <div className="relative w-24 h-24 flex items-center justify-center mb-3">
@@ -47,8 +50,16 @@ export default function Sidebar() {
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-6 py-3 text-white transition-colors ${
-                  isActive ? 'bg-indigo-800 border-l-4 border-white' : 'hover:bg-indigo-800'
+                `flex items-center gap-3 px-6 py-3 transition-colors ${
+                  isDark ? 'text-slate-200' : 'text-white'
+                } ${
+                  isActive
+                    ? isDark
+                      ? 'bg-slate-900 border-l-4 border-slate-400'
+                      : 'bg-indigo-800 border-l-4 border-white'
+                    : isDark
+                      ? 'hover:bg-slate-900/70'
+                      : 'hover:bg-indigo-800'
                 }`
               }
             >

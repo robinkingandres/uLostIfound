@@ -8,6 +8,7 @@ import ClaimedUnclaimedChart from '../../components/admin/ClaimedUnclaimedChart'
 import InfoCard from '../../components/InfoCard';
 import ActivityFeed from '../../components/admin/ActivityFeed';
 import { fetchDashboardStats } from '../../services/api'; 
+import { useAdminTheme } from '../../contexts/AdminThemeContext';
 
 interface ChartData {
   period: string;
@@ -30,6 +31,7 @@ interface DashboardData {
 type TimePeriod = 'last7' | 'last30' | 'last90';
 
 export default function AdminDashboard() {
+  const { isDark } = useAdminTheme();
   const [stats, setStats] = useState<DashboardData>({
     totalLostItems: 0,
     totalFoundItems: 0,
@@ -67,11 +69,11 @@ export default function AdminDashboard() {
     loadStats();
   }, [timePeriod]);
   
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading Dashboard...</div>;
+  if (loading) return <div className={`p-8 text-center ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>Loading Dashboard...</div>;
   if (error) return <div className="p-8 text-center text-red-500 font-semibold">{error}</div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-gray-100/60">
+    <div className={`min-h-screen ${isDark ? 'bg-slate-950' : 'bg-gradient-to-b from-slate-50 to-gray-100/60'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <StatCard

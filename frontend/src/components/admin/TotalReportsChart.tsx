@@ -7,6 +7,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { useAdminTheme } from '../../contexts/AdminThemeContext';
 
 interface ChartData {
   period: string;
@@ -27,6 +28,7 @@ export default function TotalReportsChart({
   timePeriod, 
   onTimePeriodChange,
 }: TotalReportsChartProps) {
+  const { isDark } = useAdminTheme();
   const hasData = data.some((item) => item.lost || item.found || item.matched || item.claimed);
   type SeriesItem = {
     key: keyof ChartData;
@@ -77,16 +79,26 @@ export default function TotalReportsChart({
   };
 
   const chartData = buildChartData();
+  const gridStroke = isDark ? '#1f2937' : '#e5e7eb';
+  const tickColor = isDark ? '#94a3b8' : '#6b7280';
+  const tooltipStyle = {
+    borderRadius: '12px',
+    border: isDark ? '1px solid #1f2937' : '1px solid #e5e7eb',
+    boxShadow: isDark ? '0 10px 25px rgba(2, 6, 23, 0.5)' : '0 10px 25px rgba(15, 23, 42, 0.08)',
+    fontSize: '12px',
+    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+    color: isDark ? '#e2e8f0' : '#111827',
+  } as const;
 
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-full min-h-[420px] flex flex-col">
+    <div className={`rounded-2xl p-6 shadow-sm border h-full min-h-[420px] flex flex-col ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
       <div className="flex justify-between items-start mb-6">
         <div>
-          <h3 className="text-xl font-bold text-gray-900 mb-1">Total Reports</h3>
-          <p className="text-gray-600 text-sm">{getPeriodLabel()}</p>
+          <h3 className={`text-xl font-bold mb-1 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>Total Reports</h3>
+          <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>{getPeriodLabel()}</p>
         </div>
 
-        <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+        <div className={`inline-flex rounded-lg border p-1 ${isDark ? 'border-slate-700 bg-slate-800' : 'border-gray-200 bg-gray-50'}`}>
           {([
             { key: 'last90', label: 'Last 90 days' },
             { key: 'last30', label: 'Last 30 days' },
@@ -97,7 +109,13 @@ export default function TotalReportsChart({
               type="button"
               onClick={() => onTimePeriodChange(item.key)}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${
-                timePeriod === item.key ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                timePeriod === item.key
+                  ? isDark
+                    ? 'bg-slate-100 text-slate-900 shadow-sm'
+                    : 'bg-gray-900 text-white shadow-sm'
+                  : isDark
+                    ? 'text-slate-400 hover:text-slate-100'
+                    : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               {item.label}
@@ -119,12 +137,12 @@ export default function TotalReportsChart({
                   </linearGradient>
                 ))}
               </defs>
-              <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" />
+              <CartesianGrid strokeDasharray="4 4" stroke={gridStroke} />
               <XAxis
                 dataKey="label"
                 tickLine={false}
                 axisLine={false}
-                tick={{ fill: '#6b7280', fontSize: 12 }}
+                tick={{ fill: tickColor, fontSize: 12 }}
                 minTickGap={18}
                 interval="preserveStartEnd"
               />
@@ -133,17 +151,12 @@ export default function TotalReportsChart({
                 tickLine={false}
                 axisLine={false}
                 width={32}
-                tick={{ fill: '#6b7280', fontSize: 12 }}
+                tick={{ fill: tickColor, fontSize: 12 }}
                 domain={[0, (dataMax: number) => Math.max(5, Math.ceil(dataMax * 1.2))]}
               />
               <Tooltip
-                cursor={{ stroke: '#cbd5f5', strokeDasharray: '4 4' }}
-                contentStyle={{
-                  borderRadius: '12px',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 10px 25px rgba(15, 23, 42, 0.08)',
-                  fontSize: '12px',
-                }}
+                cursor={{ stroke: isDark ? '#334155' : '#cbd5f5', strokeDasharray: '4 4' }}
+                contentStyle={tooltipStyle}
               />
               {series.map((item) => (
                 <Area
@@ -161,13 +174,13 @@ export default function TotalReportsChart({
             </AreaChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-[260px] flex items-center justify-center text-sm text-gray-500">
+          <div className={`h-[260px] flex items-center justify-center text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
             No report activity in this period.
           </div>
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-gray-600">
+      <div className={`mt-4 flex flex-wrap items-center gap-4 text-sm ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
         {series.map((item) => (
           <div key={item.key} className="flex items-center gap-2">
             <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />

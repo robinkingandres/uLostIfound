@@ -14,6 +14,7 @@ import {
   type SettingsCategory,
   type SiteSettings,
 } from '../../services/api';
+import { useAdminTheme } from '../../contexts/AdminThemeContext';
 
 type Tab = 'account' | 'system';
 
@@ -42,6 +43,7 @@ function sortCategories(cats: SettingsCategory[]) {
 }
 
 export default function SettingsPage() {
+  const { isDark } = useAdminTheme();
   const { user, refreshUser } = useAuth();
   const [tab, setTab] = useState<Tab>('account');
   const [loadingInitial, setLoadingInitial] = useState(true);
@@ -255,26 +257,44 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-8 space-y-4">
+    <div className={`p-8 space-y-4 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
       <div className="flex gap-2">
-        <button className={`px-4 py-2 rounded-lg text-sm ${tab === 'account' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300'}`} onClick={() => setTab('account')}>Account</button>
-        <button className={`px-4 py-2 rounded-lg text-sm ${tab === 'system' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300'}`} onClick={() => setTab('system')}>System</button>
+        <button
+          className={`px-4 py-2 rounded-lg text-sm ${
+            tab === 'account'
+              ? isDark ? 'bg-slate-100 text-slate-900' : 'bg-gray-900 text-white'
+              : isDark ? 'bg-slate-900 border border-slate-700 text-slate-200' : 'bg-white border border-gray-300'
+          }`}
+          onClick={() => setTab('account')}
+        >
+          Account
+        </button>
+        <button
+          className={`px-4 py-2 rounded-lg text-sm ${
+            tab === 'system'
+              ? isDark ? 'bg-slate-100 text-slate-900' : 'bg-gray-900 text-white'
+              : isDark ? 'bg-slate-900 border border-slate-700 text-slate-200' : 'bg-white border border-gray-300'
+          }`}
+          onClick={() => setTab('system')}
+        >
+          System
+        </button>
       </div>
 
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div> : null}
       {message ? <div className="rounded-lg border border-green-200 bg-green-50 text-green-700 px-3 py-2 text-sm">{message}</div> : null}
 
       {loadingInitial ? (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 text-sm text-gray-500">Loading settings...</div>
+        <div className={`rounded-2xl p-6 text-sm border ${isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-gray-200 text-gray-500'}`}>Loading settings...</div>
       ) : tab === 'account' ? (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-6 max-w-4xl">
+        <div className={`rounded-2xl p-6 space-y-6 max-w-4xl border ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Account Settings</h2>
-              <p className="text-sm text-gray-500 mt-1">Manage admin profile, login email, avatar, and password.</p>
+              <h2 className={`text-lg font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>Account Settings</h2>
+              <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>Manage admin profile, login email, avatar, and password.</p>
             </div>
             <div className="shrink-0">
-              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-sm cursor-pointer hover:bg-gray-50">
+              <label className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm cursor-pointer ${isDark ? 'border-slate-700 text-slate-200 hover:bg-slate-800' : 'border-gray-300 hover:bg-gray-50'}`}>
                 <Camera className="w-4 h-4" />
                 Change Avatar
                 <input className="hidden" type="file" accept="image/*" onChange={(e) => setAccount((p) => ({ ...p, avatarFile: e.target.files?.[0] || null }))} />
@@ -283,36 +303,36 @@ export default function SettingsPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="rounded-xl border border-gray-200 p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-gray-800">Profile Information</h3>
+            <div className={`rounded-xl border p-4 space-y-3 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
+              <h3 className={`text-sm font-semibold ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>Profile Information</h3>
               <div className="grid grid-cols-1 gap-3">
                 <div>
-                  <label className="text-xs text-gray-600">First Name</label>
-                  <input className="mt-1 w-full border rounded-lg px-3 py-2" placeholder="First name" value={account.first_name} onChange={(e) => setAccount((p) => ({ ...p, first_name: e.target.value }))} />
+                  <label className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>First Name</label>
+                  <input className={`mt-1 w-full border rounded-lg px-3 py-2 ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500' : 'border-gray-300 bg-white text-gray-900'}`} placeholder="First name" value={account.first_name} onChange={(e) => setAccount((p) => ({ ...p, first_name: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-600">Last Name</label>
-                  <input className="mt-1 w-full border rounded-lg px-3 py-2" placeholder="Last name" value={account.last_name} onChange={(e) => setAccount((p) => ({ ...p, last_name: e.target.value }))} />
+                  <label className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>Last Name</label>
+                  <input className={`mt-1 w-full border rounded-lg px-3 py-2 ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500' : 'border-gray-300 bg-white text-gray-900'}`} placeholder="Last name" value={account.last_name} onChange={(e) => setAccount((p) => ({ ...p, last_name: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-600">Email</label>
-                  <input className="mt-1 w-full border rounded-lg px-3 py-2" placeholder="Email" value={account.email} onChange={(e) => setAccount((p) => ({ ...p, email: e.target.value }))} />
+                  <label className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>Email</label>
+                  <input className={`mt-1 w-full border rounded-lg px-3 py-2 ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500' : 'border-gray-300 bg-white text-gray-900'}`} placeholder="Email" value={account.email} onChange={(e) => setAccount((p) => ({ ...p, email: e.target.value }))} />
                 </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-gray-200 p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-gray-800">Security</h3>
+            <div className={`rounded-xl border p-4 space-y-3 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
+              <h3 className={`text-sm font-semibold ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>Security</h3>
               <div className="grid grid-cols-1 gap-3">
                 <div>
-                  <label className="text-xs text-gray-600">Current Password</label>
-                  <input className="mt-1 w-full border rounded-lg px-3 py-2" type="password" placeholder="Current password (optional)" value={account.current_password} onChange={(e) => setAccount((p) => ({ ...p, current_password: e.target.value }))} />
+                  <label className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>Current Password</label>
+                  <input className={`mt-1 w-full border rounded-lg px-3 py-2 ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500' : 'border-gray-300 bg-white text-gray-900'}`} type="password" placeholder="Current password (optional)" value={account.current_password} onChange={(e) => setAccount((p) => ({ ...p, current_password: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-600">New Password</label>
-                  <input className="mt-1 w-full border rounded-lg px-3 py-2" type="password" placeholder="New password (optional)" value={account.new_password} onChange={(e) => setAccount((p) => ({ ...p, new_password: e.target.value }))} />
+                  <label className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>New Password</label>
+                  <input className={`mt-1 w-full border rounded-lg px-3 py-2 ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500' : 'border-gray-300 bg-white text-gray-900'}`} type="password" placeholder="New password (optional)" value={account.new_password} onChange={(e) => setAccount((p) => ({ ...p, new_password: e.target.value }))} />
                 </div>
-                <p className="text-xs text-gray-500">If password fields are blank, password remains unchanged.</p>
+                <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>If password fields are blank, password remains unchanged.</p>
               </div>
             </div>
           </div>
@@ -324,29 +344,29 @@ export default function SettingsPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-6">
+        <div className={`rounded-2xl p-6 space-y-6 border ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">System Settings</h2>
+            <h2 className={`text-lg font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>System Settings</h2>
           </div>
-          {!settings ? <p className="text-sm text-gray-500">Loading settings...</p> : (
+          {!settings ? <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>Loading settings...</p> : (
             <>
-              <section className="space-y-3 rounded-xl border border-gray-200 p-4">
-                <h3 className="font-semibold text-sm text-gray-800">Categories</h3>
+              <section className={`space-y-3 rounded-xl border p-4 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
+                <h3 className={`font-semibold text-sm ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>Categories</h3>
                 <div className="flex gap-2">
-                  <input className="border rounded-lg px-3 py-2 flex-1" value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Add category" />
-                  <button onClick={handleAddCategory} disabled={categoriesBusy} className="border border-gray-300 rounded-lg px-3 py-2 text-sm">Add</button>
+                  <input className={`border rounded-lg px-3 py-2 flex-1 ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500' : 'border-gray-300 bg-white text-gray-900'}`} value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Add category" />
+                  <button onClick={handleAddCategory} disabled={categoriesBusy} className={`border rounded-lg px-3 py-2 text-sm ${isDark ? 'border-slate-700 text-slate-200 hover:bg-slate-800' : 'border-gray-300'}`}>Add</button>
                 </div>
                 <div className="space-y-2">
                   {categories.length === 0 ? (
-                    <div className="text-sm text-gray-500 border rounded-lg px-3 py-3 bg-gray-50">
+                    <div className={`text-sm border rounded-lg px-3 py-3 ${isDark ? 'text-slate-500 border-slate-800 bg-slate-950' : 'text-gray-500 border-gray-200 bg-gray-50'}`}>
                       No categories found yet. Add your first category above.
                     </div>
                   ) : categories.map((cat) => (
-                    <div key={cat.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 border rounded-lg px-3 py-2">
-                      <input className="border rounded px-2 py-1 text-sm w-full" value={cat.name} onChange={(e) => handleCategoryNameChange(cat.id, e.target.value)} />
-                      <button onClick={() => handleMoveCategory(cat.id, -1)} className="text-xs border rounded px-2 py-1">Up</button>
-                      <button onClick={() => handleMoveCategory(cat.id, 1)} className="text-xs border rounded px-2 py-1">Down</button>
-                      <button onClick={() => handleRemoveCategory(cat.id)} className="text-xs border rounded px-2 py-1 text-red-600 border-red-200">Remove</button>
+                    <div key={cat.id} className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 border rounded-lg px-3 py-2 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
+                      <input className={`border rounded px-2 py-1 text-sm w-full ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100' : 'border-gray-300 bg-white text-gray-900'}`} value={cat.name} onChange={(e) => handleCategoryNameChange(cat.id, e.target.value)} />
+                      <button onClick={() => handleMoveCategory(cat.id, -1)} className={`text-xs border rounded px-2 py-1 ${isDark ? 'border-slate-700 text-slate-200 hover:bg-slate-800' : 'border-gray-300'}`}>Up</button>
+                      <button onClick={() => handleMoveCategory(cat.id, 1)} className={`text-xs border rounded px-2 py-1 ${isDark ? 'border-slate-700 text-slate-200 hover:bg-slate-800' : 'border-gray-300'}`}>Down</button>
+                      <button onClick={() => handleRemoveCategory(cat.id)} className={`text-xs border rounded px-2 py-1 text-red-600 ${isDark ? 'border-red-500/40' : 'border-red-200'}`}>Remove</button>
                     </div>
                   ))}
                 </div>
@@ -357,22 +377,22 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              <section className="space-y-2 rounded-xl border border-gray-200 p-4">
-                <h3 className="font-semibold text-sm text-gray-800">Claims</h3>
-                <label className="flex items-center gap-2 text-sm">
+              <section className={`space-y-2 rounded-xl border p-4 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
+                <h3 className={`font-semibold text-sm ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>Claims</h3>
+                <label className={`flex items-center gap-2 text-sm ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
                   <input type="checkbox" checked={settings.claim_require_proof_image} onChange={(e) => setSettings((p) => p ? { ...p, claim_require_proof_image: e.target.checked } : p)} />
                   Require proof image for claims
                 </label>
               </section>
 
-              <section className="space-y-3 rounded-xl border border-gray-200 p-4">
-                <h3 className="font-semibold text-sm text-gray-800">AI</h3>
-                <label className="flex items-center gap-2 text-sm">
+              <section className={`space-y-3 rounded-xl border p-4 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
+                <h3 className={`font-semibold text-sm ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>AI</h3>
+                <label className={`flex items-center gap-2 text-sm ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
                   <input type="checkbox" checked={settings.ai_matching_enabled} onChange={(e) => setSettings((p) => p ? { ...p, ai_matching_enabled: e.target.checked } : p)} />
                   Enable AI matching
                 </label>
                 <div>
-                  <label className="text-xs text-gray-600">AI threshold: {aiThreshold}</label>
+                  <label className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>AI threshold: {aiThreshold}</label>
                   <input
                     type="range"
                     min={0}
@@ -386,28 +406,28 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              <section className="space-y-2 rounded-xl border border-gray-200 p-4">
-                <h3 className="font-semibold text-sm text-gray-800">User Home</h3>
-                <label className="flex items-center gap-2 text-sm">
+              <section className={`space-y-2 rounded-xl border p-4 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
+                <h3 className={`font-semibold text-sm ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>User Home</h3>
+                <label className={`flex items-center gap-2 text-sm ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
                   <input type="checkbox" checked={settings.user_home_chatbot_visible} onChange={(e) => setSettings((p) => p ? { ...p, user_home_chatbot_visible: e.target.checked } : p)} />
                   Show chatbot
                 </label>
-                <label className="flex items-center gap-2 text-sm">
+                <label className={`flex items-center gap-2 text-sm ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
                   <input type="checkbox" checked={settings.user_home_chat_notification_dot} onChange={(e) => setSettings((p) => p ? { ...p, user_home_chat_notification_dot: e.target.checked } : p)} />
                   Show chatbot notification dot
                 </label>
               </section>
 
-              <section className="space-y-2 rounded-xl border border-gray-200 p-4">
-                <h3 className="font-semibold text-sm text-gray-800">Email</h3>
-                <label className="flex items-center gap-2 text-sm">
+              <section className={`space-y-2 rounded-xl border p-4 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
+                <h3 className={`font-semibold text-sm ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>Email</h3>
+                <label className={`flex items-center gap-2 text-sm ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
                   <input type="checkbox" checked={settings.email_master_enabled} onChange={(e) => setSettings((p) => p ? { ...p, email_master_enabled: e.target.checked } : p)} />
                   Enable outgoing email
                 </label>
               </section>
 
               <div className="flex justify-between">
-                <button onClick={refreshCategories} className="border border-gray-300 rounded-lg px-4 py-2 text-sm bg-white">
+                <button onClick={refreshCategories} className={`border rounded-lg px-4 py-2 text-sm ${isDark ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800' : 'border-gray-300 bg-white text-gray-700'}`}>
                   Reset Category Draft
                 </button>
                 <button disabled={busy} onClick={saveSystemSettings} className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">

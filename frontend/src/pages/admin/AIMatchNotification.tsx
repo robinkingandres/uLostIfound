@@ -3,12 +3,14 @@ import { Sparkles, ClipboardList, CheckCircle, RefreshCw, Search } from 'lucide-
 import StatCard from '../../components/admin/StatCard';
 import { fetchAIMatches, fetchAIMatchStats, updateAIMatchStatus, triggerAIScan } from '../../services/api';
 import type { AIMatch, AIMatchStats } from '../../services/api';
+import { useAdminTheme } from '../../contexts/AdminThemeContext';
 
 type TabStatus = 'All' | 'Verified' | 'Pending' | 'Rejected';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function AIMatchNotification() {
+  const { isDark } = useAdminTheme();
   const [matches, setMatches] = useState<AIMatch[]>([]);
   const [stats, setStats] = useState<AIMatchStats>({ total: 0, pending: 0, approved: 0, rejected: 0 });
   const [activeTab, setActiveTab] = useState<TabStatus>('All');
@@ -104,7 +106,7 @@ export default function AIMatchNotification() {
   }
 
   return (
-    <div className="p-8">
+    <div className={`p-8 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
       {/* Header Section */}
       <div className="flex justify-between items-start mb-8">
         <div />
@@ -148,18 +150,18 @@ export default function AIMatchNotification() {
       </div>
 
       {/* Main Content Area */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <div className={`rounded-2xl shadow-sm border p-6 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
         {/* Tabs Navigation */}
-        <div className="flex items-center gap-6 mb-6 border-b border-gray-200 pb-2">
-          <h2 className="text-xl font-bold text-gray-900 mr-4">AI Match Results</h2>
+        <div className={`flex items-center gap-6 mb-6 border-b pb-2 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
+          <h2 className={`text-xl font-bold mr-4 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>AI Match Results</h2>
           {(['All', 'Verified', 'Pending', 'Rejected'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`text-sm font-semibold pb-2 -mb-2.5 transition-colors ${
                 activeTab === tab
-                  ? 'text-gray-900 border-b-2 border-gray-900'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? isDark ? 'text-slate-100 border-b-2 border-slate-100' : 'text-gray-900 border-b-2 border-gray-900'
+                  : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {tab}
@@ -170,18 +172,18 @@ export default function AIMatchNotification() {
         {/* Match Cards List */}
         <div className="space-y-6">
           {filteredMatches.map((match) => (
-            <div key={match.id} className="bg-indigo-50/50 rounded-xl p-6 border border-indigo-100">
+            <div key={match.id} className={`rounded-xl p-6 border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-indigo-50/50 border-indigo-100'}`}>
               <div className="flex justify-between items-start mb-2">
-                <h3 className="text-lg font-bold text-gray-800">Potential Match Found</h3>
+                <h3 className={`text-lg font-bold ${isDark ? 'text-slate-100' : 'text-gray-800'}`}>Potential Match Found</h3>
               </div>
 
               {/* Comparison Container */}
-              <div className="flex flex-col lg:flex-row gap-6 bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-6">
+              <div className={`flex flex-col lg:flex-row gap-6 rounded-xl p-4 shadow-sm border mb-6 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
                 {/* Lost Item */}
                 <div className="flex-1">
-                  <p className="text-sm text-gray-400 mb-2">Lost Item</p>
+                  <p className={`text-sm mb-2 ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>Lost Item</p>
                   <div className="flex gap-4">
-                    <div className="w-32 h-32 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
+                    <div className={`w-32 h-32 flex-shrink-0 rounded-lg overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-gray-100'}`}>
                       <img 
                         src={getImageUrl(match.lostItem.image)} 
                         alt={match.lostItem.itemName}
@@ -189,30 +191,30 @@ export default function AIMatchNotification() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <h4 className="font-bold text-gray-900 text-lg">{match.lostItem.itemName}</h4>
-                      <p className="text-xs text-gray-500">ID: {match.lostItem.id}</p>
-                      <p className="text-xs text-gray-500"><span className="font-semibold">Category:</span> {match.lostItem.category}</p>
-                      <p className="text-xs text-gray-500"><span className="font-semibold">Reporter:</span> {match.lostItem.reporterName}</p>
-                      <p className="text-xs text-gray-500 mt-2 leading-relaxed line-clamp-2">{match.lostItem.description}</p>
+                      <h4 className={`font-bold text-lg ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{match.lostItem.itemName}</h4>
+                      <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>ID: {match.lostItem.id}</p>
+                      <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}><span className="font-semibold">Category:</span> {match.lostItem.category}</p>
+                      <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}><span className="font-semibold">Reporter:</span> {match.lostItem.reporterName}</p>
+                      <p className={`text-xs mt-2 leading-relaxed line-clamp-2 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>{match.lostItem.description}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Divider */}
-                <div className="hidden lg:block w-px bg-gray-200 self-stretch mx-2"></div>
+                <div className={`hidden lg:block w-px self-stretch mx-2 ${isDark ? 'bg-slate-800' : 'bg-gray-200'}`}></div>
 
                 {/* Found Item */}
                 <div className="flex-1">
                   <div className="flex justify-between items-start mb-2">
-                      <p className="text-sm text-gray-400">Found Item</p>
+                      <p className={`text-sm ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>Found Item</p>
                       <div className="text-right">
-                          <p className="text-xs text-gray-400">Date</p>
-                          <p className="text-xs font-medium text-gray-600">{match.date}</p>
+                          <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>Date</p>
+                          <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>{match.date}</p>
                       </div>
                   </div>
                   
                   <div className="flex gap-4">
-                    <div className="w-32 h-32 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
+                    <div className={`w-32 h-32 flex-shrink-0 rounded-lg overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-gray-100'}`}>
                       <img 
                         src={getImageUrl(match.foundItem.image)} 
                         alt={match.foundItem.itemName}
@@ -220,11 +222,11 @@ export default function AIMatchNotification() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <h4 className="font-bold text-gray-900 text-lg">{match.foundItem.itemName}</h4>
-                      <p className="text-xs text-gray-500">ID: {match.foundItem.id}</p>
-                      <p className="text-xs text-gray-500"><span className="font-semibold">Category:</span> {match.foundItem.category}</p>
-                      <p className="text-xs text-gray-500"><span className="font-semibold">Reporter:</span> {match.foundItem.reporterName}</p>
-                      <p className="text-xs text-gray-500 mt-2 leading-relaxed line-clamp-2">{match.foundItem.description}</p>
+                      <h4 className={`font-bold text-lg ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{match.foundItem.itemName}</h4>
+                      <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>ID: {match.foundItem.id}</p>
+                      <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}><span className="font-semibold">Category:</span> {match.foundItem.category}</p>
+                      <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}><span className="font-semibold">Reporter:</span> {match.foundItem.reporterName}</p>
+                      <p className={`text-xs mt-2 leading-relaxed line-clamp-2 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>{match.foundItem.description}</p>
                     </div>
                   </div>
                 </div>
@@ -232,12 +234,12 @@ export default function AIMatchNotification() {
 
               {/* Match Confidence Bar */}
               <div className="flex flex-col gap-2 mb-6">
-                  <div className="flex flex-wrap justify-between text-xs text-gray-500 font-medium mb-1">
-                    <span className="font-bold text-gray-700">Match Confidence</span>
+                  <div className={`flex flex-wrap justify-between text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                    <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-gray-700'}`}>Match Confidence</span>
                     <span>Visual Score: {match.visualScore}% &nbsp;&nbsp; Text/Description Score: {match.textScore}%</span>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="flex-1 bg-gray-200 rounded-full h-2.5">
+                    <div className={`flex-1 rounded-full h-2.5 ${isDark ? 'bg-slate-800' : 'bg-gray-200'}`}>
                       <div 
                         className={`h-2.5 rounded-full transition-all duration-500 ease-out ${
                           match.matchScore >= 80 ? 'bg-green-500' :
@@ -287,11 +289,11 @@ export default function AIMatchNotification() {
           ))}
 
           {filteredMatches.length === 0 && (
-            <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-              <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 mb-2">No matches found in {activeTab} tab.</p>
+            <div className={`text-center py-12 rounded-xl border border-dashed ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-gray-50 border-gray-300'}`}>
+              <Sparkles className={`w-12 h-12 mx-auto mb-4 ${isDark ? 'text-slate-600' : 'text-gray-300'}`} />
+              <p className={`mb-2 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>No matches found in {activeTab} tab.</p>
               {activeTab === 'Pending' && (
-                <p className="text-sm text-gray-400">Click "Scan for Matches" to find potential matches.</p>
+                <p className={`text-sm ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>Click "Scan for Matches" to find potential matches.</p>
               )}
             </div>
           )}

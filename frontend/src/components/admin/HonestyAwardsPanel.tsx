@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { fetchAdminHonestyAwards, type AdminHonestyAwardsResponse, type HonestyAwardRow } from '../../services/api';
+import { useAdminTheme } from '../../contexts/AdminThemeContext';
 
 type Props = {
   dateFrom: string;
@@ -35,6 +36,7 @@ export default function HonestyAwardsPanel({
   actions,
   onInspect,
 }: Props) {
+  const { isDark } = useAdminTheme();
   const [data, setData] = useState<AdminHonestyAwardsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -67,23 +69,23 @@ export default function HonestyAwardsPanel({
   const sliced = useMemo(() => rows.slice(0, limit), [rows, limit]);
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm" data-dashboard-chart data-chart-title="Honesty Awards">
+    <div className={`rounded-2xl border p-4 md:p-6 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`} data-dashboard-chart data-chart-title="Honesty Awards">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-semibold text-gray-900">Honesty Award</h2>
-          <span className="text-xs text-gray-500">Found items with return status in the selected range.</span>
+          <h2 className={`font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>Honesty Award</h2>
+          <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>Found items with return status in the selected range.</span>
         </div>
         {actions ? actions : null}
       </div>
       {error ? <div className="mt-2 text-xs text-red-600">{error}</div> : null}
 
       {loading || !data ? (
-        <div className="mt-4 h-80 rounded-2xl border border-gray-200 bg-gray-100 animate-pulse" />
+        <div className={`mt-4 h-80 rounded-2xl border animate-pulse ${isDark ? 'border-slate-800 bg-slate-800/40' : 'border-gray-200 bg-gray-100'}`} />
       ) : (
         <div className="mt-4 overflow-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-500 border-b">
+              <tr className={`text-left text-xs border-b ${isDark ? 'text-slate-400 border-slate-800' : 'text-gray-500 border-gray-200'}`}>
                 <th className="py-2 pr-2">Found By</th>
                 <th className="py-2 pr-2">Grade &amp; Section</th>
                 <th className="py-2 pr-2">Date Found</th>
@@ -100,13 +102,13 @@ export default function HonestyAwardsPanel({
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.22, delay: i * 0.03 }}
-                    className="border-b last:border-b-0"
+                    className={`border-b last:border-b-0 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}
                   >
                     <td className="py-2 pr-2">
                       {onInspect ? (
                         <button
                           type="button"
-                          className="text-left hover:underline text-gray-900 font-medium"
+                          className={`text-left hover:underline font-medium ${isDark ? 'text-slate-100' : 'text-gray-900'}`}
                           onClick={() => {
                             onInspect(`Honesty Award - ${row.found_by}`, [
                               {
@@ -123,13 +125,13 @@ export default function HonestyAwardsPanel({
                           {row.found_by}
                         </button>
                       ) : (
-                        <span className="text-gray-900 font-medium">{row.found_by}</span>
+                        <span className={`font-medium ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{row.found_by}</span>
                       )}
                     </td>
-                    <td className="py-2 pr-2 text-gray-700">{formatGradeSection(row.grade, row.section)}</td>
-                    <td className="py-2 pr-2 text-gray-700">{formatFoundDate(row.date_found)}</td>
-                    <td className="py-2 pr-2 text-gray-700">{row.category || 'Uncategorized'}</td>
-                    <td className="py-2 pr-2 text-gray-700">{row.item_name || 'Unnamed item'}</td>
+                    <td className={`py-2 pr-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>{formatGradeSection(row.grade, row.section)}</td>
+                    <td className={`py-2 pr-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>{formatFoundDate(row.date_found)}</td>
+                    <td className={`py-2 pr-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>{row.category || 'Uncategorized'}</td>
+                    <td className={`py-2 pr-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>{row.item_name || 'Unnamed item'}</td>
                     <td className="py-2 pr-2">
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -143,7 +145,7 @@ export default function HonestyAwardsPanel({
                 ))
               ) : (
                 <tr>
-                  <td className="py-6 text-center text-gray-500" colSpan={6}>
+                  <td className={`py-6 text-center ${isDark ? 'text-slate-400' : 'text-gray-500'}`} colSpan={6}>
                     No found items in range.
                   </td>
                 </tr>

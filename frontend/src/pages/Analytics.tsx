@@ -22,6 +22,7 @@ import {
 } from '../services/api';
 import AIMatchPerformance from '../components/admin/AIMatchPerformance';
 import HonestyAwardsPanel from '../components/admin/HonestyAwardsPanel';
+import { useAdminTheme } from '../contexts/AdminThemeContext';
 
 type Timeframe = 'last7' | 'last30' | 'last90';
 
@@ -300,15 +301,16 @@ function exportDetailedPdf(exportData: AdminAnalyticsExportResponse) {
   setTimeout(() => win.print(), 250);
 }
 
-function SkeletonCard() {
-  return <div className="h-32 rounded-2xl border border-gray-200 bg-gray-100 animate-pulse" />;
+function SkeletonCard({ isDark }: { isDark: boolean }) {
+  return <div className={`h-32 rounded-2xl border animate-pulse ${isDark ? 'border-slate-800 bg-slate-800/40' : 'border-gray-200 bg-gray-100'}`} />;
 }
 
-function SkeletonPanel({ height = 'h-80' }: { height?: string }) {
-  return <div className={`${height} rounded-2xl border border-gray-200 bg-gray-100 animate-pulse`} />;
+function SkeletonPanel({ height = 'h-80', isDark }: { height?: string; isDark: boolean }) {
+  return <div className={`${height} rounded-2xl border animate-pulse ${isDark ? 'border-slate-800 bg-slate-800/40' : 'border-gray-200 bg-gray-100'}`} />;
 }
 
 export default function Analytics() {
+  const { isDark } = useAdminTheme();
   const [timeframe, setTimeframe] = useState<Timeframe>('last30');
   const [dateFrom, setDateFrom] = useState(dateOffset(-29));
   const [dateTo, setDateTo] = useState(dateOffset(0));
@@ -392,7 +394,7 @@ export default function Analytics() {
     });
 
   const timeframeActions = (
-    <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 self-start sm:self-auto">
+    <div className={`inline-flex rounded-lg border p-1 self-start sm:self-auto ${isDark ? 'border-slate-700 bg-slate-800' : 'border-gray-200 bg-gray-50'}`}>
       {([
         { key: 'last7', label: 'Last 7 days' },
         { key: 'last30', label: 'Last 30 days' },
@@ -401,7 +403,11 @@ export default function Analytics() {
         <button
           key={item.key}
           onClick={() => setTimeframe(item.key)}
-          className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${timeframe === item.key ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${
+            timeframe === item.key
+              ? isDark ? 'bg-slate-100 text-slate-900 shadow-sm' : 'bg-gray-900 text-white shadow-sm'
+              : isDark ? 'text-slate-400 hover:text-slate-100' : 'text-gray-600 hover:text-gray-900'
+          }`}
         >
           {item.label}
         </button>
@@ -410,12 +416,12 @@ export default function Analytics() {
   );
 
   return (
-    <div className="p-4 md:p-8 space-y-6">
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
+    <div className={`p-4 md:p-8 space-y-6 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
+      <div className={`rounded-2xl border p-4 md:p-6 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`}>
         <div className="flex flex-col lg:flex-row gap-4 lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Lost & Found Analytics Dashboard</h1>
-            <p className="text-sm text-gray-500">8 core metrics for operational efficiency and match monitoring.</p>
+            <h1 className={`text-2xl font-bold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>Lost & Found Analytics Dashboard</h1>
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>8 core metrics for operational efficiency and match monitoring.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -433,7 +439,9 @@ export default function Analytics() {
                 }
               }}
               disabled={!data || exporting !== null}
-              className="px-3 py-2 rounded-lg border text-sm bg-white border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              className={`px-3 py-2 rounded-lg border text-sm disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2 ${
+                isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-gray-300 text-gray-900'
+              }`}
             >
               {exporting === 'dashboard' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               Export Dashboard PDF
@@ -451,7 +459,9 @@ export default function Analytics() {
                 }
               }}
               disabled={exporting !== null}
-              className="px-3 py-2 rounded-lg border text-sm bg-white border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              className={`px-3 py-2 rounded-lg border text-sm disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2 ${
+                isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-gray-300 text-gray-900'
+              }`}
             >
               {exporting === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               Export History PDF
@@ -473,7 +483,9 @@ export default function Analytics() {
                 }
               }}
               disabled={exporting !== null}
-              className="px-3 py-2 rounded-lg border text-sm bg-white border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              className={`px-3 py-2 rounded-lg border text-sm disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2 ${
+                isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-gray-300 text-gray-900'
+              }`}
             >
               {exporting === 'excel' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               Export Excel
@@ -483,16 +495,16 @@ export default function Analytics() {
 
         <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
-            <label className="text-xs font-semibold text-gray-600">From</label>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+            <label className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>From</label>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={`w-full mt-1 rounded-lg border px-3 py-2 text-sm ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100' : 'border-gray-300 bg-white text-gray-900'}`} />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">To</label>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+            <label className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>To</label>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={`w-full mt-1 rounded-lg border px-3 py-2 text-sm ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100' : 'border-gray-300 bg-white text-gray-900'}`} />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">Category</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white">
+            <label className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>Category</label>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className={`w-full mt-1 rounded-lg border px-3 py-2 text-sm ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100' : 'border-gray-300 bg-white text-gray-900'}`}>
               {categories.map((c) => (
                 <option key={c} value={c}>{c === 'all' ? 'All categories' : c}</option>
               ))}
@@ -501,7 +513,9 @@ export default function Analytics() {
           <div className="flex items-end">
             <button
               onClick={() => loadAnalytics({ keepLoading: true })}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white hover:scale-[1.01] transition-transform"
+              className={`w-full inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm hover:scale-[1.01] transition-transform ${
+                isDark ? 'border-slate-700 bg-slate-900 text-slate-200' : 'border-gray-300 bg-white text-gray-900'
+              }`}
             >
               <RefreshCw className="w-4 h-4" /> Refresh
             </button>
@@ -512,7 +526,7 @@ export default function Analytics() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {loading || !kpis ? (
-          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} isDark={isDark} />)
         ) : (
           [
             { title: 'Daily Reports Added', today: `+${kpis.reports_today} today`, value: kpis.reports_today, foot: `${kpis.total_reports.toLocaleString()} total` },
@@ -529,12 +543,12 @@ export default function Analytics() {
               animate="show"
               whileHover={{ scale: 1.015 }}
               onClick={() => setDetail({ title: card.title, rows: [{ metric: card.title, value: card.value, detail: card.foot }] })}
-              className="text-left rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+              className={`text-left rounded-2xl border p-5 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`}
             >
-              <div className="text-sm font-semibold text-gray-600">{card.title}</div>
-              <div className="mt-2 text-xs text-gray-500">{card.today}</div>
-              <div className="mt-2 text-3xl font-bold text-gray-900">{card.value}</div>
-              <div className="mt-2 text-xs text-gray-500">{card.foot}</div>
+              <div className={`text-sm font-semibold ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>{card.title}</div>
+              <div className={`mt-2 text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>{card.today}</div>
+              <div className={`mt-2 text-3xl font-bold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{card.value}</div>
+              <div className={`mt-2 text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>{card.foot}</div>
             </motion.button>
           ))
         )}
@@ -561,13 +575,13 @@ export default function Analytics() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div
-          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          className={`rounded-2xl border p-4 md:p-6 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`}
           data-dashboard-chart
           data-chart-title={`${timeframeText} Category Breakdown`}
         >
-          <h2 className="font-semibold text-gray-900">{timeframeText} Category Breakdown</h2>
+          <h2 className={`font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{timeframeText} Category Breakdown</h2>
           {loading || !data ? (
-            <div className="mt-4"><SkeletonPanel /></div>
+            <div className="mt-4"><SkeletonPanel isDark={isDark} /></div>
           ) : (
             <div className="h-80 mt-4">
               <ResponsiveContainer width="100%" height="100%">
@@ -588,13 +602,13 @@ export default function Analytics() {
         </div>
 
         <div
-          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          className={`rounded-2xl border p-4 md:p-6 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`}
           data-dashboard-chart
           data-chart-title="Lost vs Found"
         >
-          <h2 className="font-semibold text-gray-900">Lost vs Found</h2>
+          <h2 className={`font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>Lost vs Found</h2>
           {loading || !data ? (
-            <div className="mt-4"><SkeletonPanel /></div>
+            <div className="mt-4"><SkeletonPanel isDark={isDark} /></div>
           ) : (
             <div className="h-80 mt-4">
               <ResponsiveContainer width="100%" height="100%">
@@ -623,13 +637,13 @@ export default function Analytics() {
         </div>
 
         <div
-          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          className={`rounded-2xl border p-4 md:p-6 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`}
           data-dashboard-chart
           data-chart-title="Top Locations for Lost and Found Items"
         >
-          <h2 className="font-semibold text-gray-900">Top Locations for Lost and Found Items</h2>
+          <h2 className={`font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>Top Locations for Lost and Found Items</h2>
           {loading || !data ? (
-            <div className="mt-4"><SkeletonPanel /></div>
+            <div className="mt-4"><SkeletonPanel isDark={isDark} /></div>
           ) : (
             <div className="mt-4 max-h-[420px] overflow-y-auto">
               <div style={{ height: locationChartHeight }} className="min-h-[320px]">
@@ -654,9 +668,13 @@ export default function Analytics() {
 
       {kpis && (
         <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
-          <div className={`rounded-xl border p-3 ${kpis.resolution_rate >= 80 ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
-            <div className="text-xs text-gray-600">Resolution Threshold</div>
-            <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <div className={`rounded-xl border p-3 ${
+            kpis.resolution_rate >= 80
+              ? isDark ? 'border-green-500/30 bg-green-500/10' : 'border-green-200 bg-green-50'
+              : isDark ? 'border-amber-500/30 bg-amber-500/10' : 'border-amber-200 bg-amber-50'
+          }`}>
+            <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>Resolution Threshold</div>
+            <div className={`mt-1 flex items-center gap-2 text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
               {kpis.resolution_rate >= 80 ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <AlertTriangle className="w-4 h-4 text-amber-600" />}
               {kpis.resolution_rate >= 80 ? 'Healthy (>=80%)' : 'Needs attention (<80%)'}
             </div>
@@ -666,21 +684,21 @@ export default function Analytics() {
 
       {detail && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setDetail(null)}>
-          <div className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white shadow-xl p-5" onClick={(e) => e.stopPropagation()}>
+          <div className={`w-full max-w-xl rounded-2xl border shadow-xl p-5 ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">{detail.title}</h3>
-              <button onClick={() => setDetail(null)} className="text-sm text-gray-500 hover:text-gray-900">Close</button>
+              <h3 className={`font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{detail.title}</h3>
+              <button onClick={() => setDetail(null)} className={`text-sm ${isDark ? 'text-slate-400 hover:text-slate-100' : 'text-gray-500 hover:text-gray-900'}`}>Close</button>
             </div>
             <div className="mt-4 overflow-auto max-h-72">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-500 border-b">
+                  <tr className={`text-left border-b ${isDark ? 'text-slate-400 border-slate-800' : 'text-gray-500 border-gray-200'}`}>
                     {Object.keys(detail.rows[0] || {}).map((k) => <th key={k} className="py-2 pr-2">{k}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {detail.rows.map((row, i) => (
-                    <tr key={i} className="border-b last:border-b-0">
+                    <tr key={i} className={`border-b last:border-b-0 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
                       {Object.values(row).map((val, idx) => <td key={idx} className="py-2 pr-2">{String(val)}</td>)}
                     </tr>
                   ))}

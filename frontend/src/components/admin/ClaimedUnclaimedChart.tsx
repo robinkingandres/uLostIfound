@@ -1,4 +1,5 @@
 // frontend/src/components/admin/ClaimedUnclaimedChart.tsx
+import { useAdminTheme } from '../../contexts/AdminThemeContext';
 
 interface ClaimedUnclaimedChartProps {
   claimed: number;
@@ -6,6 +7,7 @@ interface ClaimedUnclaimedChartProps {
 }
 
 export default function ClaimedUnclaimedChart({ claimed, unclaimed }: ClaimedUnclaimedChartProps) {
+  const { isDark } = useAdminTheme();
   const total = claimed + unclaimed;
 
   // Calculate percentages safely to avoid NaN if total is 0
@@ -18,8 +20,8 @@ export default function ClaimedUnclaimedChart({ claimed, unclaimed }: ClaimedUnc
   const unclaimedLength = total > 0 ? (unclaimed / total) * circumference : 0;
 
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-full min-h-[420px] flex flex-col">
-      <h3 className="text-xl font-bold text-gray-900 mb-6">Claimed & Unclaimed</h3>
+    <div className={`rounded-2xl p-6 shadow-sm border h-full min-h-[420px] flex flex-col ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
+      <h3 className={`text-xl font-bold mb-6 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>Claimed & Unclaimed</h3>
 
       <div className="flex-1 flex flex-col sm:flex-row items-center justify-between gap-6">
         <div className="relative w-40 h-40">
@@ -30,7 +32,7 @@ export default function ClaimedUnclaimedChart({ claimed, unclaimed }: ClaimedUnc
               cy="50"
               r={radius}
               fill="none"
-              stroke="#e5e7eb" // gray-200
+              stroke={isDark ? '#1f2937' : '#e5e7eb'} // gray-200 / slate-800
               strokeWidth="20"
             />
             
@@ -68,22 +70,22 @@ export default function ClaimedUnclaimedChart({ claimed, unclaimed }: ClaimedUnc
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
-              <span className="text-sm text-gray-600">Claimed</span>
+              <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>Claimed</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-blue-400 text-sm font-semibold">{claimed}</span>
-              <span className="text-sm text-gray-600">({claimedPercentage.toFixed(1)}%)</span>
+              <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>({claimedPercentage.toFixed(1)}%)</span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-red-400 rounded-full"></div>
-              <span className="text-sm text-gray-600">Unclaimed</span>
+              <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>Unclaimed</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-red-400 text-sm font-semibold">{unclaimed}</span>
-              <span className="text-sm text-gray-600">({unclaimedPercentage.toFixed(1)}%)</span>
+              <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>({unclaimedPercentage.toFixed(1)}%)</span>
             </div>
           </div>
         </div>

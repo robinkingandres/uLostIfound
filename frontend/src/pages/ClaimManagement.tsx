@@ -12,8 +12,10 @@ import StatCard from "../components/admin/StatCard";
 import type { Claim, ClaimStatus } from "../types/claim";
 import { fetchClaims, updateClaimStatus } from "../services/api";
 import ClaimDetailsModal from "../components/admin/ClaimDetailsModal";
+import { useAdminTheme } from '../contexts/AdminThemeContext';
 
 export default function ClaimManagement() {
+  const { isDark } = useAdminTheme();
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
@@ -77,7 +79,7 @@ export default function ClaimManagement() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+    <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
@@ -111,16 +113,16 @@ export default function ClaimManagement() {
       </div>
 
       {/* Filters & Search */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
-        <div className="flex gap-2 bg-gray-50 p-1 rounded-lg">
+      <div className={`p-4 rounded-xl shadow-sm border flex flex-col sm:flex-row gap-4 justify-between items-center ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
+        <div className={`flex gap-2 p-1 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-gray-50'}`}>
           {(["All", "Pending", "Approved", "Claimed", "Rejected"] as const).map((s) => (
             <button
               key={s}
               onClick={() => setFilter(s)}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
                 filter === s
-                  ? "bg-white text-blue-600 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? isDark ? "bg-slate-100 text-slate-900 shadow-sm" : "bg-white text-blue-600 shadow-sm"
+                  : isDark ? "text-slate-400 hover:text-slate-200" : "text-gray-500 hover:text-gray-700"
               }`}
             >
               {s}
@@ -129,55 +131,59 @@ export default function ClaimManagement() {
         </div>
 
         <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />
           <input
             type="text"
             placeholder="Search claims..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className={`w-full pl-10 pr-4 py-2 rounded-lg focus:outline-none focus:ring-2 ${
+              isDark
+                ? 'bg-slate-950 border border-slate-700 text-slate-100 placeholder:text-slate-500 focus:ring-blue-400/30'
+                : 'bg-gray-50 border border-gray-200 text-gray-900 focus:ring-blue-500/20'
+            }`}
           />
         </div>
       </div>
 
       {/* Claims Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className={`rounded-xl shadow-sm border overflow-hidden ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className={`${isDark ? 'bg-slate-800 border-b border-slate-700' : 'bg-gray-50 border-b border-gray-100'}`}>
               <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Item</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Claimant</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Date</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase text-right">Actions</th>
+                <th className={`px-6 py-4 text-xs font-semibold uppercase ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>Item</th>
+                <th className={`px-6 py-4 text-xs font-semibold uppercase ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>Claimant</th>
+                <th className={`px-6 py-4 text-xs font-semibold uppercase ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>Date</th>
+                <th className={`px-6 py-4 text-xs font-semibold uppercase ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>Status</th>
+                <th className={`px-6 py-4 text-xs font-semibold uppercase text-right ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className={isDark ? 'divide-y divide-slate-800' : 'divide-y divide-gray-50'}>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className={`px-6 py-8 text-center ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
                     Loading claims...
                   </td>
                 </tr>
               ) : filteredClaims.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className={`px-6 py-8 text-center ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
                     No claims found matching your filters.
                   </td>
                 </tr>
               ) : (
                 filteredClaims.map((claim) => (
-                  <tr key={claim.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={claim.id} className={`transition-colors ${isDark ? 'hover:bg-slate-800/60' : 'hover:bg-gray-50/50'}`}>
                     <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900">{claim.itemName}</div>
-                      <div className="text-xs text-gray-500">ID: #{claim.id}</div>
+                      <div className={`font-medium ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{claim.itemName}</div>
+                      <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>ID: #{claim.id}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{claim.claimantName}</div>
-                      <div className="text-xs text-gray-500">{claim.claimantRole}</div>
+                      <div className={`text-sm font-medium ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{claim.claimantName}</div>
+                      <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>{claim.claimantRole}</div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
+                    <td className={`px-6 py-4 text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
                       {new Date(claim.createdAt || claim.date).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4">
@@ -192,7 +198,9 @@ export default function ClaimManagement() {
                             setSelectedClaim(claim);
                             setIsModalOpen(true);
                           }}
-                          className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                            isDark ? 'text-slate-200 bg-slate-800 hover:bg-slate-700' : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+                          }`}
                         >
                           View Details
                         </button>
