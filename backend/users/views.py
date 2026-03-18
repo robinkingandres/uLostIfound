@@ -10,6 +10,7 @@ from django.middleware.csrf import get_token
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .serializers import UserSerializer, SiteSettingsSerializer, CategorySerializer
+from .email_utils import send_resend_email
 from .models import PasswordResetCode, SiteSettings, Category # Import the new model
 from core.permissions import IsAdmin
 
@@ -293,21 +294,31 @@ class RequestPasswordResetView(APIView):
             PasswordResetCode.objects.create(user=user, code=code)
             
             # Send Email
-            if (
-                settings.EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend'
-                and (not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD)
-            ):
-                return Response(
-                    {"detail": "Email service is not configured. Please contact the administrator."},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+            if getattr(settings, 'RESEND_API_KEY', None):
+                ok, err = send_resend_email(
+                    to_email=email,
+                    subject='uLostIfound - Password Reset Code',
+                    text=f'Your verification code is: {code}\n\nThis code expires in 15 minutes.',
                 )
-            send_mail(
-                subject='uLostIfound - Password Reset Code',
-                message=f'Your verification code is: {code}\n\nThis code expires in 15 minutes.',
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', settings.EMAIL_HOST_USER),
-                recipient_list=[email],
-                fail_silently=False,
-            )
+                if not ok:
+                    print(err)
+                    return Response({"detail": "Failed to send email."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            else:
+                if (
+                    settings.EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend'
+                    and (not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD)
+                ):
+                    return Response(
+                        {"detail": "Email service is not configured. Please contact the administrator."},
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+                send_mail(
+                    subject='uLostIfound - Password Reset Code',
+                    message=f'Your verification code is: {code}\n\nThis code expires in 15 minutes.',
+                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', settings.EMAIL_HOST_USER),
+                    recipient_list=[email],
+                    fail_silently=False,
+                )
             
             return Response({"detail": "Verification code sent to your email."})
             

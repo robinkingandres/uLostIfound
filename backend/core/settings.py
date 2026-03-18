@@ -206,6 +206,13 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-reply@localhost')
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '20'))
 
+# Resend (HTTP API) configuration
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
+RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', DEFAULT_FROM_EMAIL)
+RESEND_API_URL = os.environ.get('RESEND_API_URL', 'https://api.resend.com/emails')
+RESEND_TIMEOUT = int(os.environ.get('RESEND_TIMEOUT', EMAIL_TIMEOUT))
+RESEND_USER_AGENT = os.environ.get('RESEND_USER_AGENT', 'uLostIfound/1.0')
+
 # If local dev has no SMTP credentials, use console backend for convenience.
 if IS_LOCAL_DEV and not (EMAIL_HOST_USER and EMAIL_HOST_PASSWORD):
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
