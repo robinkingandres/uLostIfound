@@ -293,10 +293,18 @@ class RequestPasswordResetView(APIView):
             PasswordResetCode.objects.create(user=user, code=code)
             
             # Send Email
+            if (
+                settings.EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend'
+                and (not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD)
+            ):
+                return Response(
+                    {"detail": "Email service is not configured. Please contact the administrator."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
             send_mail(
                 subject='uLostIfound - Password Reset Code',
                 message=f'Your verification code is: {code}\n\nThis code expires in 15 minutes.',
-                from_email=settings.EMAIL_HOST_USER,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', settings.EMAIL_HOST_USER),
                 recipient_list=[email],
                 fail_silently=False,
             )
