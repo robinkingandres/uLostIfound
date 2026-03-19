@@ -10,7 +10,6 @@ export default function ClaimReview() {
   const [reports, setReports] = useState<Report[]>([]); // Needed to get images
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<'Pending' | 'Approved' | 'Claimed' | 'All'>('Pending');
   const [idUpload, setIdUpload] = useState<File | null>(null);
   const [idPreview, setIdPreview] = useState<string | null>(null);
   const [letterUpload, setLetterUpload] = useState<File | null>(null);
@@ -154,32 +153,14 @@ export default function ClaimReview() {
 
   if (loading) return <div className="p-8">Loading...</div>;
 
-  const visibleClaims = claims.filter((claim) => {
-    if (statusFilter === 'All') return true;
-    return claim.status === statusFilter;
-  });
+  const visibleClaims = claims;
 
   return (
     <div className="flex-1 overflow-auto bg-gray-50">
       <DashboardHeader />
       
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Claim Verification Queue</h1>
-        <div className="mb-4 flex gap-2">
-          {(['Pending', 'Approved', 'Claimed', 'All'] as const).map((key) => (
-            <button
-              key={key}
-              onClick={() => setStatusFilter(key)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold ${
-                statusFilter === key
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              {key}
-            </button>
-          ))}
-        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Claim History</h1>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <table className="w-full text-left">
@@ -196,9 +177,9 @@ export default function ClaimReview() {
               {visibleClaims.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-10 text-center">
-                    <p className="text-sm font-semibold text-gray-700">No claims found for this filter.</p>
+                    <p className="text-sm font-semibold text-gray-700">No claims found yet.</p>
                     <p className="text-xs text-gray-500 mt-1">
-                      A claim must be submitted first before it appears in Review Claims.
+                      A claim must be submitted first before it appears in Claim History.
                     </p>
                   </td>
                 </tr>

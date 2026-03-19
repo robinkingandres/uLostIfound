@@ -54,7 +54,7 @@ export default function GuidanceSidebar() {
           }
         >
           <ClipboardCheck className="w-5 h-5" />
-          <span className="text-sm">Review Claims</span>
+          <span className="text-sm">Claim History</span>
         </NavLink>
 
         <NavLink
