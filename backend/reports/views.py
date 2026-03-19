@@ -51,9 +51,11 @@ class DashboardStatsView(APIView):
 
     def get(self, request, format=None):
         # Get filter parameters
-        time_period = request.query_params.get('time_period', 'monthly').lower()  # weekly, monthly, semester, yearly
+        time_period = request.query_params.get('time_period', 'monthly').lower()  # weekly, monthly, semester/last90, yearly
+        if time_period in ['last90', 'last90days', '90days']:
+            time_period = 'last90'
 
-        if time_period not in ['weekly', 'monthly', 'semester', 'yearly']:
+        if time_period not in ['weekly', 'monthly', 'semester', 'last90', 'yearly']:
             time_period = 'monthly'
 
         # Base queryset (no status filter; we want all series at once)
@@ -102,20 +104,13 @@ class DashboardStatsView(APIView):
             period_list = [month_start + timedelta(days=i) for i in range(days_in_month)]
             label_for = lambda d: str(d.day)
 
-        elif time_period == 'semester':
-            # Last 5 months (monthly buckets)
-            period_list = []
-            for i in range(4, -1, -1):
-                month_index = today.month - i
-                year = today.year
-                while month_index <= 0:
-                    month_index += 12
-                    year -= 1
-                period_list.append(date(year, month_index, 1))
-            date_from = period_list[0]
+        elif time_period in ['semester', 'last90']:
+            # Last 90 days (daily buckets). Keep "semester" as a backwards-compatible alias.
             date_to = today
-            trunc_func = TruncMonth
-            label_for = lambda d: calendar.month_name[d.month].lower()
+            date_from = today - timedelta(days=89)
+            trunc_func = TruncDay
+            period_list = [date_from + timedelta(days=i) for i in range(90)]
+            label_for = lambda d: d.strftime('%b %d').lower()
 
         else:  # yearly (fallback)
             date_from = date(today.year, 1, 1)
