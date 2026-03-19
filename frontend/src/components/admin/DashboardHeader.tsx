@@ -97,9 +97,9 @@ export default function DashboardHeader() {
   const showThemeToggle = enabled && location.pathname.startsWith('/admin');
 
   return (
-    <div className={`border-b px-8 py-4 flex justify-between items-center shrink-0 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
+    <div className={`border-b px-8 py-4 flex justify-between items-center shrink-0 ${isDark ? 'bg-[#050a1a] border-slate-900' : 'bg-white border-gray-200'}`}>
       <div>
-        <nav className={`flex items-center gap-1.5 text-sm mb-1 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+        <nav className={`flex items-center gap-1.5 text-sm mb-1 ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>
           {breadcrumbs.map((b, i) => (
             <span key={b}>
               {i > 0 && <span className="mx-1.5">/</span>}
@@ -108,7 +108,7 @@ export default function DashboardHeader() {
           ))}
         </nav>
         <h1 className={`text-3xl font-bold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{title}</h1>
-        {subtitle ? <p className={`mt-1 ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>{subtitle}</p> : null}
+        {subtitle ? <p className={`mt-1 ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>{subtitle}</p> : null}
       </div>
 
       {/* PROFILE DROPDOWN (Back in the Header) */}

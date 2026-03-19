@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Users,
-  GraduationCap,
   ShieldAlert,
   Search,
   Pencil,
@@ -205,12 +204,9 @@ export default function UserManagement() {
 
   return (
     <div className={`p-8 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <div className={`transition-all duration-300 ${!roleFilter ? 'scale-[1.02] ring-2 ring-blue-300 rounded-2xl animate-[pulse_900ms_ease-in-out_2]' : ''}`}> 
             <StatCard title="Total Users" value={stats.total} icon={Users} bgColor="bg-blue-50" iconBg="bg-blue-500" />
-          </div>
-          <div className={`transition-all duration-300 ${roleFilter === 'StudentTeacher' ? 'scale-[1.02] ring-2 ring-green-300 rounded-2xl animate-[pulse_900ms_ease-in-out_2]' : ''}`}>
-            <StatCard title="Students" value={stats.students} icon={GraduationCap} bgColor="bg-green-50" iconBg="bg-green-500" />
           </div>
           <div className={`transition-all duration-300 ${roleFilter === 'Guidance' ? 'scale-[1.02] ring-2 ring-yellow-300 rounded-2xl animate-[pulse_900ms_ease-in-out_2]' : ''}`}>
             <StatCard title="Guidance" value={stats.guidance} icon={UserCircle} bgColor="bg-yellow-50" iconBg="bg-yellow-500" />

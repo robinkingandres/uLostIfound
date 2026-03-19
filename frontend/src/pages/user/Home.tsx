@@ -485,7 +485,7 @@ export default function UserHome() {
         </div>
 
         {/* Items Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 lg:block lg:columns-2 lg:gap-8">
           {feedItems.map((item) => {
             if (item.kind === 'match') {
               const { lost, found, matchId } = item;
@@ -496,7 +496,7 @@ export default function UserHome() {
               return (
                 <div
                   key={`match-${matchId}`}
-                  className={`group rounded-3xl border shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col relative overflow-hidden lg:col-span-2 ${
+                  className={`group rounded-3xl border shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col relative overflow-hidden lg:inline-block lg:w-full lg:break-inside-avoid lg:mb-8 lg:[column-span:all] ${
                     isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
                   }`}
                 >
@@ -519,7 +519,7 @@ export default function UserHome() {
                             No Image
                           </div>
                         )}
-                        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-white bg-rose-500/90">
+                        <div className="absolute bottom-5 left-2 z-20 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-white bg-rose-500/95 shadow-md ring-2 ring-white/70">
                           Lost
                         </div>
                       </button>
@@ -540,7 +540,7 @@ export default function UserHome() {
                             No Image
                           </div>
                         )}
-                        <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-white bg-cyan-500/90">
+                        <div className="absolute bottom-5 right-2 z-20 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-white bg-cyan-500/95 shadow-md ring-2 ring-white/70">
                           Found
                         </div>
                       </button>
@@ -639,7 +639,7 @@ export default function UserHome() {
             return (
               <div
                 key={report.id}
-                className={`group rounded-3xl border shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col relative overflow-hidden ${
+                className={`group rounded-3xl border shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col relative overflow-hidden lg:inline-block lg:w-full lg:break-inside-avoid lg:mb-8 ${
                   isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
                 }`}
               >
