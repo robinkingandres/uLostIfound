@@ -99,9 +99,14 @@ export default function UserHome() {
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const [hasChatNotification, setHasChatNotification] = useState(true);
 
+  const isApprovedMatch = useCallback((report: Report) => {
+    if (report.matchStatus) return report.matchStatus === 'Approved';
+    return report.publicStatus === 'Matched';
+  }, []);
+
   const getStatusMeta = useCallback((report: Report) => {
     const isClaimed = report.status === 'Claimed' || report.publicStatus === 'Claimed';
-    const isMatched = !isClaimed && (report.publicStatus === 'Matched' || !!report.isMatched);
+    const isMatched = !isClaimed && (report.publicStatus === 'Matched' || (report.isMatched && isApprovedMatch(report)));
 
     if (isClaimed) {
       return {
@@ -124,7 +129,7 @@ export default function UserHome() {
       itemType: report.type,
       badgeLabel: report.type,
     };
-  }, []);
+  }, [isApprovedMatch]);
 
   const loadReports = useCallback(async (showLoader = true) => {
     if (showLoader) setLoading(true);
@@ -264,8 +269,8 @@ export default function UserHome() {
       statusFilter === 'All Status' ||
       (statusFilter === 'Matched' && statusMeta.isMatched) ||
       (statusFilter === 'Claimed' && report.status === 'Claimed') ||
-      (statusFilter === 'Lost' && statusMeta.itemType === 'Lost' && statusMeta.badgeLabel !== 'Claimed') ||
-      (statusFilter === 'Found' && statusMeta.itemType === 'Found' && statusMeta.badgeLabel !== 'Claimed');
+      (statusFilter === 'Lost' && statusMeta.itemType === 'Lost' && !statusMeta.isMatched && statusMeta.badgeLabel !== 'Claimed') ||
+      (statusFilter === 'Found' && statusMeta.itemType === 'Found' && !statusMeta.isMatched && statusMeta.badgeLabel !== 'Claimed');
     const matchesCategory =
       categoryFilter === 'All Categories' ||
       normalizeCategory(report.category) === categoryFilter;
@@ -277,7 +282,7 @@ export default function UserHome() {
     const seenMatches = new Set<number>();
     const results: FeedItem[] = [];
     items.forEach((report) => {
-      if (report.matchId && report.matchedReport) {
+      if (report.matchId && report.matchedReport && isApprovedMatch(report)) {
         if (seenMatches.has(report.matchId)) return;
         const counterpart: Report = {
           ...report,

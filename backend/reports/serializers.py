@@ -87,12 +87,10 @@ class ReportSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def get_isMatched(self, obj):
-        annotated = getattr(obj, 'has_active_match', None)
-        if annotated is not None:
-            return bool(annotated)
         return AIMatch.objects.filter(
-            Q(lost_report=obj) | Q(found_report=obj)
-        ).exclude(status='Rejected').exists()
+            Q(lost_report=obj) | Q(found_report=obj),
+            status='Approved'
+        ).exists()
 
     def get_publicStatus(self, obj):
         if obj.status == 'Claimed':
@@ -137,10 +135,12 @@ class ReportSerializer(serializers.ModelSerializer):
         cached = getattr(obj, '_active_match_cache', None)
         if cached is not None:
             return cached
+        match_qs = AIMatch.objects.filter(
+            Q(lost_report=obj) | Q(found_report=obj),
+            status='Approved'
+        )
         match = (
-            AIMatch.objects
-            .filter(Q(lost_report=obj) | Q(found_report=obj))
-            .exclude(status='Rejected')
+            match_qs
             .select_related('lost_report__reporter', 'found_report__reporter')
             .order_by('-match_score', '-date_created')
             .first()
@@ -189,6 +189,8 @@ class ReportSerializer(serializers.ModelSerializer):
             return None
         counterpart = match.found_report if match.lost_report_id == obj.id else match.lost_report
         return self._build_report_preview(counterpart)
+
+    
         
     def create(self, validated_data):
         validated_data['item_name'] = validated_data.pop('item_name')
