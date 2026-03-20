@@ -5,7 +5,6 @@ import {
   fetchCurrentUser,
   fetchSettingsCategories,
   fetchSiteSettings,
-  patchSettingsCategories,
   updateAiThreshold,
   updateProfile,
   updateSiteSettings,
@@ -48,7 +47,6 @@ export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('account');
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [categoriesBusy, setCategoriesBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -62,10 +60,7 @@ export default function SettingsPage() {
   });
 
   const [settings, setSettings] = useState<SiteSettings | null>(buildDefaultSettings());
-  const [categories, setCategories] = useState<SettingsCategory[]>([]);
-  const [newCategory, setNewCategory] = useState('');
-  const [nextTempId, setNextTempId] = useState(-1);
-  const [isDirty, setIsDirty] = useState(false);
+  const [, setCategories] = useState<SettingsCategory[]>([]);
 
   const aiThreshold = useMemo(() => Math.max(0, Math.min(100, Math.round(settings?.ai_min_score ?? 75))), [settings?.ai_min_score]);
 
@@ -74,7 +69,6 @@ export default function SettingsPage() {
       const cats = await fetchSettingsCategories();
       const sorted = sortCategories(cats);
       setCategories(sorted);
-      setIsDirty(false);
     } catch {
       // keep local draft
     }
@@ -197,62 +191,6 @@ export default function SettingsPage() {
       setError('Failed to update AI threshold.');
     } finally {
       setBusy(false);
-    }
-  };
-
-  const handleAddCategory = () => {
-    const name = newCategory.trim();
-    if (!name) return;
-    const next = [...categories, { id: nextTempId, name, sort_order: categories.length, is_active: true }];
-    setCategories(sortCategories(next).map((c, idx) => ({ ...c, sort_order: idx })));
-    setNewCategory('');
-    setNextTempId((v) => v - 1);
-    setIsDirty(true);
-  };
-
-  const handleMoveCategory = (id: number, delta: number) => {
-    const sorted = sortCategories(categories);
-    const index = sorted.findIndex((c) => c.id === id);
-    const swapIndex = index + delta;
-    if (index < 0 || swapIndex < 0 || swapIndex >= sorted.length) return;
-    [sorted[index], sorted[swapIndex]] = [sorted[swapIndex], sorted[index]];
-    setCategories(sorted.map((c, idx) => ({ ...c, sort_order: idx })));
-    setIsDirty(true);
-  };
-
-  const handleRemoveCategory = (id: number) => {
-    setCategories(categories.filter((c) => c.id !== id).map((c, idx) => ({ ...c, sort_order: idx })));
-    setIsDirty(true);
-  };
-
-  const handleCategoryNameChange = (id: number, name: string) => {
-    setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
-    setIsDirty(true);
-  };
-
-  const handleSaveCategories = async () => {
-    setCategoriesBusy(true);
-    setError('');
-    setMessage('');
-    try {
-      const payload = categories
-        .map((c, idx) => ({
-          id: c.id > 0 ? c.id : c.id,
-          name: c.name.trim(),
-          sort_order: idx,
-          is_active: true,
-        }))
-        .filter((c) => c.name.length > 0);
-      const saved = await patchSettingsCategories(payload);
-      const sorted = sortCategories(saved);
-      setCategories(sorted);
-      setSettings((prev) => (prev ? { ...prev, categories: sorted } : prev));
-      setIsDirty(false);
-      setMessage('Categories saved.');
-    } catch {
-      setError('Failed to save categories.');
-    } finally {
-      setCategoriesBusy(false);
     }
   };
 
@@ -379,7 +317,6 @@ export default function SettingsPage() {
                           className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
                           onChange={(e) => setSettings((p) => p ? { ...p, ai_min_score: Number(e.target.value) } : p)}
                           onMouseUp={() => saveThreshold(aiThreshold)}
-                          onTouchEnd={() => saveThreshold(aiThreshold)}
                         />
                       </div>
                     </div>
