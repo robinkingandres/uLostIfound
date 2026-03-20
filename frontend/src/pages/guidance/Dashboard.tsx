@@ -1,6 +1,8 @@
 // frontend/src/pages/guidance/Dashboard.tsx
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ClipboardList, Search, PackageCheck, X, Download, Printer, FilePenLine } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import DashboardHeader from '../../components/admin/DashboardHeader'; 
 import StatCard from '../../components/admin/StatCard'; 
 import { fetchClaims, fetchReports, updateClaimContact, updateReport } from '../../services/api';
@@ -120,16 +122,53 @@ function openPrintableRecords(records: Report[], contextLabel: string, showClaim
 }
 
 function downloadRecordsPdf(records: Report[], contextLabel: string, showClaimant: boolean) {
-  const printHtml = buildRecordsPrintHtml(records, contextLabel, showClaimant);
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) return;
-  printWindow.document.open();
-  printWindow.document.write(printHtml);
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => {
-    printWindow.print();
-  }, 300);
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const generatedAt = new Date().toLocaleString();
+
+  doc.setFontSize(14);
+  doc.text('Guidance Records Export', 40, 40);
+  doc.setFontSize(10);
+  doc.text(`Context: ${contextLabel} | Generated: ${generatedAt} | Total: ${records.length}`, 40, 58);
+
+  const head = [[
+    'ID',
+    'Item',
+    'Type',
+    'Category',
+    'Location',
+    'Status',
+    'Date',
+    'Reporter',
+    'Person',
+    'Grade/Section',
+    ...(showClaimant ? ['Claimant', 'Claimant Contact'] : []),
+  ]];
+
+  const body = records.map((r) => ([
+    String(r.id ?? ''),
+    r.itemName || '',
+    r.type || '',
+    r.category || '',
+    r.location || '',
+    getDisplayStatus(r) || '',
+    r.date || '',
+    r.reporterName || r.reporterUsername || 'N/A',
+    (r.personName || '').trim() || 'N/A',
+    [r.grade, r.section].map((v) => (v || '').trim()).filter(Boolean).join(' - ') || 'N/A',
+    ...(showClaimant ? [r.claimantName || 'Unknown', r.claimantContact || 'N/A'] : []),
+  ]));
+
+  autoTable(doc, {
+    head,
+    body,
+    startY: 72,
+    styles: { fontSize: 8, cellPadding: 3, valign: 'top' },
+    headStyles: { fillColor: [243, 244, 246], textColor: [17, 24, 39] },
+  });
+
+  const safeLabel = contextLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const dateStamp = new Date().toISOString().slice(0, 10);
+  doc.save(`guidance_records_${safeLabel || 'records'}_${dateStamp}.pdf`);
 }
 
 export default function GuidanceDashboard() {
