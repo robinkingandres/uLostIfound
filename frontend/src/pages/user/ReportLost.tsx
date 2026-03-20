@@ -310,7 +310,7 @@ export default function ReportLost() {
                   value={formData.itemTitle} 
                   onChange={handleInputChange} 
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white" 
-                  placeholder="e.g., Black Phone" 
+                  placeholder="e.g., Phone/Mask/Bag/Wallet" 
                 />
               </div>
 
@@ -414,7 +414,7 @@ export default function ReportLost() {
                   value={formData.description}
                   onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm resize-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none bg-gray-50/50 focus:bg-white transition-all"
-                  placeholder="Brand/Model • Color/Material • Unique Marks • Where you last saw it"
+                  placeholder="Brand/Model • Color/Material • Unique Marks "
                 />
               </div>
 

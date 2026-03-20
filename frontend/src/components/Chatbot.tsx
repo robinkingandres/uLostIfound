@@ -120,10 +120,11 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
   };
 
   const getResponse = (userMessage: string): string => {
-    const msg = userMessage.toLowerCase().trim();
+    const rawMessage = userMessage.trim();
+    const msg = rawMessage.toLowerCase();
     const normalizeSearchText = (value: string) =>
       value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    const msgNormalized = normalizeSearchText(userMessage);
+    const msgNormalized = normalizeSearchText(rawMessage);
     
     const now = new Date();
     const todayISO = now.toISOString().split('T')[0];
@@ -182,15 +183,33 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
     const keywordsToUse = isCategoryOnly ? [msgNormalized] : keywords;
     
     if (keywordsToUse.length > 0) {
-      const searchword = isCategoryOnly ? msgNormalized : keywordsToUse.join(' ');
+      const searchword = isCategoryOnly ? rawMessage : keywordsToUse.join(' ');
       const searchNormalized = normalizeSearchText(searchword);
-      
-      const matches = reports.filter(item => 
-        (item.itemName || "").toLowerCase().includes(searchword) || 
-        (item.category || "").toLowerCase().includes(searchword) || 
-        (item.description || "").toLowerCase().includes(searchword) ||
-        normalizeSearchText(item.itemName || "").includes(searchNormalized)
-      );
+
+      const normalizedCategories = CATEGORY_LABELS.map((label) => normalizeSearchText(label));
+      const isOthersCategorySearch =
+        isCategoryOnly && msgNormalized === normalizeSearchText('Others');
+
+      const matches = reports.filter((item) => {
+        const nameNorm = normalizeSearchText(item.itemName || '');
+        const categoryNorm = normalizeSearchText(item.category || '');
+        const descriptionNorm = normalizeSearchText(item.description || '');
+        const locationNorm = normalizeSearchText(item.location || '');
+
+        if (isOthersCategorySearch) {
+          return (
+            categoryNorm === searchNormalized ||
+            (categoryNorm && !normalizedCategories.includes(categoryNorm))
+          );
+        }
+
+        return (
+          nameNorm.includes(searchNormalized) ||
+          categoryNorm.includes(searchNormalized) ||
+          descriptionNorm.includes(searchNormalized) ||
+          locationNorm.includes(searchNormalized)
+        );
+      });
 
       if (matches.length > 0) {
         let response = `🔍 **I found ${matches.length} possible match(es) for "${searchword}":**\n\n`;
