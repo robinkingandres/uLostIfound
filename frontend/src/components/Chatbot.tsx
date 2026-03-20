@@ -55,8 +55,9 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
   const REPEAT_MENU_TEXT = "What else can I help you find?\n\nTap a **category** below to search again, or type an item name.";
 
   const isGreetingWithCategories = (text: string) =>
-    text.includes("uLost AI Assistant") || 
-    text.includes("What else can I help you find?");
+  text.includes("uLost AI Assistant") || 
+  text.includes("What else can I help you find?") ||
+  text.includes("Ano pa ang maaari kong itulong?");
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -243,17 +244,83 @@ export default function Chatbot({ isOpen, onClose, reports = [] }: ChatbotProps)
   };
 
   const translateBotTextToTagalog = (text: string): string => {
-    if (text.includes("uLost AI Assistant")) {
-      return "Kamusta! Ako ang **uLost AI Assistant** mo.\n\nMatutulungan kitang mag-report ng nawawala o nahanap na item, o maghanap sa feed.";
-    }
-    if (text.includes('What else can I help you find?')) {
-      return "Ano pa ang maaari kong itulong?\n\nI-tap ang **kategorya** sa ibaba para maghanap muli.";
-    }
-    if (text.includes('Location')) return "Nasa ACG Building, Ground Floor, katabi ng Principal's Office.";
-    if (text.includes('How to Claim')) return "Pumunta sa Guidance Office sa ACG building ground floor.";
-
-    return `Salin sa Tagalog:\n${text}`;
+  // Helper: preserve quoted text (user input)
+  const preserveQuotes = (str: string, transform: (s: string) => string) => {
+    return str.replace(/"([^"]+)"/g, (match) => `__QUOTE__${match}__QUOTE__`)
+              .split('__QUOTE__')
+              .map((part, i) => i % 2 === 1 ? part : transform(part))
+              .join('');
   };
+
+  // Greeting
+  if (text.includes("uLost AI Assistant")) {
+    return "Kamusta! Ako ang **uLost AI Assistant** mo.\n\nMatutulungan kitang mag-report ng nawawala o nahanap na item, o maghanap sa feed.";
+  }
+
+  // Repeat menu
+  if (text.includes('What else can I help you find?')) {
+    return "Ano pa ang maaari kong itulong?\n\nI-tap ang **category** sa ibaba para maghanap muli.";
+  }
+
+  // Get Notified
+  if (text.includes('Get Notified')) {
+    return "**Get Notified**\n\nTingnan ang **notification bell** sa kanang itaas.\nI-click ang **Enable Alerts** upang makatanggap ng abiso kapag may bagong item na nai-report.";
+  }
+
+  // Report Lost
+  if (text.includes('To Report a Lost Item')) {
+    return "📝 **To Report a Lost Item:**\n\nPumunta sa **Guidance Office**, at magbigay ng detalye ng item at kung saan ito nawala.";
+  }
+
+  // Report Found
+  if (text.includes('To Report a Found Item')) {
+    return "🤝 **To Report a Found Item:**\n\nPumunta sa **Guidance Office**, at magbigay ng detalye ng item at kung saan ito nakita.";
+  }
+
+  // Claim
+  if (text.includes('How to Claim')) {
+    return "🔑 **How to Claim:**\n\nPumunta sa Guidance Office sa ACG Building, ground floor.";
+  }
+
+  // Location
+  if (text.includes('Guidance Office Location')) {
+    return "📍 **Guidance Office Location**\n\nMatatagpuan sa ACG Building, Ground Floor, katabi ng Principal's Office.\n\n**Oras:** 7:30 AM - 4:30 PM (Lunes–Biyernes).";
+  }
+
+  // ❌ No results (preserve quoted item)
+  if (text.includes("I couldn't find that item")) {
+    return preserveQuotes(text, (t) =>
+      t
+        .replace("❌ I couldn't find that item.", "❌ Hindi ko mahanap ang item na iyon.")
+        .replace("It looks like no one has reported a", "Mukhang wala pang nagre-report ng")
+        .replace("yet.", "pa.")
+    );
+  }
+
+  // 🔍 Matches found (translate only header + tip)
+  if (text.includes("I found") && text.includes("possible match")) {
+    let translated = text;
+
+    // Header
+    translated = preserveQuotes(translated, (t) =>
+      t.replace(
+        /🔍 \*\*I found (.+?) possible match\(es\) for /,
+        "🔍 **May nakita akong $1 posibleng tugma para sa "
+      )
+    );
+
+    // Tip
+    translated = translated.replace(
+      /💡 \*\*Tip:\*\* Close this chat and check the \*\*Main Feed\*\* to see more details!/g,
+      "💡 **Tip:** Isara ang chat na ito at tingnan ang **Main Feed** para sa mas maraming detalye!"
+    );
+
+    return translated;
+  }
+
+  // fallback
+  return `Salin sa Tagalog:\n${text}`;
+};
 
   const handleAction = useCallback((text: string) => {
     if (!text.trim()) return;
