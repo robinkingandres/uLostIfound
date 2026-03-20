@@ -9,7 +9,6 @@ export type AddUserFormData = {
   school_id: string;
   role: string;
   password: string;
-  year_level?: string;
 };
 
 interface EditUserModalProps {
@@ -21,26 +20,19 @@ interface EditUserModalProps {
 }
 
 const ROLE_OPTIONS: UserRole[] = ['Admin', 'Guidance'];
-const YEAR_LEVEL_OPTIONS = [
-  'Grade 7',
-  'Grade 8',
-  'Grade 9',
-  'Grade 10',
-  'Grade 11',
-  'Grade 12',
-] as const;
 
 export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate }: EditUserModalProps) {
   const { isDark } = useAdminTheme();
   const isAddMode = user === null;
+  
   const [formData, setFormData] = useState({
     username: '',
     email: '',
-    role: 'Student' as UserRole,
+    role: 'Admin' as UserRole, // Changed default to Admin
     userId: '',
     password: '',
-    yearLevel: '',
   });
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -53,16 +45,14 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           role: user.role,
           userId: user.userId || '',
           password: '',
-          yearLevel: user.yearLevel || (user as any).year_level || '',
         });
       } else {
         setFormData({
           username: '',
           email: '',
-          role: 'Student',
+          role: 'Admin', // Reset to Admin for new users
           userId: '',
           password: '',
-          yearLevel: '',
         });
       }
       setError('');
@@ -84,7 +74,6 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           school_id: formData.userId,
           role: formData.role,
           password: formData.password,
-          year_level: formData.role === 'Student' ? formData.yearLevel : '',
         });
       } else if (user && !isAddMode) {
         await onSave(user.id, {
@@ -92,7 +81,6 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
           email: formData.email,
           role: formData.role,
           userId: formData.userId,
-          yearLevel: formData.role === 'Student' ? formData.yearLevel : '',
         });
       }
       onClose();
@@ -206,7 +194,8 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
 
           <div>
             <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Role</label>
-            {!isAddMode && (formData.role === 'Student' || formData.role === 'Teacher') ? (
+            {/* Kept disabled condition just in case you still have legacy 'Teacher' users to edit */}
+            {!isAddMode && formData.role === 'Teacher' ? (
               <input
                 type="text"
                 value={formData.role}
@@ -233,30 +222,6 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
               </select>
             )}
           </div>
-
-          {formData.role === 'Student' && (
-            <>
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Year Level</label>
-                <select
-                  value={formData.yearLevel}
-                  onChange={(e) => setFormData({ ...formData, yearLevel: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${
-                    isDark
-                      ? 'border border-slate-700 bg-slate-950 text-slate-100 focus:ring-blue-400/40'
-                      : 'border border-gray-300 bg-white text-gray-900 focus:ring-blue-500'
-                  }`}
-                  required
-                >
-                  <option value="">Select year level</option>
-                  {YEAR_LEVEL_OPTIONS.map((year) => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-              </div>
-
-            </>
-          )}
 
           {isAddMode && (
             <div>
@@ -306,9 +271,3 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
     </div>
   );
 }
-
-
-
-
-
-

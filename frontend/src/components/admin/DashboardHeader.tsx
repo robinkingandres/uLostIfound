@@ -164,7 +164,7 @@ export default function DashboardHeader() {
         </button>
 
         {open && (
-          <div className={`absolute right-0 mt-2 w-56 border rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}>
+          <div className={`absolute right-0 top-full mt-1 w-56 border rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}>
             <Link
               to={accountSettingsPath}
               onClick={() => setOpen(false)}

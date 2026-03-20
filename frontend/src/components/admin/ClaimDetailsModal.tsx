@@ -291,81 +291,70 @@ export default function ClaimDetailsModal({ open, claim, onClose, onStatusChange
           </div>
         </div>
 
-        {/* Footer */}
         <div className={`p-5 border-t rounded-b-2xl ${isDark ? 'border-slate-800 bg-slate-900/60' : 'border-gray-100 bg-gray-50/50'}`}>
-          {showRejectInput ? (
-            /* Rejection Input UI */
-            <div className="w-full animate-in fade-in slide-in-from-bottom-2 duration-200">
-              <div className={`flex items-center gap-2 mb-2 font-semibold text-sm ${isDark ? 'text-red-400' : 'text-red-700'}`}>
-                <AlertTriangle className="w-4 h-4" />
-                Reason for Rejection
-              </div>
-              <textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                className={`w-full p-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 ${isDark ? 'border border-red-500/40 bg-slate-950 text-slate-100 placeholder:text-slate-500' : 'border border-red-200 bg-white text-gray-900'}`}
-                placeholder="Please explain why this claim is being rejected..."
-                rows={3}
-                autoFocus
-              />
-              <div className="flex justify-end gap-3 mt-3">
-                <button
-                  onClick={() => {
-                    setShowRejectInput(false);
-                    setRejectReason("");
-                  }}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-gray-600 hover:bg-gray-100'}`}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmReject}
-                  disabled={!rejectReason.trim()}
-                  className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Confirm Rejection
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* Standard Action Buttons */
-            <div className="flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className={`px-4 py-2 rounded-lg border font-medium transition-colors ${isDark ? 'border-slate-700 text-slate-200 hover:bg-slate-800' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}
-              >
-                Close
-              </button>
+  {showRejectInput ? (
+    <div className="w-full animate-in fade-in slide-in-from-bottom-2 duration-200">
+      <div className={`flex items-center gap-2 mb-2 font-semibold text-sm ${isDark ? 'text-red-400' : 'text-red-700'}`}>
+        <AlertTriangle className="w-4 h-4" />
+        Reason for Rejection
+      </div>
+      <textarea
+        value={rejectReason}
+        onChange={(e) => setRejectReason(e.target.value)}
+        className={`w-full p-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 ${isDark ? 'border border-red-500/40 bg-slate-950 text-slate-100 placeholder:text-slate-500' : 'border border-red-200 bg-white text-gray-900'}`}
+        placeholder="Please explain why this claim is being rejected..."
+        rows={3}
+        autoFocus
+      />
+      <div className="flex justify-end gap-3 mt-3">
+        <button
+          onClick={() => {
+            setShowRejectInput(false);
+            setRejectReason("");
+          }}
+          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-gray-600 hover:bg-gray-100'}`}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleConfirmReject}
+          disabled={!rejectReason.trim()}
+          className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          Confirm Rejection
+        </button>
+      </div>
+    </div>
+  ) : (
+    <div className="flex items-center justify-end gap-2">
+      {claim.status === "Pending" ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setShowRejectInput(true)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-colors ${isDark ? 'bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'}`}
+          >
+            <XIcon className="w-4 h-4" />
+            Reject
+          </button>
 
-              <div className="flex items-center gap-2">
-                {claim.status === "Pending" ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setShowRejectInput(true)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-colors ${isDark ? 'bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'}`}
-                    >
-                      <XIcon className="w-4 h-4" />
-                      Reject
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => onStatusChange(claim.id, "Approved")}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white shadow-md shadow-green-200 font-bold text-sm transition-colors"
-                    >
-                      <Check className="w-4 h-4" />
-                      Approve (Verify)
-                    </button>
-                  </>
-                ) : (
-                  <span className={`text-sm ${isDark ? 'text-slate-500' : 'text-gray-500'} italic`}>No actions available.</span>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+          <button
+            type="button"
+            onClick={() => onStatusChange(claim.id, "Approved")}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white shadow-md shadow-green-200 font-bold text-sm transition-colors"
+          >
+            <Check className="w-4 h-4" />
+            Approve (Verify)
+          </button>
+        </>
+      ) : (
+        <span className={`text-sm ${isDark ? 'text-slate-500' : 'text-gray-500'} italic`}>
+          No actions available.
+        </span>
+      )}
+    </div>
+  )}
+</div>
       </div>
     </div>
   );
