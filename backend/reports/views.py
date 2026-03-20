@@ -1385,6 +1385,15 @@ class AdminHonestyAwardsView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+from datetime import datetime, timedelta
+from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+# Make sure to import your Report model and IsAdmin permission at the top of your file
+# from .models import Report
+# from .permissions import IsAdmin
+
 class AdminAnalyticsExportDataView(APIView):
     permission_classes = [IsAdmin]
 
@@ -1430,9 +1439,20 @@ class AdminAnalyticsExportDataView(APIView):
         rows = []
         for report in reports:
             reporter = report.reporter
-            reporter_name = f"{reporter.first_name} {reporter.last_name}".strip() or reporter.username
             report_image_url = request.build_absolute_uri(report.image.url) if report.image else ''
             claims = list(report.claims.all())
+
+            # SAFETY CHECK: Handle cases where reporter might be None (deleted user, etc.)
+            if reporter:
+                reporter_name = f"{reporter.first_name} {reporter.last_name}".strip() or reporter.username
+                reporter_school_id = reporter.school_id
+                reporter_role = reporter.role
+                reporter_email = reporter.email
+            else:
+                reporter_name = 'Unknown Reporter'
+                reporter_school_id = ''
+                reporter_role = ''
+                reporter_email = ''
 
             if not claims:
                 rows.append({
@@ -1446,9 +1466,9 @@ class AdminAnalyticsExportDataView(APIView):
                     'report_description': report.description,
                     'item_image_url': report_image_url,
                     'reporter_name': reporter_name,
-                    'reporter_school_id': reporter.school_id,
-                    'reporter_role': reporter.role,
-                    'reporter_email': reporter.email,
+                    'reporter_school_id': reporter_school_id,
+                    'reporter_role': reporter_role,
+                    'reporter_email': reporter_email,
                     'claim_id': '',
                     'claim_status': '',
                     'claimed_at': '',
@@ -1462,9 +1482,20 @@ class AdminAnalyticsExportDataView(APIView):
 
             for claim in claims:
                 claimant = claim.claimant
-                claimant_name = f"{claimant.first_name} {claimant.last_name}".strip() or claimant.username
+                
+                # SAFETY CHECK: Handle cases where claimant is None (the fix for your bug)
+                if claimant:
+                    claimant_name = f"{claimant.first_name} {claimant.last_name}".strip() or claimant.username
+                    claimant_school_id = claimant.school_id
+                    claimant_email = claimant.email
+                else:
+                    claimant_name = 'Unknown Claimant'
+                    claimant_school_id = ''
+                    claimant_email = ''
+
                 claim_proof_image_url = request.build_absolute_uri(claim.proof_image.url) if claim.proof_image else ''
                 claimant_photo_url = request.build_absolute_uri(claim.claimant_photo.url) if claim.claimant_photo else ''
+                
                 rows.append({
                     'date_reported': report.date_reported.strftime('%Y-%m-%d'),
                     'record_type': report.type,
@@ -1476,15 +1507,15 @@ class AdminAnalyticsExportDataView(APIView):
                     'report_description': report.description,
                     'item_image_url': report_image_url,
                     'reporter_name': reporter_name,
-                    'reporter_school_id': reporter.school_id,
-                    'reporter_role': reporter.role,
-                    'reporter_email': reporter.email,
+                    'reporter_school_id': reporter_school_id,
+                    'reporter_role': reporter_role,
+                    'reporter_email': reporter_email,
                     'claim_id': claim.id,
                     'claim_status': claim.status,
                     'claimed_at': claim.date_created.strftime('%Y-%m-%d'),
                     'claimant_name': claimant_name,
-                    'claimant_school_id': claimant.school_id,
-                    'claimant_email': claimant.email,
+                    'claimant_school_id': claimant_school_id,
+                    'claimant_email': claimant_email,
                     'claim_proof_image_url': claim_proof_image_url,
                     'claimant_photo_url': claimant_photo_url,
                 })
