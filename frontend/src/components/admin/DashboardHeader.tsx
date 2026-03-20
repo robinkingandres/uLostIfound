@@ -8,7 +8,7 @@ const ROUTE_HEADERS: Record<string, { title: string; subtitle: string }> = {
   "/admin/dashboard": { title: "Dashboard", subtitle: "Welcome back! Here's what's happening today." },
   "/admin/users": { title: "User Management", subtitle: "View and manage all the system users" },
   "/admin/reports": { title: "Manage Reports", subtitle: "Review and manage lost and found reports" },
-  "/admin/claims": { title: "Claim Management", subtitle: "Review and process item claims" },
+  "/admin/claims": { title: "Claim History", subtitle: "" },
   "/admin/ai-matches": { title: "AI Matches", subtitle: "Review AI-suggested matches between lost and found items" },
   "/admin/analytics": { title: "Lost & Found Analytics", subtitle: "Single-page interactive dashboard with trends, heatmaps, and anomalies" },
   "/admin/lost-found-dashboard": { title: "Lost & Found Analytics", subtitle: "Single-page interactive dashboard with trends, heatmaps, and anomalies" },

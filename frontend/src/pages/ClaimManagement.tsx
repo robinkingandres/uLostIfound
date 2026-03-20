@@ -1,14 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  CheckCircle,
-  XCircle,
   Check,
   X,
-  PackageCheck,
-  Clock,
   Search
 } from "lucide-react";
-import StatCard from "../components/admin/StatCard";
 import type { Claim, ClaimStatus } from "../types/claim";
 import { fetchClaims, updateClaimStatus } from "../services/api";
 import ClaimDetailsModal from "../components/admin/ClaimDetailsModal";
@@ -80,38 +75,6 @@ export default function ClaimManagement() {
 
   return (
     <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          title="Pending Review"
-          value={claims.filter((c) => c.status === "Pending").length}
-          icon={Clock}
-          bgColor="bg-white"
-          iconBg="bg-yellow-500"
-        />
-        <StatCard
-          title="To Be Claimed"
-          value={claims.filter((c) => c.status === "Approved").length}
-          icon={CheckCircle}
-          bgColor="bg-white"
-          iconBg="bg-green-500"
-        />
-        <StatCard
-          title="Completed"
-          value={claims.filter((c) => c.status === "Claimed").length}
-          icon={PackageCheck}
-          bgColor="bg-white"
-          iconBg="bg-blue-500"
-        />
-        <StatCard
-          title="Rejected"
-          value={claims.filter((c) => c.status === "Rejected").length}
-          icon={XCircle}
-          bgColor="bg-white"
-          iconBg="bg-red-500"
-        />
-      </div>
-
       {/* Filters & Search */}
       <div className={`p-4 rounded-xl shadow-sm border flex flex-col sm:flex-row gap-4 justify-between items-center ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
         <div className={`flex gap-2 p-1 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-gray-50'}`}>
