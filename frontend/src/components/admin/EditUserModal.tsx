@@ -20,7 +20,7 @@ interface EditUserModalProps {
   onCreate?: (data: AddUserFormData) => Promise<void>;
 }
 
-const ROLE_OPTIONS: UserRole[] = ['Student', 'Teacher', 'Admin', 'Guidance'];
+const ROLE_OPTIONS: UserRole[] = ['Admin', 'Guidance'];
 const YEAR_LEVEL_OPTIONS = [
   'Grade 7',
   'Grade 8',
@@ -206,19 +206,32 @@ export default function EditUserModal({ user, isOpen, onClose, onSave, onCreate 
 
           <div>
             <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Role</label>
-            <select
-              value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
-              className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${
-                isDark
-                  ? 'border border-slate-700 bg-slate-950 text-slate-100 focus:ring-blue-400/40'
-                  : 'border border-gray-300 bg-white text-gray-900 focus:ring-blue-500'
-              }`}
-            >
-              {ROLE_OPTIONS.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
+            {!isAddMode && (formData.role === 'Student' || formData.role === 'Teacher') ? (
+              <input
+                type="text"
+                value={formData.role}
+                disabled
+                className={`w-full px-3 py-2 rounded-lg focus:outline-none ${
+                  isDark
+                    ? 'border border-slate-700 bg-slate-900 text-slate-400'
+                    : 'border border-gray-300 bg-gray-100 text-gray-500'
+                }`}
+              />
+            ) : (
+              <select
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+                className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 ${
+                  isDark
+                    ? 'border border-slate-700 bg-slate-950 text-slate-100 focus:ring-blue-400/40'
+                    : 'border border-gray-300 bg-white text-gray-900 focus:ring-blue-500'
+                }`}
+              >
+                {ROLE_OPTIONS.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {formData.role === 'Student' && (

@@ -210,15 +210,13 @@ export default function ClaimReview() {
                         </button>
 
                         {claim.status === 'Approved' || claim.status === 'Pending' ? (
-                            <button 
-                              onClick={() => setSelectedClaim(claim)}
-                              className="text-blue-600 hover:text-blue-800 text-sm font-semibold flex items-center gap-1"
-                            >
-                              <Eye className="w-4 h-4" /> Review & Release
-                            </button>
-                        ) : (
-                            <span className="text-xs text-gray-400 italic">Closed</span>
-                        )}
+                        <button 
+                          onClick={() => setSelectedClaim(claim)}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-semibold flex items-center gap-1"
+                        >
+                          <Eye className="w-4 h-4" /> Review & Release
+                        </button>
+                      ) : null}
                       </div>
                     </td>
                   </tr>

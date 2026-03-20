@@ -21,7 +21,6 @@ import { useAdminTheme } from '../contexts/AdminThemeContext';
 
 const ROLE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'All roles' },
-  { value: 'StudentTeacher', label: 'Student/Teacher' },
   { value: 'Guidance', label: 'Guidance' },
   { value: 'Admin', label: 'Admin' },
 ];

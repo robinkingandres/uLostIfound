@@ -498,10 +498,18 @@ export default function UserHome() {
               const finderName = getDisplayReporterName(found);
               const ownerLabel = getGradeSectionLabel(lost);
               const finderLabel = getGradeSectionLabel(found);
+              const matchIsClaimed =
+                lost.status === 'Claimed' ||
+                found.status === 'Claimed' ||
+                lost.publicStatus === 'Claimed' ||
+                found.publicStatus === 'Claimed';
+              const matchBadgeLabel = matchIsClaimed ? 'Claimed' : 'Matched';
+              const matchBadgeClass = matchIsClaimed ? 'bg-emerald-500' : 'bg-indigo-500';
+              const matchTextClass = matchIsClaimed ? 'text-emerald-600' : 'text-indigo-600';
               return (
                 <div
                   key={`match-${matchId}`}
-                  className={`group rounded-3xl border shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col relative overflow-hidden lg:inline-block lg:w-full lg:break-inside-avoid lg:mb-8 lg:[column-span:all] ${
+                  className={`group rounded-3xl border shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col relative overflow-hidden lg:inline-block lg:w-full lg:break-inside-avoid lg:mb-8 ${
                     isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
                   }`}
                 >
@@ -550,14 +558,14 @@ export default function UserHome() {
                         </div>
                       </button>
                     </div>
-                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg bg-indigo-500">
-                      MATCHED
+                    <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg ${matchBadgeClass}`}>
+                      {matchBadgeLabel.toUpperCase()}
                     </div>
                   </div>
 
                   <div className="p-4 sm:p-6 flex-1 flex flex-col">
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase font-bold tracking-widest text-indigo-600 mb-2">
-                      Matched
+                    <div className={`flex flex-wrap items-center gap-2 text-[11px] uppercase font-bold tracking-widest mb-2 ${matchTextClass}`}>
+                      {matchBadgeLabel}
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-6 mb-4">
                       <h3 className={`text-lg sm:text-2xl font-extrabold leading-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
@@ -731,12 +739,14 @@ export default function UserHome() {
             );
           })}
           
+          {/* Responsive Fixed Empty State */}
           {filteredReports.length === 0 && (
-            <div className="col-span-full text-center py-12">
-               <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
-                  <Search className={`w-8 h-8 ${isDark ? 'text-slate-500' : 'text-slate-300'}`} />
+            <div className="lg:[column-span:all] w-full text-center py-12 flex flex-col items-center justify-center">
+               <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                  <Search className={`w-8 h-8 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                </div>
-               <p className={isDark ? 'text-slate-300' : 'text-slate-500'}>No items found matching your filters.</p>
+               <p className={`font-medium text-lg ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>No items found matching your filters.</p>
+               <p className={`text-sm mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Try adjusting your keywords or category selection.</p>
             </div>
           )}
         </div>
@@ -856,8 +866,3 @@ export default function UserHome() {
     </div>
   );
 }
-
-
-
-
-
