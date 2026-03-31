@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Camera } from 'lucide-react';
+import { Camera, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
+  createSettingsCategory,
+  deleteSettingsCategory,
   fetchCurrentUser,
   fetchSettingsCategories,
   fetchSiteSettings,
@@ -60,15 +62,22 @@ export default function SettingsPage() {
   });
 
   const [settings, setSettings] = useState<SiteSettings | null>(buildDefaultSettings());
-  const [, setCategories] = useState<SettingsCategory[]>([]);
+  const [categories, setCategories] = useState<SettingsCategory[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [categoryBusy, setCategoryBusy] = useState(false);
 
   const aiThreshold = useMemo(() => Math.max(0, Math.min(100, Math.round(settings?.ai_min_score ?? 75))), [settings?.ai_min_score]);
+
+  const applyCategories = (cats: SettingsCategory[]) => {
+    const sorted = sortCategories(cats);
+    setCategories(sorted);
+    setSettings((prev) => (prev ? { ...prev, categories: sorted } : prev));
+  };
 
   const refreshCategories = async () => {
     try {
       const cats = await fetchSettingsCategories();
-      const sorted = sortCategories(cats);
-      setCategories(sorted);
+      applyCategories(cats);
     } catch {
       // keep local draft
     }
@@ -110,12 +119,12 @@ export default function SettingsPage() {
           }
           setSettings(site);
           const sourceCategories = site.categories?.length ? site.categories : (catsResult.status === 'fulfilled' ? catsResult.value : []);
-          setCategories(sortCategories(sourceCategories));
+          applyCategories(sourceCategories);
         } else {
           setSettings(buildDefaultSettings());
           setError('System settings endpoint is unavailable. Showing fallback defaults.');
           if (catsResult.status === 'fulfilled') {
-            setCategories(sortCategories(catsResult.value));
+            applyCategories(catsResult.value);
           }
         }
       } catch {
@@ -191,6 +200,52 @@ export default function SettingsPage() {
       setError('Failed to update AI threshold.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const addCategory = async () => {
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) {
+      setError('Category name is required.');
+      return;
+    }
+    const duplicate = categories.some((cat) => cat.name.trim().toLowerCase() === trimmed.toLowerCase());
+    if (duplicate) {
+      setError('Category already exists.');
+      return;
+    }
+
+    setCategoryBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const created = await createSettingsCategory({
+        name: trimmed,
+        sort_order: categories.length,
+        is_active: true,
+      });
+      applyCategories([...categories, created]);
+      setNewCategoryName('');
+      setMessage('Category added successfully.');
+    } catch {
+      setError('Failed to add category.');
+    } finally {
+      setCategoryBusy(false);
+    }
+  };
+
+  const removeCategory = async (id: number) => {
+    setCategoryBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await deleteSettingsCategory(id);
+      applyCategories(categories.filter((cat) => cat.id !== id));
+      setMessage('Category removed.');
+    } catch {
+      setError('Failed to remove category.');
+    } finally {
+      setCategoryBusy(false);
     }
   };
 
@@ -345,9 +400,64 @@ export default function SettingsPage() {
                   </label>
                 </section>
 
+                <section className={`p-5 rounded-2xl border ${isDark ? 'border-slate-800 bg-slate-950/50' : 'border-gray-100 bg-gray-50/50'}`}>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-blue-500 mb-4">Categories</h3>
+                  <p className={`text-xs mb-4 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                    Categories here will appear in report forms used by guidance.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                    <input
+                      type="text"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (!categoryBusy) addCategory();
+                        }
+                      }}
+                      placeholder="Add new category"
+                      className={`w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100' : 'border-gray-300 bg-white text-gray-900'}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={addCategory}
+                      disabled={categoryBusy}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-60"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add
+                    </button>
+                  </div>
+
+                  {categories.length === 0 ? (
+                    <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>No categories yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {categories.map((category) => (
+                        <div
+                          key={category.id}
+                          className={`flex items-center justify-between rounded-xl px-3 py-2 border ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`}
+                        >
+                          <span className="text-sm font-medium">{category.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeCategory(category.id)}
+                            disabled={categoryBusy}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${isDark ? 'border-slate-700 text-rose-300 hover:bg-slate-800' : 'border-red-200 text-red-600 hover:bg-red-50'} disabled:opacity-60`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
                 <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between gap-4">
                   <button onClick={refreshCategories} className={`px-6 py-2.5 rounded-xl text-sm font-semibold border transition-all ${isDark ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}>
-                    Reset Category Draft
+                    Refresh Categories
                   </button>
                   <button disabled={busy} onClick={saveSystemSettings} className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl px-8 py-3 text-sm shadow-lg shadow-blue-500/20 transition-all active:scale-95 disabled:opacity-60">
                     {busy ? 'Saving...' : 'Save System Settings'}

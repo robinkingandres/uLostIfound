@@ -46,7 +46,8 @@ function buildRecordsPrintHtml(records: Report[], contextLabel: string, showClai
       <td>${r.date}</td>
       <td>${r.reporterName || r.reporterUsername || 'N/A'}</td>
       <td>${(r.personName || '').trim() || 'N/A'}</td>
-      <td>${[r.grade, r.section].map((v) => (v || '').trim()).filter(Boolean).join(' - ') || 'N/A'}</td>
+      <td>${(r.grade || '').trim() || 'N/A'}</td>
+      <td>${(r.section || '').trim() || 'N/A'}</td>
       ${showClaimant ? `
         <td class="photo-cell">
           ${r.claimantPhoto ? `<a href="${r.claimantPhoto}" target="_blank" rel="noopener">
@@ -94,7 +95,8 @@ function buildRecordsPrintHtml(records: Report[], contextLabel: string, showClai
               <th>Date</th>
               <th>Reporter</th>
               <th>Person</th>
-              <th>Grade/Section</th>
+              <th>Grade</th>
+              <th>Section</th>
               ${showClaimant ? '<th>Claimant</th><th>Claimant Contact</th>' : ''}
             </tr>
           </thead>
@@ -140,7 +142,8 @@ function downloadRecordsPdf(records: Report[], contextLabel: string, showClaiman
     'Date',
     'Reporter',
     'Person',
-    'Grade/Section',
+    'Grade',
+    'Section',
     ...(showClaimant ? ['Claimant', 'Claimant Contact'] : []),
   ]];
 
@@ -154,7 +157,8 @@ function downloadRecordsPdf(records: Report[], contextLabel: string, showClaiman
     r.date || '',
     r.reporterName || r.reporterUsername || 'N/A',
     (r.personName || '').trim() || 'N/A',
-    [r.grade, r.section].map((v) => (v || '').trim()).filter(Boolean).join(' - ') || 'N/A',
+    (r.grade || '').trim() || 'N/A',
+    (r.section || '').trim() || 'N/A',
     ...(showClaimant ? [r.claimantName || 'Unknown', r.claimantContact || 'N/A'] : []),
   ]));
 
@@ -602,7 +606,8 @@ export default function GuidanceDashboard() {
                       <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Date</th>
                       <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Reporter</th>
                       <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Person</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Grade/Section</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Grade</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Section</th>
                       {showClaimant ? (
                         <>
                           <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Claimant</th>
@@ -616,7 +621,7 @@ export default function GuidanceDashboard() {
                   <tbody className="divide-y divide-gray-50">
                     {modalRecords.length === 0 ? (
                       <tr>
-                        <td colSpan={showClaimant ? 12 : 10} className="px-4 py-8 text-center text-gray-500">No records match the selected filters.</td>
+                        <td colSpan={showClaimant ? 13 : 11} className="px-4 py-8 text-center text-gray-500">No records match the selected filters.</td>
                       </tr>
                     ) : (
                       modalRecords.map((record) => (
@@ -628,7 +633,8 @@ export default function GuidanceDashboard() {
                           <td className="px-4 py-3 text-sm text-gray-500">{new Date(record.date).toLocaleDateString()}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{record.reporterName || record.reporterUsername || 'N/A'}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{(record.personName || '').trim() || 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{[record.grade, record.section].map((v) => (v || '').trim()).filter(Boolean).join(' - ') || 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{(record.grade || '').trim() || 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{(record.section || '').trim() || 'N/A'}</td>
                           {showClaimant ? (
                             <>
                               <td className="px-4 py-3">

@@ -26,6 +26,59 @@ import {
 import type { Report } from '../../types/report';
 import { useAuth } from '../../contexts/AuthContext';
 
+const DEFAULT_REPORT_CATEGORIES = [
+  'School Supplies',
+  'Tech & Gadgets',
+  'Books & Modules',
+  'Daily Essentials',
+  'Food & Clothes',
+  'Others',
+];
+
+function normalizeCategoryOptions(options: string[]): string[] {
+  const LEGACY_CATEGORY_MAP: Record<string, string> = {
+    electronics: 'Tech & Gadgets',
+    phone: 'Tech & Gadgets',
+    documents: 'Books & Modules',
+    clothing: 'Food & Clothes',
+    accessories: 'Food & Clothes',
+    wallet: 'Food & Clothes',
+    id: 'Food & Clothes',
+    other: 'Others',
+    others: 'Others',
+    'school supplies (ballpen, paper, notebook)': 'School Supplies',
+    'electronics & gadgets (laptop / tablet, scientific calculator, charger / power bank, flash drive)': 'Tech & Gadgets',
+    'books & notebooks (textbooks, subject notebooks, printed modules, planner / journal)': 'Books & Modules',
+    'personal care & hygiene (hand sanitizer, pocket tissue, lip balm, small umbrella)': 'Daily Essentials',
+    'food & beverage (water bottle, lunchbox, snacks)': 'Food & Clothes',
+    'clothing & accessories (school id, extra sweater or jacket, pe uniform / gym clothes)': 'Food & Clothes',
+    'art & project materials (colored pencils or markers, glue stick, scissors, construction paper)': 'School Supplies',
+    'school supplies(pens, notebooks, paper, markers, glue, and scissors)': 'School Supplies',
+    'tech & gadgets(laptop, tablet, calculator, chargers, and flash drives)': 'Tech & Gadgets',
+    'books & modules(textbooks, printed modules, and notebook)': 'Books & Modules',
+    'daily essentials(id, umbrella, sanitizer, tissues, and alcohol)': 'Daily Essentials',
+    'food & clothes(water bottle, snacks, jacket, and pe uniform)': 'Food & Clothes',
+  };
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  options.forEach((raw) => {
+    const value = raw.trim();
+    if (!value) return;
+    const mappedValue = LEGACY_CATEGORY_MAP[value.toLowerCase()] ?? value;
+    const key = mappedValue.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    normalized.push(mappedValue);
+  });
+
+  if (!seen.has('others')) {
+    normalized.push('Others');
+  }
+
+  return normalized.length ? normalized : [...DEFAULT_REPORT_CATEGORIES];
+}
+
 export default function ReportLost() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -34,14 +87,7 @@ export default function ReportLost() {
   const isOthersCategory = (value: string) => value.trim().toLowerCase() === 'others';
 
   const [dbReports, setDbReports] = useState<Report[]>([]);
-  const [categories] = useState<string[]>([
-    'School Supplies',
-    'Tech & Gadgets',
-    'Books & Modules',
-    'Daily Essentials',
-    'Food & Clothes',
-    'Others'
-  ]);
+  const [categories, setCategories] = useState<string[]>([...DEFAULT_REPORT_CATEGORIES]);
   const [showChatbot, setShowChatbot] = useState(true);
   
   const [formData, setFormData] = useState({
@@ -49,7 +95,7 @@ export default function ReportLost() {
     personName: '',
     grade: '',
     section: '',
-    category: 'School Supplies',
+    category: DEFAULT_REPORT_CATEGORIES[0],
     dateLost: '',
     location: '',
     description: '',
@@ -102,8 +148,10 @@ export default function ReportLost() {
             fetchSiteSettings(),
           ]);
           setDbReports(reportsData);
+          const finalCategories = normalizeCategoryOptions((siteSettings.categories || []).map((category) => category.name));
+          setCategories(finalCategories);
           
-          const nextCategory = categories[0] || 'Others';
+          const nextCategory = finalCategories[0] || 'Others';
           setFormData((prev) => {
             if (categoryTouchedRef.current) return prev;
             return { ...prev, category: nextCategory };
@@ -116,6 +164,7 @@ export default function ReportLost() {
           setHasChatNotification(siteSettings.user_home_chat_notification_dot);
         } catch (err) {
           console.error("Error loading reports for chatbot", err);
+          setCategories([...DEFAULT_REPORT_CATEGORIES]);
         }
       };
       loadReportsForChatbot();
@@ -279,24 +328,29 @@ export default function ReportLost() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-gray-700">Grade & Section</label>
                   <div className="grid grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      name="grade"
-                      value={formData.grade}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
-                      placeholder="Grade"
-                    />
-                    <input
-                      type="text"
-                      name="section"
-                      value={formData.section}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
-                      placeholder="Section"
-                    />
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-gray-700">Grade</label>
+                      <input
+                        type="text"
+                        name="grade"
+                        value={formData.grade}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                        placeholder="e.g., 10"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-gray-700">Section</label>
+                      <input
+                        type="text"
+                        name="section"
+                        value={formData.section}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                        placeholder="e.g., Einstein"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
