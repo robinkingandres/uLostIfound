@@ -346,7 +346,7 @@ class AIMatchingService:
 
         # Hard gate: when both reports have images, require strong visual similarity.
         # This prevents text/name agreement from matching clearly different objects.
-        if lost_image and found_image and visual_score < 75.0:
+        if lost_image and found_image and visual_score < 80.0:
             match_score = 0.0
 
         active_match_score = min(float(match_score), MAX_ACTIVE_MATCH_SCORE)

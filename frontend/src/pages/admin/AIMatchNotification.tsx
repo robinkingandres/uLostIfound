@@ -225,7 +225,6 @@ export default function AIMatchNotification() {
               <div className="flex flex-col gap-2 mb-6">
                   <div className={`flex flex-wrap justify-between text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
                     <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-gray-700'}`}>Match Confidence</span>
-                    <span>Visual Score: {match.visualScore}% &nbsp;&nbsp; Text/Description Score: {match.textScore}%</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className={`flex-1 rounded-full h-2.5 ${isDark ? 'bg-slate-800' : 'bg-gray-200'}`}>
