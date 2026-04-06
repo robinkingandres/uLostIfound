@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Sparkles, ClipboardList, CheckCircle, RefreshCw, Search } from 'lucide-react';
 import StatCard from '../../components/admin/StatCard';
-import { fetchAIMatches, fetchAIMatchStats, updateAIMatchStatus, triggerAIScan } from '../../services/api';
+import { fetchAIMatches, fetchAIMatchStats, triggerAIScan } from '../../services/api';
 import type { AIMatch, AIMatchStats } from '../../services/api';
 import { useAdminTheme } from '../../contexts/AdminThemeContext';
 
-type TabStatus = 'All' | 'Verified' | 'Pending' | 'Rejected';
+type TabStatus = 'All' | 'Auto-Accepted';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -39,9 +39,9 @@ export default function AIMatchNotification() {
       const loaded = matchesResult.status === 'fulfilled' ? matchesResult.value : [];
       setStats({
         total: loaded.length,
-        pending: loaded.filter((m) => m.status === 'Pending').length,
+        pending: 0,
         approved: loaded.filter((m) => m.status === 'Approved').length,
-        rejected: loaded.filter((m) => m.status === 'Rejected').length,
+        rejected: 0,
       });
     }
     setLoading(false);
@@ -61,19 +61,8 @@ export default function AIMatchNotification() {
   // Filter matches based on the active tab
   const filteredMatches = matches.filter(m => {
     if (activeTab === 'All') return true;
-    if (activeTab === 'Verified') return m.status === 'Approved';
-    return m.status === activeTab;
+    return m.status === 'Approved';
   });
-
-  const handleAction = async (id: number, newStatus: 'Approved' | 'Rejected') => {
-    try {
-      await updateAIMatchStatus(id, newStatus);
-      await loadData();
-    } catch (err) {
-      console.error('Failed to update match status:', err);
-      alert('Failed to update match status. Please try again.');
-    }
-  };
 
   const handleScanAll = async () => {
     setScanning(true);
@@ -141,7 +130,7 @@ export default function AIMatchNotification() {
           iconBg="bg-yellow-400"
         />
         <StatCard
-          title="Approved Matches"
+          title="Auto-Accepted Matches"
           value={stats.approved}
           icon={CheckCircle}
           bgColor="bg-white"
@@ -154,7 +143,7 @@ export default function AIMatchNotification() {
         {/* Tabs Navigation */}
         <div className={`flex items-center gap-6 mb-6 border-b pb-2 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
           <h2 className={`text-xl font-bold mr-4 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>AI Match Results</h2>
-          {(['All', 'Verified', 'Pending', 'Rejected'] as const).map((tab) => (
+          {(['All', 'Auto-Accepted'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -257,33 +246,9 @@ export default function AIMatchNotification() {
                   </div>
               </div>
 
-              {/* Action Buttons */}
-              {match.status === 'Pending' ? (
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => handleAction(match.id, 'Approved')}
-                    className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
-                  >
-                    Approve Match
-                  </button>
-                  <button 
-                    onClick={() => handleAction(match.id, 'Rejected')}
-                    className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
-                  >
-                    Reject Match
-                  </button>
-                </div>
-              ) : (
-                <div
-                  className={`px-4 py-2 rounded-lg text-sm font-bold inline-block ${
-                    match.status === 'Approved'
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-red-100 text-red-700'
-                  }`}
-                >
-                  Match {match.status}
-                </div>
-              )}
+              <div className="px-4 py-2 rounded-lg text-sm font-bold inline-block bg-green-100 text-green-700">
+                Auto-Accepted Match
+              </div>
 
             </div>
           ))}
@@ -292,9 +257,7 @@ export default function AIMatchNotification() {
             <div className={`text-center py-12 rounded-xl border border-dashed ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-gray-50 border-gray-300'}`}>
               <Sparkles className={`w-12 h-12 mx-auto mb-4 ${isDark ? 'text-slate-600' : 'text-gray-300'}`} />
               <p className={`mb-2 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>No matches found in {activeTab} tab.</p>
-              {activeTab === 'Pending' && (
-                <p className={`text-sm ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>Click "Scan for Matches" to find potential matches.</p>
-              )}
+              <p className={`text-sm ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>Click "Scan for Matches" to refresh auto-accepted suggestions.</p>
             </div>
           )}
         </div>

@@ -548,7 +548,7 @@ class AIMatchViewSet(viewsets.ModelViewSet):
         
         # Admins see all matches
         if user.role in ['Admin', 'Guidance'] or user.is_superuser:
-            queryset = AIMatch.objects.all()
+            queryset = AIMatch.objects.exclude(status='Rejected')
         else:
             # Regular users only see approved matches related to their reports
             queryset = AIMatch.objects.filter(
@@ -570,19 +570,16 @@ class AIMatchViewSet(viewsets.ModelViewSet):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
         
+        # Never show rejected matches in AI match result lists.
+        queryset = queryset.exclude(status='Rejected')
+        
         return queryset.order_by('-match_score', '-date_created')
 
     def update(self, request, *args, **kwargs):
-        user = request.user
-        
-        # Only Admin/Guidance can update match status
-        if user.role not in ['Admin', 'Guidance'] and not user.is_superuser:
-            return Response(
-                {"detail": "You do not have permission to update matches."}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        return super().update(request, *args, **kwargs)
+        return Response(
+            {"detail": "Manual approve/reject is disabled. Matches are auto-accepted by the system."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
 
     def perform_update(self, serializer):
         instance = self.get_object()

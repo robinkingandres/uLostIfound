@@ -34,6 +34,42 @@ except Exception:  # pragma: no cover
 MAX_ACTIVE_MATCH_SCORE = 85.0
 
 
+def _notify_match_approved_once(match) -> None:
+    """Send one-time notifications when a match becomes auto-approved."""
+    from .models import Notification
+
+    changed = []
+    score_text = f"{float(match.match_score or 0.0):.1f}%"
+
+    if not match.lost_reporter_notified:
+        Notification.objects.create(
+            recipient=match.lost_report.reporter,
+            message=(
+                f"Great news! A potential match has been found for your lost item "
+                f"'{match.lost_report.item_name}'. Match confidence: {score_text}. "
+                "Please check your Matches page for details."
+            ),
+            report=match.lost_report,
+        )
+        match.lost_reporter_notified = True
+        changed.append("lost_reporter_notified")
+
+    if not match.found_reporter_notified:
+        Notification.objects.create(
+            recipient=match.found_report.reporter,
+            message=(
+                f"Great news! The item you found '{match.found_report.item_name}' may belong "
+                f"to someone. Match confidence: {score_text}. The system has auto-accepted this match."
+            ),
+            report=match.found_report,
+        )
+        match.found_reporter_notified = True
+        changed.append("found_reporter_notified")
+
+    if changed:
+        match.save(update_fields=changed)
+
+
 class AIMatchingService:
     """Service for matching lost and found items using MobileNet + heuristics."""
 
@@ -140,14 +176,16 @@ class AIMatchingService:
         return self._filename_similarity_fallback(image1_path, image2_path)
 
     def _filename_similarity_fallback(self, image1_path: str | None, image2_path: str | None) -> float:
+        # Keep fallback intentionally conservative so filename likeness
+        # cannot dominate matching when real vision embeddings are unavailable.
         if not image1_path or not image2_path:
-            return 45.0
+            return 20.0
         name1 = os.path.basename(str(image1_path)).lower()
         name2 = os.path.basename(str(image2_path)).lower()
         if not name1 or not name2:
-            return 45.0
+            return 20.0
         ratio = SequenceMatcher(None, name1, name2).ratio()
-        return max(35.0, min(80.0, ratio * 100.0))
+        return max(10.0, min(35.0, ratio * 100.0))
 
     @classmethod
     def _load_torchvision_once(cls) -> bool:
@@ -294,18 +332,22 @@ class AIMatchingService:
         category_score = self.calculate_category_match(lost_report.category, found_report.category)
         location_score = self.calculate_text_similarity(lost_report.location or '', found_report.location or '')
 
+        # Image-driven weighting:
+        # - visual: 70%
+        # - item name: 15%
+        # - text description: 10%
+        # - location: 5%
         match_score = (
-            (visual_score * 0.10)
-            + (text_score * 0.40)
-            + (name_score * 0.30)
-            + (category_score * 0.15)
+            (visual_score * 0.70)
+            + (name_score * 0.15)
+            + (text_score * 0.10)
             + (location_score * 0.05)
         )
 
-        if category_score >= 80 and name_score >= 65:
-            match_score = max(match_score, 78.0)
-        if category_score == 100 and name_score >= 80:
-            match_score = max(match_score, 84.0)
+        # Hard gate: when both reports have images, require strong visual similarity.
+        # This prevents text/name agreement from matching clearly different objects.
+        if lost_image and found_image and visual_score < 75.0:
+            match_score = 0.0
 
         active_match_score = min(float(match_score), MAX_ACTIVE_MATCH_SCORE)
         return {
@@ -349,13 +391,18 @@ def find_potential_matches_for_report(report_id: int, min_score: Optional[float]
             existing = AIMatch.objects.filter(lost_report=report, found_report=candidate).first()
 
             if existing:
-                # Keep manual rejection decisions intact, but refresh scores for visibility.
+                # Auto-accept mode:
+                # - remove stale low-score matches
+                # - keep qualifying matches approved
+                if scores['match_score'] < min_score:
+                    existing.delete()
+                    continue
                 existing.visual_score = scores['visual_score']
                 existing.text_score = scores['text_score']
                 existing.match_score = scores['match_score']
-                if existing.status != 'Rejected' and scores['match_score'] < min_score:
-                    existing.status = 'Rejected'
+                existing.status = 'Approved'
                 existing.save(update_fields=['visual_score', 'text_score', 'match_score', 'status', 'date_updated'])
+                _notify_match_approved_once(existing)
                 continue
 
             if scores['match_score'] >= min_score:
@@ -367,11 +414,31 @@ def find_potential_matches_for_report(report_id: int, min_score: Optional[float]
                             'visual_score': scores['visual_score'],
                             'text_score': scores['text_score'],
                             'match_score': scores['match_score'],
-                            'status': 'Pending',
+                            'status': 'Approved',
                         },
                     )
                     if created:
+                        _notify_match_approved_once(match)
                         new_matches.append(match)
+                    else:
+                        # Rare race condition fallback: enforce auto-approved state.
+                        updates = []
+                        if match.status != 'Approved':
+                            match.status = 'Approved'
+                            updates.append('status')
+                        if match.visual_score != scores['visual_score']:
+                            match.visual_score = scores['visual_score']
+                            updates.append('visual_score')
+                        if match.text_score != scores['text_score']:
+                            match.text_score = scores['text_score']
+                            updates.append('text_score')
+                        if match.match_score != scores['match_score']:
+                            match.match_score = scores['match_score']
+                            updates.append('match_score')
+                        if updates:
+                            updates.append('date_updated')
+                            match.save(update_fields=updates)
+                        _notify_match_approved_once(match)
                 except IntegrityError:
                     continue
     else:
@@ -381,12 +448,15 @@ def find_potential_matches_for_report(report_id: int, min_score: Optional[float]
             existing = AIMatch.objects.filter(lost_report=candidate, found_report=report).first()
 
             if existing:
+                if scores['match_score'] < min_score:
+                    existing.delete()
+                    continue
                 existing.visual_score = scores['visual_score']
                 existing.text_score = scores['text_score']
                 existing.match_score = scores['match_score']
-                if existing.status != 'Rejected' and scores['match_score'] < min_score:
-                    existing.status = 'Rejected'
+                existing.status = 'Approved'
                 existing.save(update_fields=['visual_score', 'text_score', 'match_score', 'status', 'date_updated'])
+                _notify_match_approved_once(existing)
                 continue
 
             if scores['match_score'] >= min_score:
@@ -398,11 +468,30 @@ def find_potential_matches_for_report(report_id: int, min_score: Optional[float]
                             'visual_score': scores['visual_score'],
                             'text_score': scores['text_score'],
                             'match_score': scores['match_score'],
-                            'status': 'Pending',
+                            'status': 'Approved',
                         },
                     )
                     if created:
+                        _notify_match_approved_once(match)
                         new_matches.append(match)
+                    else:
+                        updates = []
+                        if match.status != 'Approved':
+                            match.status = 'Approved'
+                            updates.append('status')
+                        if match.visual_score != scores['visual_score']:
+                            match.visual_score = scores['visual_score']
+                            updates.append('visual_score')
+                        if match.text_score != scores['text_score']:
+                            match.text_score = scores['text_score']
+                            updates.append('text_score')
+                        if match.match_score != scores['match_score']:
+                            match.match_score = scores['match_score']
+                            updates.append('match_score')
+                        if updates:
+                            updates.append('date_updated')
+                            match.save(update_fields=updates)
+                        _notify_match_approved_once(match)
                 except IntegrityError:
                     continue
 
