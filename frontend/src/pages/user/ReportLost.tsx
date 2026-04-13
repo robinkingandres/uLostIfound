@@ -114,7 +114,13 @@ export default function ReportLost() {
   const [hasChatNotification, setHasChatNotification] = useState(true);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [isOtherLocation, setIsOtherLocation] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState('');
   const categoryTouchedRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const CATEGORY_LABELS: Record<string, string> = {
     'School Supplies': 'School Supplies(Pens, notebooks, paper, markers, glue, and scissors)',
@@ -175,6 +181,15 @@ export default function ReportLost() {
     return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
   }, [previewUrl]);
 
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'category') {
@@ -195,10 +210,80 @@ export default function ReportLost() {
     }
   };
 
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const closeCameraModal = () => {
+    stopCamera();
+    setIsCameraOpen(false);
+    setCameraError('');
+  };
+
+  const openCameraModal = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('Camera is not supported in this browser. Please use Add file.');
+      return;
+    }
+
+    setCameraError('');
+    setIsCameraOpen(true);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+    } catch (err) {
+      setCameraError('Unable to access camera. Please allow permission or use Add file.');
+    }
+  };
+
+  const captureFromCamera = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, width, height);
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setCameraError('Failed to capture image. Please try again.');
+          return;
+        }
+        const capturedFile = new File([blob], `lost-item-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        setImage(capturedFile);
+        setPreviewUrl(URL.createObjectURL(capturedFile));
+        setError('');
+        closeCameraModal();
+      },
+      'image/jpeg',
+      0.92
+    );
+  };
+
   const removeImage = () => {
     setImage(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleOpenChatbot = () => {
@@ -276,6 +361,46 @@ export default function ReportLost() {
             className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
             onClick={(e) => e.stopPropagation()}
           />
+        </div>
+      )}
+
+      {isCameraOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-4 sm:p-5 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-gray-800">Capture Photo</h2>
+              <button
+                type="button"
+                onClick={closeCameraModal}
+                className="p-2 rounded-full text-gray-500 hover:bg-gray-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-hidden rounded-xl bg-black">
+              <video ref={videoRef} autoPlay playsInline muted className="w-full h-auto" />
+            </div>
+            {cameraError && (
+              <p className="mt-3 text-xs text-red-600 font-medium">{cameraError}</p>
+            )}
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={closeCameraModal}
+                className="w-full py-2.5 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={captureFromCamera}
+                className="w-full py-2.5 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700"
+              >
+                Capture
+              </button>
+            </div>
+          </div>
+          <canvas ref={canvasRef} className="hidden" />
         </div>
       )}
 
@@ -494,14 +619,30 @@ export default function ReportLost() {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <button 
                       type="button" 
-                      onClick={() => document.getElementById('imageUploadLost')?.click()} 
+                      onClick={() => fileInputRef.current?.click()} 
                       className="flex items-center justify-center gap-2 px-6 py-3 border border-dashed border-cyan-300 rounded-xl text-cyan-600 text-sm font-bold bg-cyan-50/50 hover:bg-cyan-50 transition-colors"
                     >
                       <Upload className="w-4 h-4" /> Add file
                     </button>
+                    {isGuidanceReporter && (
+                      <button
+                        type="button"
+                        onClick={openCameraModal}
+                        className="flex items-center justify-center gap-2 px-6 py-3 border border-dashed border-emerald-300 rounded-xl text-emerald-700 text-sm font-bold bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                      >
+                        <Camera className="w-4 h-4" /> Use Camera
+                      </button>
+                    )}
                   </div>
                 )}
-                <input id="imageUploadLost" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                <input
+                  ref={fileInputRef}
+                  id="imageUploadLost"
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
               </div>
 
               <div className="pt-6 flex flex-col-reverse sm:flex-row gap-4 w-full">
