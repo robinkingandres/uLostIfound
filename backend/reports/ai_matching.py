@@ -368,7 +368,7 @@ def find_potential_matches_for_report(report_id: int, min_score: Optional[float]
         return []
 
     if min_score is None:
-        min_score = float(settings_obj.ai_min_score)
+        min_score = float(settings_obj.ai_min_score)  
     min_score = min(float(min_score), MAX_ACTIVE_MATCH_SCORE)
 
     try:

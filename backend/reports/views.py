@@ -11,7 +11,7 @@ from django.db.models import (
     Sum,
     Exists,
     OuterRef,
-    Value,
+    Value,  
     CharField,
 )
 from django.db.models.functions import (

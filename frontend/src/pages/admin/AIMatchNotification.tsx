@@ -21,7 +21,7 @@ export default function AIMatchNotification() {
     setLoading(true);
     const [matchesResult, statsResult] = await Promise.allSettled([
       fetchAIMatches(),
-      fetchAIMatchStats(),
+      fetchAIMatchStats(),  
     ]);
 
     if (matchesResult.status === 'fulfilled') {
