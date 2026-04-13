@@ -12,7 +12,10 @@ from __future__ import annotations
 
 import os
 from difflib import SequenceMatcher
+from io import BytesIO
 from typing import Optional
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 from django.db import IntegrityError
 
@@ -258,14 +261,45 @@ class AIMatchingService:
         from django.conf import settings
         return os.path.join(settings.MEDIA_ROOT, image_path)
 
+    def _open_image_rgb(self, image_path: str):
+        """
+        Open an image from either:
+        - absolute/local filesystem path
+        - Django default storage key (e.g., Cloudinary-backed media path)
+        - http/https URL
+        Returns a detached RGB PIL Image copy, or None on failure.
+        """
+        if Image is None or not image_path:
+            return None
+        try:
+            parsed = urlparse(str(image_path))
+            if parsed.scheme in ("http", "https"):
+                with urlopen(str(image_path), timeout=15) as resp:
+                    data = resp.read()
+                with Image.open(BytesIO(data)) as image:
+                    return image.convert("RGB").copy()
+
+            from django.core.files.storage import default_storage
+
+            if default_storage.exists(image_path):
+                with default_storage.open(image_path, "rb") as handle:
+                    with Image.open(handle) as image:
+                        return image.convert("RGB").copy()
+
+            resolved = self._resolve_media_path(image_path)
+            with Image.open(resolved) as image:
+                return image.convert("RGB").copy()
+        except Exception:
+            return None
+
     def _get_embedding_torchvision(self, image_path: str):
         if not self._load_torchvision_once() or Image is None or torch is None:
             return None
         try:
-            resolved = self._resolve_media_path(image_path)
-            with Image.open(resolved) as image:
-                image = image.convert("RGB")
-                tensor = self._tv_transform(image).unsqueeze(0)
+            image = self._open_image_rgb(image_path)
+            if image is None:
+                return None
+            tensor = self._tv_transform(image).unsqueeze(0)
 
             with torch.no_grad():
                 feats = self._tv_model.features(tensor)
@@ -281,10 +315,10 @@ class AIMatchingService:
         if not self._load_hf_once() or Image is None or torch is None:
             return None
         try:
-            resolved = self._resolve_media_path(image_path)
-            with Image.open(resolved) as image:
-                image = image.convert("RGB")
-                inputs = self._hf_processor(images=image, return_tensors="pt")
+            image = self._open_image_rgb(image_path)
+            if image is None:
+                return None
+            inputs = self._hf_processor(images=image, return_tensors="pt")
 
             with torch.no_grad():
                 output = self._hf_model(**inputs)
@@ -300,12 +334,13 @@ class AIMatchingService:
         if not self._load_keras_once() or Image is None or np is None:
             return None
         try:
-            resolved = self._resolve_media_path(image_path)
             from tensorflow.keras.applications.mobilenet_v3 import preprocess_input
 
-            with Image.open(resolved) as image:
-                image = image.convert("RGB").resize((224, 224))
-                arr = np.asarray(image, dtype=np.float32)
+            image = self._open_image_rgb(image_path)
+            if image is None:
+                return None
+            image = image.resize((224, 224))
+            arr = np.asarray(image, dtype=np.float32)
 
             batch = np.expand_dims(arr, axis=0)
             batch = preprocess_input(batch)
