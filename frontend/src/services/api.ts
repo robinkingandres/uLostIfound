@@ -1,43 +1,45 @@
 import type { Report, ReportStatus, ReportType } from '../types/report';
-import type { Claim, ClaimStatus } from '../types/claim'; // Ensure Claim/ClaimStatus are imported
-// FIX: Ensure correct import of fetchCsrfToken from authApi.ts
+import type { Claim, ClaimStatus } from '../types/claim'; 
 import { fetchCsrfToken } from './authApi'; 
 
 export type { Report };
 
-const API_URL = 'http://localhost:8000/api'; // <-- FIXED HOSTNAME
+const API_URL = `${import.meta.env.VITE_API_URL}/api`;
 const REPORT_URL = `${API_URL}/reports/`;
-const CLAIM_URL = `${API_URL}/claims/`; // <-- NEW CLAIM URL
+const CLAIM_URL = `${API_URL}/claims/`; 
 const USER_URL = `${API_URL}/users/`;
-const DASHBOARD_STATS_URL = `${API_URL}/dashboard/stats/`; // <-- NEW URL
+const DASHBOARD_STATS_URL = `${API_URL}/dashboard/stats/`; 
 
 // --- Utility: Map Backend User Data to Frontend Format ---
 const mapUser = (data: any) => ({
   ...data,
-  // Ensure camelCase for frontend components even if backend sends snake_case
   yearLevel: data.year_level || data.yearLevel,
   userId: data.school_id || data.userId, 
 });
 
-// --- Utility function to get CSRF Token from cookie ---
-const getCsrfToken = () => {
-    const name = 'csrftoken';
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            // --- ROBUST CHECK HERE ---
-            if (cookie.startsWith(name + '=')) { 
-                return decodeURIComponent(cookie.substring(name.length + 1));
-            }
-        }
-    }
-    return null;
+const parseErrorResponse = async (response: Response): Promise<string> => {
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    const data = await response.json();
+    if (typeof data?.detail === 'string') return data.detail;
+    if (Array.isArray(data?.non_field_errors) && data.non_field_errors[0]) return String(data.non_field_errors[0]);
+    return JSON.stringify(data);
+  }
+
+  const text = await response.text();
+  if (!text) return `Request failed with status ${response.status}`;
+  if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+    return `Request failed with status ${response.status}. Server returned an HTML error page.`;
+  }
+  return text;
 };
 
 // --- TYPES for API PAYLOAD (data sent to backend) ---
 export interface ReportPayload {
   itemName: string; 
+  personName?: string;
+  grade?: string;
+  section?: string;
   description: string;
   type: ReportType;
   category: string;
@@ -49,50 +51,42 @@ export interface ReportPayload {
 //                      REPORT API FUNCTIONS
 // =================================================================
 
-
-// Define the expected return structure for clarity in frontend logic
 interface DashboardStats {
   totalReports: number;
   totalLostItems: number;
   totalFoundItems: number;
   totalClaimedItems: number;
-  totalUnclaimedItems: number; // <-- Added this
+  totalUnclaimedItems: number; 
   pendingReports: number;
   totalUsers: number;
-  reportsByMonth: { month: string; value: number }[];
+  reportsByMonth: { period: string; lost: number; found: number; matched: number; claimed: number }[];
 }
-/**
- * Fetches core statistics for the Admin Dashboard.
- * @param timePeriod - 'weekly', 'monthly', or 'yearly' (default)
- * @param statusFilter - 'all', 'lost', 'found', or 'claimed' (default: 'all')
- */
-export const fetchDashboardStats = async (timePeriod: string = 'yearly', statusFilter: string = 'all'): Promise<DashboardStats> => {
-    // CRITICAL FIX: Explicitly call fetchCsrfToken() to ensure the session cookie 
-    // is present and active before hitting the protected API endpoint.
+
+const dashboardTimePeriodMap: Record<'last7' | 'last30' | 'last90', string> = {
+  last7: 'weekly',
+  last30: 'monthly',
+  last90: 'semester',
+};
+
+export const fetchDashboardStats = async (timePeriod: 'last7' | 'last30' | 'last90' = 'last30'): Promise<DashboardStats> => {
     const csrfToken = await fetchCsrfToken(); 
 
     if (!csrfToken) {
-      // If the robust fetcher failed, the user is likely not logged in or the session is corrupted.
       throw new Error('Authentication required for dashboard access.');
     }
     
-    // Build URL with query parameters
     const url = new URL(DASHBOARD_STATS_URL, window.location.origin);
-    url.searchParams.append('time_period', timePeriod);
-    url.searchParams.append('status', statusFilter);
+    url.searchParams.append('time_period', dashboardTimePeriodMap[timePeriod] ?? 'monthly');
     
-    // Authentication is required, so we must include credentials.
     const response = await fetch(url.toString(), { 
       credentials: 'include', 
       headers: {
-        // Including the token even in the header for a GET can help satisfy Django's check
         'X-CSRFToken': csrfToken, 
       }
     }); 
     
     if (!response.ok) {
       const errorData = await response.json();
-      // Throw the raw error detail from the server for better debugging
       throw new Error(JSON.stringify(errorData)); 
     }
   
@@ -103,8 +97,20 @@ export const fetchDashboardStats = async (timePeriod: string = 'yearly', statusF
 //                      CLAIM API FUNCTIONS
 // =================================================================
 
-// --- Create a new claim (User) ---
-export const createClaim = async (reportId: number, proofDescription: string, proofImage: File | null) => {
+export const createClaim = async (
+  reportId: number,
+  proofDescription: string,
+  proofImage: File | null,
+  claimantPhoto: File | null,
+  claimantIdPhoto: File | null,
+  authorizationLetter: File | null,
+  claimantContact?: string,
+  options?: {
+    claimantId?: number;
+    claimantName?: string;
+    claimantSchoolId?: string;
+  }
+) => {
   const csrfToken = await fetchCsrfToken();
   
   if (!csrfToken) {
@@ -118,6 +124,27 @@ export const createClaim = async (reportId: number, proofDescription: string, pr
   if (proofImage) {
     formData.append('proofImage', proofImage);
   }
+  if (claimantPhoto) {
+    formData.append('claimantPhoto', claimantPhoto);
+  }
+  if (claimantIdPhoto) {
+    formData.append('claimantIdPhoto', claimantIdPhoto);
+  }
+  if (authorizationLetter) {
+    formData.append('authorizationLetter', authorizationLetter);
+  }
+  if (claimantContact) {
+    formData.append('claimantContact', claimantContact);
+  }
+  if (options?.claimantId) {
+    formData.append('claimantId', options.claimantId.toString());
+  }
+  if (options?.claimantName) {
+    formData.append('claimantNameInput', options.claimantName);
+  }
+  if (options?.claimantSchoolId) {
+    formData.append('claimantSchoolIdInput', options.claimantSchoolId);
+  }
 
   const response = await fetch(CLAIM_URL, {
     method: 'POST',
@@ -129,21 +156,18 @@ export const createClaim = async (reportId: number, proofDescription: string, pr
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    const detail = errorData?.detail || errorData?.non_field_errors?.[0] || 'Failed to submit claim';
-    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(errorData));
+    const detail = await parseErrorResponse(response);
+    throw new Error(detail || 'Failed to submit claim');
   }
 
   return response.json();
 };
 
-// --- NEW: Fetch all claims (Admin sees all, User sees own) ---
 export const fetchClaims = async (reportId?: number): Promise<Claim[]> => {
   let url = CLAIM_URL;
   if (reportId !== undefined) {
     url += `?report_id=${reportId}`;
   }
-  // Authentication is required, include credentials
   const response = await fetch(url, {
     credentials: 'include' 
   });
@@ -157,11 +181,14 @@ export const fetchClaims = async (reportId?: number): Promise<Claim[]> => {
   return [];
 };
 
-// --- Claimant can edit proof details while claim is pending ---
 export const updateClaimProof = async (
   claimId: number,
   proofDescription: string,
-  proofImage?: File | null
+  proofImage?: File | null,
+  claimantPhoto?: File | null,
+  claimantIdPhoto?: File | null,
+  authorizationLetter?: File | null,
+  claimantContact?: string
 ): Promise<Claim> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
@@ -170,6 +197,18 @@ export const updateClaimProof = async (
   formData.append('proofDescription', proofDescription);
   if (proofImage) {
     formData.append('proofImage', proofImage);
+  }
+  if (claimantPhoto) {
+    formData.append('claimantPhoto', claimantPhoto);
+  }
+  if (claimantIdPhoto) {
+    formData.append('claimantIdPhoto', claimantIdPhoto);
+  }
+  if (authorizationLetter) {
+    formData.append('authorizationLetter', authorizationLetter);
+  }
+  if (claimantContact) {
+    formData.append('claimantContact', claimantContact);
   }
 
   const response = await fetch(`${CLAIM_URL}${claimId}/`, {
@@ -180,14 +219,36 @@ export const updateClaimProof = async (
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    const detail = errorData?.detail || errorData?.non_field_errors?.[0] || 'Failed to update claim proof';
-    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(errorData));
+    const detail = await parseErrorResponse(response);
+    throw new Error(detail || 'Failed to update claim proof');
   }
   return response.json();
 };
 
-// --- NEW: Update claim status (Approve/Reject) ---
+export const updateClaimContact = async (claimId: number, payload: { claimantName?: string; claimantContact?: string }): Promise<Claim> => {
+  const csrfToken = await fetchCsrfToken();
+  if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
+
+  const response = await fetch(`${CLAIM_URL}${claimId}/`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify({
+      claimantNameInput: payload.claimantName,
+      claimantContact: payload.claimantContact,
+    }),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const detail = await parseErrorResponse(response);
+    throw new Error(detail || 'Failed to update claimant contact');
+  }
+  return response.json();
+};
+
 export const updateClaimStatus = async (
   id: number, 
   status: ClaimStatus, 
@@ -202,7 +263,6 @@ export const updateClaimStatus = async (
       'Content-Type': 'application/json',
       'X-CSRFToken': csrfToken,
     },
-    // Include rejection_reason in the body if it exists
     body: JSON.stringify({ 
       status,
       rejection_reason: rejectionReason 
@@ -211,30 +271,29 @@ export const updateClaimStatus = async (
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(JSON.stringify(errorData));
+    const detail = await parseErrorResponse(response);
+    throw new Error(detail || 'Failed to update claim status');
   }
   return response.json();
 };
+
 // =================================================================
 //                      REPORT CRUD FUNCTIONS
 // =================================================================
 
-/**
- * Creates a new report (Lost or Found item).
- */
-export const createReport = async (data: ReportPayload, imageFile: File | null): Promise<Report> => {
-  // --- FIX: Use the robust fetcher directly and let it handle retries/delays ---
+export const createReport = async (
+  data: ReportPayload,
+  imageFile: File | null,
+  returnedByPhoto?: File | null
+): Promise<Report> => {
   const csrfToken = await fetchCsrfToken();
   
   if (!csrfToken) {
-    // If it's still missing after the attempt, throw the error.
     throw new Error('CSRF token not found. Please ensure you are logged in.'); 
   }
 
   const formData = new FormData();
   
-  // Append text/JSON data fields
   Object.entries(data).forEach(([key, value]) => {
     formData.append(key, value.toString());
   });
@@ -242,15 +301,17 @@ export const createReport = async (data: ReportPayload, imageFile: File | null):
   if (imageFile) {
     formData.append('image', imageFile);
   }
+  if (returnedByPhoto) {
+    formData.append('returnedByPhoto', returnedByPhoto);
+  }
 
   const response = await fetch(REPORT_URL, {
     method: 'POST',
     headers: {
-      // Must include X-CSRFToken for POST requests
       'X-CSRFToken': csrfToken, 
     },
     body: formData,
-    credentials: 'include', // Mandatory to send session/CSRF cookies
+    credentials: 'include', 
   });
 
   if (!response.ok) {
@@ -261,9 +322,6 @@ export const createReport = async (data: ReportPayload, imageFile: File | null):
   return response.json();
 };
 
-/**
- * Fetches reports, with optional filtering by type and status.
- */
 export const fetchReports = async (type?: ReportType, status?: ReportStatus): Promise<Report[]> => {
   let url = REPORT_URL;
   const params = new URLSearchParams();
@@ -277,7 +335,6 @@ export const fetchReports = async (type?: ReportType, status?: ReportStatus): Pr
     url += `?${params.toString()}`;
   }
 
-  // Credentials must be included even for GET to maintain session/authentication checks
   const response = await fetch(url, {
     credentials: 'include',
     cache: 'no-store',
@@ -292,11 +349,11 @@ export const fetchReports = async (type?: ReportType, status?: ReportStatus): Pr
   return [];
 };
 
-
-/**
- * Updates an existing report (User: own Pending only; Admin: any).
- */
-export const updateReport = async (id: number, data: Partial<ReportPayload>, imageFile?: File | null): Promise<Report> => {
+export const updateReport = async (
+  id: number,
+  data: Partial<ReportPayload> & { status?: ReportStatus },
+  imageFile?: File | null
+): Promise<Report> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
 
@@ -312,7 +369,6 @@ export const updateReport = async (id: number, data: Partial<ReportPayload>, ima
     });
     formData.append('image', imageFile);
     body = formData;
-    // Don't set Content-Type for FormData - browser sets it with boundary
   } else {
     headers['Content-Type'] = 'application/json';
     body = JSON.stringify(data);
@@ -332,9 +388,6 @@ export const updateReport = async (id: number, data: Partial<ReportPayload>, ima
   return response.json();
 };
 
-/**
- * Deletes a report (User: own Pending only; Admin: any).
- */
 export const deleteReport = async (id: number): Promise<void> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
@@ -351,11 +404,8 @@ export const deleteReport = async (id: number): Promise<void> => {
   }
 };
 
-/**
- * Updates the status of an existing report (Used by Admin).
- */
 export const updateReportStatus = async (id: number, newStatus: ReportStatus): Promise<Report> => {
-  const csrfToken = getCsrfToken();
+  const csrfToken = await fetchCsrfToken();
   if (!csrfToken) {
     throw new Error('CSRF token not found. Please ensure you are logged in.');
   }
@@ -378,13 +428,11 @@ export const updateReportStatus = async (id: number, newStatus: ReportStatus): P
   return response.json();
 };
 
-
 // =================================================================
-//                      USER API FUNCTIONS (Existing)
+//                      USER API FUNCTIONS 
 // =================================================================
 
 export const fetchUsers = async () => {
-  // Use credentials: 'include' to ensure session is sent
   const response = await fetch(USER_URL, { credentials: 'include' });
   if (!response.ok) {
     throw new Error('Failed to fetch users');
@@ -392,7 +440,6 @@ export const fetchUsers = async () => {
   return response.json();
 };
 
-// create user (Admin only)
 export const createUser = async (data: {
   username: string;
   email: string;
@@ -402,7 +449,7 @@ export const createUser = async (data: {
   year_level?: string;
   room?: string;
 }) => {
-  const csrfToken = getCsrfToken();
+  const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found.');
   const response = await fetch(USER_URL, {
     method: 'POST',
@@ -420,9 +467,8 @@ export const createUser = async (data: {
   return response.json();
 };
 
-// delete user
 export const deleteUser = async (id: number) => {
-  const csrfToken = getCsrfToken();
+  const csrfToken = await fetchCsrfToken();
   if (!csrfToken) {
     throw new Error('CSRF token not found.');
   }
@@ -438,9 +484,8 @@ export const deleteUser = async (id: number) => {
   }
 };
 
-// update user
 export const updateUser = async (id: number, data: any) => {
-  const csrfToken = getCsrfToken();
+  const csrfToken = await fetchCsrfToken();
   if (!csrfToken) {
     throw new Error('CSRF token not found.');
   }
@@ -463,10 +508,7 @@ export const updateUser = async (id: number, data: any) => {
   return response.json();
 };
 
-
-// profile report
 export const fetchMyReports = async (): Promise<Report[]> => {
-  // The 'my_reports' action creates a URL like: /api/reports/my_reports/
   const response = await fetch(`${REPORT_URL}my_reports/`, { 
     credentials: 'include' 
   });
@@ -477,9 +519,6 @@ export const fetchMyReports = async (): Promise<Report[]> => {
 
   const data = await response.json();
   
-  // The backend might return a paginated object ({ count: ..., results: [...] }) 
-  // or a flat array depending on your pagination settings. 
-  // This check handles both cases safely.
   if (Array.isArray(data)) {
     return data;
   } else if (data.results && Array.isArray(data.results)) {
@@ -490,9 +529,6 @@ export const fetchMyReports = async (): Promise<Report[]> => {
 };
 
 // --- PROFILE API FUNCTIONS ---
-/**
- * Updates user profile information (name, email, etc.)
- */
 export const updateProfile = async (
   userId: number,
   data: {
@@ -528,9 +564,6 @@ export const updateProfile = async (
   return mapUser(result);
 };
 
-/**
- * Fetches current user data
- */
 export const fetchCurrentUser = async (userId: number): Promise<any> => {
   const response = await fetch(`${USER_URL}${userId}/`, {
     credentials: 'include',
@@ -544,9 +577,6 @@ export const fetchCurrentUser = async (userId: number): Promise<any> => {
   return mapUser(data);
 };
 
-/**
- * Uploads/updates user avatar
- */
 export const uploadAvatar = async (userId: number, imageFile: File): Promise<any> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) {
@@ -585,7 +615,6 @@ export interface Notification {
 
 const NOTIFICATION_URL = `${API_URL}/notifications/`;
 
-// --- NOTIFICATION API ---
 export const fetchNotifications = async (): Promise<Notification[]> => {
   const response = await fetch(NOTIFICATION_URL, { credentials: 'include' });
   if (!response.ok) throw new Error('Failed to fetch notifications');
@@ -593,7 +622,7 @@ export const fetchNotifications = async (): Promise<Notification[]> => {
 };
 
 export const markNotificationRead = async (id: number) => {
-  const csrfToken = await fetchCsrfToken(); // Ensure you import fetchCsrfToken
+  const csrfToken = await fetchCsrfToken(); 
   await fetch(`${NOTIFICATION_URL}${id}/mark_read/`, {
     method: 'POST',
     headers: { 'X-CSRFToken': csrfToken || '' },
@@ -615,7 +644,7 @@ const ACTIVITY_URL = `${API_URL}/dashboard/activity/`;
 export interface Activity {
   id: string;
   user: string;
-  role: string; // Added role to show "Student" or "Teacher"
+  role: string; 
   action: string;
   item: string;
   timestamp: string;
@@ -673,9 +702,6 @@ export interface AIMatchStats {
   rejected: number;
 }
 
-/**
- * Fetch all AI matches (Admin only for all, users see their approved matches)
- */
 export const fetchAIMatches = async (status?: string): Promise<AIMatch[]> => {
   let url = AI_MATCH_URL;
   if (status) {
@@ -693,9 +719,6 @@ export const fetchAIMatches = async (status?: string): Promise<AIMatch[]> => {
   return [];
 };
 
-/**
- * Get AI match statistics (Admin only)
- */
 export const fetchAIMatchStats = async (): Promise<AIMatchStats> => {
   const response = await fetch(`${AI_MATCH_URL}stats/`, { credentials: 'include' });
   
@@ -705,9 +728,6 @@ export const fetchAIMatchStats = async (): Promise<AIMatchStats> => {
   return response.json();
 };
 
-/**
- * Update AI match status (Approve/Reject)
- */
 export const updateAIMatchStatus = async (id: number, status: 'Approved' | 'Rejected'): Promise<AIMatch> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
@@ -729,13 +749,10 @@ export const updateAIMatchStatus = async (id: number, status: 'Approved' | 'Reje
   return response.json();
 };
 
-/**
- * Trigger AI scan for all potential matches (Admin only)
- */
 export const triggerAIScan = async (minScore?: number): Promise<{ status: string; message: string; matches_created: number }> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('CSRF token not found. Please ensure you are logged in.');
-  const scanEndpoints = [`${API_URL}/admin/ai/scan/`, `${AI_MATCH_URL}scan_all/`, `${API_URL}/ai/scan/`];
+  const scanEndpoints = [`${AI_MATCH_URL}scan_all/`, `${API_URL}/admin/ai/scan/`, `${API_URL}/ai/scan/`];
   let lastError = '';
 
   for (const endpoint of scanEndpoints) {
@@ -754,15 +771,11 @@ export const triggerAIScan = async (minScore?: number): Promise<{ status: string
     const errorText = await response.text();
     lastError = errorText || `HTTP ${response.status}`;
 
-    // Try fallback only when endpoint is not available.
     if (![404, 405].includes(response.status)) break;
   }
   throw new Error(lastError || 'Failed to trigger AI scan');
 };
 
-/**
- * Get matches for the current user's reports
- */
 export const fetchMyAIMatches = async (): Promise<AIMatch[]> => {
   const response = await fetch(`${AI_MATCH_URL}my_matches/`, { credentials: 'include' });
   
@@ -772,9 +785,6 @@ export const fetchMyAIMatches = async (): Promise<AIMatch[]> => {
   return response.json();
 };
 
-/**
- * Get AI matches for a specific report
- */
 export const fetchReportAIMatches = async (reportId: number): Promise<AIMatch[]> => {
   const response = await fetch(`${AI_MATCH_URL}?report_id=${reportId}`, { credentials: 'include' });
   
@@ -802,10 +812,6 @@ export interface AnalyticsData {
   dateFormat: string;
 }
 
-/**
- * Fetches comprehensive analytics data for the Analytics page
- * @param timeFrame - 'daily', 'weekly', 'monthly', or 'yearly'
- */
 export const fetchAnalytics = async (timeFrame: string = 'monthly'): Promise<AnalyticsData> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('Authentication required');
@@ -858,9 +864,6 @@ export interface LostFoundDashboardData {
   };
 }
 
-/**
- * Fetches comprehensive Lost & Found dashboard data
- */
 export const fetchLostFoundDashboard = async (): Promise<LostFoundDashboardData> => {
   const csrfToken = await fetchCsrfToken();
   if (!csrfToken) throw new Error('Authentication required');
@@ -928,6 +931,7 @@ export interface AdminAnalyticsExportRow {
   claimant_school_id: string;
   claimant_email: string;
   claim_proof_image_url: string;
+  claimant_photo_url: string;
 }
 
 export interface AdminAnalyticsExportResponse {
@@ -942,6 +946,65 @@ export interface AdminAnalyticsExportResponse {
 
 const ADMIN_ANALYTICS_URL = `${API_URL}/admin/analytics/`;
 const ADMIN_ANALYTICS_EXPORT_DATA_URL = `${API_URL}/admin/analytics/export-data/`;
+const ADMIN_AI_MATCH_PERFORMANCE_URL = `${API_URL}/admin/analytics/ai-match-performance/`;
+const ADMIN_HONESTY_RANKING_URL = `${API_URL}/admin/analytics/honesty-ranking/`;
+const ADMIN_HONESTY_AWARDS_URL = `${API_URL}/admin/analytics/honesty-awards/`;
+
+export interface AdminAIMatchPerformanceResponse {
+  filters: {
+    date_from: string;
+    date_to: string;
+    category: string;
+  };
+  donut: {
+    successful_matches: number;
+    unmatched_reports: number;
+  };
+  suggestions: {
+    accepted: number;
+    pending: number;
+    rejected: number;
+    total: number;
+    success_rate: number;
+  };
+  histogram: Array<{ bucket: string; count: number }>;
+  avg_time_to_match_hours: number;
+}
+
+export interface HonestyRankingRow {
+  rank: number;
+  identifier: string;
+  surrender_count: number;
+}
+
+export interface AdminHonestyRankingResponse {
+  filters: {
+    date_from: string;
+    date_to: string;
+    category: string;
+  };
+  results: HonestyRankingRow[];
+}
+
+export interface HonestyAwardRow {
+  report_id: number;
+  found_by: string;
+  grade: string;
+  section: string;
+  date_found: string;
+  category: string;
+  item_name: string;
+  returned: boolean;
+}
+
+export interface AdminHonestyAwardsResponse {
+  filters: {
+    date_from: string;
+    date_to: string;
+    category: string;
+  };
+  results: HonestyAwardRow[];
+}
 
 export const fetchAdminAnalytics = async (params?: {
   date_from?: string;
@@ -993,6 +1056,74 @@ export const fetchAdminAnalyticsExportData = async (params?: {
 
   if (!response.ok) {
     throw new Error('Failed to fetch export data');
+  }
+  return response.json();
+};
+
+export const fetchAdminAIMatchPerformance = async (params?: {
+  date_from?: string;
+  date_to?: string;
+  category?: string;
+}): Promise<AdminAIMatchPerformanceResponse> => {
+  const url = new URL(ADMIN_AI_MATCH_PERFORMANCE_URL, window.location.origin);
+  if (params?.date_from) url.searchParams.set('date_from', params.date_from);
+  if (params?.date_to) url.searchParams.set('date_to', params.date_to);
+  if (params?.category) url.searchParams.set('category', params.category);
+
+  const response = await fetch(url.toString(), {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const msg = await parseErrorResponse(response);
+    throw new Error(`Failed to fetch AI match performance (${response.status}): ${msg}`);
+  }
+  return response.json();
+};
+
+export const fetchAdminHonestyRanking = async (params?: {
+  date_from?: string;
+  date_to?: string;
+  category?: string;
+}): Promise<AdminHonestyRankingResponse> => {
+  const url = new URL(ADMIN_HONESTY_RANKING_URL, window.location.origin);
+  if (params?.date_from) url.searchParams.set('date_from', params.date_from);
+  if (params?.date_to) url.searchParams.set('date_to', params.date_to);
+  if (params?.category) url.searchParams.set('category', params.category);
+
+  const response = await fetch(url.toString(), {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const msg = await parseErrorResponse(response);
+    throw new Error(`Failed to fetch honesty ranking (${response.status}): ${msg}`);
+  }
+  return response.json();
+};
+
+export const fetchAdminHonestyAwards = async (params?: {
+  date_from?: string;
+  date_to?: string;
+  category?: string;
+  limit?: number;
+}): Promise<AdminHonestyAwardsResponse> => {
+  const url = new URL(ADMIN_HONESTY_AWARDS_URL, window.location.origin);
+  if (params?.date_from) url.searchParams.set('date_from', params.date_from);
+  if (params?.date_to) url.searchParams.set('date_to', params.date_to);
+  if (params?.category) url.searchParams.set('category', params.category);
+  if (params?.limit) url.searchParams.set('limit', String(params.limit));
+
+  const response = await fetch(url.toString(), {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const msg = await parseErrorResponse(response);
+    throw new Error(`Failed to fetch honesty awards (${response.status}): ${msg}`);
   }
   return response.json();
 };

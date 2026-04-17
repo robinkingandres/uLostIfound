@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Upload,
@@ -11,16 +11,12 @@ import {
   Loader2
 } from 'lucide-react';
 
-// Assets
 import chatbotIcon from '../../assets/chatbot.png';
-
-// Components
 import Chatbot from '../../components/Chatbot';
 import UserHeader from '../../components/UserHeader';
 import GuidanceSidebar from '../../components/guidance/GuidanceSidebar';
 import DashboardHeader from '../../components/admin/DashboardHeader';
 
-// API & Auth
 import {
   createReport,
   type ReportPayload,
@@ -30,47 +26,119 @@ import {
 import type { Report } from '../../types/report';
 import { useAuth } from '../../contexts/AuthContext';
 
+const DEFAULT_REPORT_CATEGORIES = [
+  'School Supplies',
+  'Tech & Gadgets',
+  'Books & Modules',
+  'Daily Essentials',
+  'Food & Clothes',
+  'Others',
+];
+
+function normalizeCategoryOptions(options: string[]): string[] {
+  const LEGACY_CATEGORY_MAP: Record<string, string> = {
+    electronics: 'Tech & Gadgets',
+    phone: 'Tech & Gadgets',
+    documents: 'Books & Modules',
+    clothing: 'Food & Clothes',
+    accessories: 'Food & Clothes',
+    wallet: 'Food & Clothes',
+    id: 'Food & Clothes',
+    other: 'Others',
+    others: 'Others',
+    'school supplies (ballpen, paper, notebook)': 'School Supplies',
+    'electronics & gadgets (laptop / tablet, scientific calculator, charger / power bank, flash drive)': 'Tech & Gadgets',
+    'books & notebooks (textbooks, subject notebooks, printed modules, planner / journal)': 'Books & Modules',
+    'personal care & hygiene (hand sanitizer, pocket tissue, lip balm, small umbrella)': 'Daily Essentials',
+    'food & beverage (water bottle, lunchbox, snacks)': 'Food & Clothes',
+    'clothing & accessories (school id, extra sweater or jacket, pe uniform / gym clothes)': 'Food & Clothes',
+    'art & project materials (colored pencils or markers, glue stick, scissors, construction paper)': 'School Supplies',
+    'school supplies(pens, notebooks, paper, markers, glue, and scissors)': 'School Supplies',
+    'tech & gadgets(laptop, tablet, calculator, chargers, and flash drives)': 'Tech & Gadgets',
+    'books & modules(textbooks, printed modules, and notebook)': 'Books & Modules',
+    'daily essentials(id, umbrella, sanitizer, tissues, and alcohol)': 'Daily Essentials',
+    'food & clothes(water bottle, snacks, jacket, and pe uniform)': 'Food & Clothes',
+  };
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  options.forEach((raw) => {
+    const value = raw.trim();
+    if (!value) return;
+    const mappedValue = LEGACY_CATEGORY_MAP[value.toLowerCase()] ?? value;
+    const key = mappedValue.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    normalized.push(mappedValue);
+  });
+
+  if (!seen.has('others')) {
+    normalized.push('Others');
+  }
+
+  return normalized.length ? normalized : [...DEFAULT_REPORT_CATEGORIES];
+}
+
 export default function ReportLost() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isGuidanceReporter = user?.role === 'Guidance';
 
-  // --- STATE ---
+  const isOthersCategory = (value: string) => value.trim().toLowerCase() === 'others';
+
   const [dbReports, setDbReports] = useState<Report[]>([]);
-  const [categories, setCategories] = useState<string[]>(['Phone', 'Wallet', 'ID', 'Electronics', 'Others']);
+  const [categories, setCategories] = useState<string[]>([...DEFAULT_REPORT_CATEGORIES]);
   const [showChatbot, setShowChatbot] = useState(true);
   
   const [formData, setFormData] = useState({
     itemTitle: '',
-    category: 'Phone',
+    personName: '',
+    grade: '',
+    section: '',
+    category: DEFAULT_REPORT_CATEGORIES[0],
     dateLost: '',
     location: '',
     description: '',
   });
+  const [isOtherCategory, setIsOtherCategory] = useState(false);
+  const [otherCategory, setOtherCategory] = useState('');
 
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   
-  // UI States
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
   
-  // Feature States
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const [hasChatNotification, setHasChatNotification] = useState(true);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [isOtherLocation, setIsOtherLocation] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const categoryTouchedRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  // --- LOGIC ---
+  const CATEGORY_LABELS: Record<string, string> = {
+    'School Supplies': 'School Supplies(Pens, notebooks, paper, markers, glue, and scissors)',
+    'Tech & Gadgets': 'Tech & Gadgets(Laptop, tablet, calculator, chargers, and flash drives)',
+    'Books & Modules': 'Books & Modules(Textbooks and printed modules)',
+    'Daily Essentials': 'Daily Essentials(ID, umbrella, sanitizer, tissues, and alcohol)',
+    'Food & Clothes': 'Food & Clothes(Water bottle, snacks, jacket, and PE uniform)',
+    'Others': 'Others(Specify)',
+  };
 
-  // Location Dropdown Handler
+  const getCategoryLabel = (value: string) => CATEGORY_LABELS[value] ?? value;
+
   const handleLocationSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedValue = e.target.value;
 
     if (selectedValue === "Other") {
       setIsOtherLocation(true);
-      setFormData(prev => ({ ...prev, location: "" })); // Clear for custom input
+      setFormData(prev => ({ ...prev, location: "" }));
     } else {
       setIsOtherLocation(false);
       setFormData(prev => ({ ...prev, location: selectedValue }));
@@ -86,28 +154,50 @@ export default function ReportLost() {
             fetchSiteSettings(),
           ]);
           setDbReports(reportsData);
-          const dynamicCategories = siteSettings.categories?.map((c) => c.name) || [];
-          if (dynamicCategories.length > 0) {
-            setCategories(dynamicCategories);
-            setFormData((prev) => ({ ...prev, category: dynamicCategories[0] }));
+          const finalCategories = normalizeCategoryOptions((siteSettings.categories || []).map((category) => category.name));
+          setCategories(finalCategories);
+          
+          const nextCategory = finalCategories[0] || 'Others';
+          setFormData((prev) => {
+            if (categoryTouchedRef.current) return prev;
+            return { ...prev, category: nextCategory };
+          });
+          if (!categoryTouchedRef.current) {
+            setIsOtherCategory(isOthersCategory(nextCategory));
           }
+          
           setShowChatbot(siteSettings.user_home_chatbot_visible);
           setHasChatNotification(siteSettings.user_home_chat_notification_dot);
         } catch (err) {
           console.error("Error loading reports for chatbot", err);
+          setCategories([...DEFAULT_REPORT_CATEGORIES]);
         }
       };
       loadReportsForChatbot();
     }
   }, [user]);
 
-  // Cleanup preview URL
   useEffect(() => {
     return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
   }, [previewUrl]);
 
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    if (name === 'category') {
+      categoryTouchedRef.current = true;
+      const nextIsOther = isOthersCategory(value);
+      setIsOtherCategory(nextIsOther);
+      if (!nextIsOther) setOtherCategory('');
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -120,10 +210,80 @@ export default function ReportLost() {
     }
   };
 
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const closeCameraModal = () => {
+    stopCamera();
+    setIsCameraOpen(false);
+    setCameraError('');
+  };
+
+  const openCameraModal = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('Camera is not supported in this browser. Please use Add file.');
+      return;
+    }
+
+    setCameraError('');
+    setIsCameraOpen(true);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+    } catch (err) {
+      setCameraError('Unable to access camera. Please allow permission or use Add file.');
+    }
+  };
+
+  const captureFromCamera = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, width, height);
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setCameraError('Failed to capture image. Please try again.');
+          return;
+        }
+        const capturedFile = new File([blob], `lost-item-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        setImage(capturedFile);
+        setPreviewUrl(URL.createObjectURL(capturedFile));
+        setError('');
+        closeCameraModal();
+      },
+      'image/jpeg',
+      0.92
+    );
+  };
+
   const removeImage = () => {
     setImage(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleOpenChatbot = () => {
@@ -137,9 +297,15 @@ export default function ReportLost() {
     setIsSuccess(false);
     setError('');
 
-    // Basic Validation
-    if (!formData.itemTitle || !formData.dateLost || !formData.location || !formData.description) {
+    if (!formData.itemTitle || !formData.personName || !formData.dateLost || !formData.location || !formData.description) {
       setError('Please fill out all required fields marked with *');
+      setLoading(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (isOtherCategory && !otherCategory.trim()) {
+      setError('Please specify the category.');
       setLoading(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -148,7 +314,10 @@ export default function ReportLost() {
     try {
       const payload: ReportPayload = {
         itemName: formData.itemTitle,
-        category: formData.category,
+        personName: formData.personName.trim(),
+        grade: formData.grade.trim(),
+        section: formData.section.trim(),
+        category: isOtherCategory ? otherCategory.trim() : formData.category,
         date: formData.dateLost,
         location: formData.location,
         description: formData.description,
@@ -178,7 +347,6 @@ export default function ReportLost() {
       <div className={isGuidanceReporter ? "flex-1 flex flex-col overflow-hidden" : ""}>
       {isGuidanceReporter ? <DashboardHeader /> : null}
 
-      {/* --- ZOOM MODAL --- */}
       {isZoomOpen && previewUrl && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 animate-in fade-in duration-200"
@@ -196,7 +364,46 @@ export default function ReportLost() {
         </div>
       )}
 
-      {/* --- MAIN FORM --- */}
+      {isCameraOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-4 sm:p-5 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-gray-800">Capture Photo</h2>
+              <button
+                type="button"
+                onClick={closeCameraModal}
+                className="p-2 rounded-full text-gray-500 hover:bg-gray-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-hidden rounded-xl bg-black">
+              <video ref={videoRef} autoPlay playsInline muted className="w-full h-auto" />
+            </div>
+            {cameraError && (
+              <p className="mt-3 text-xs text-red-600 font-medium">{cameraError}</p>
+            )}
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={closeCameraModal}
+                className="w-full py-2.5 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={captureFromCamera}
+                className="w-full py-2.5 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700"
+              >
+                Capture
+              </button>
+            </div>
+          </div>
+          <canvas ref={canvasRef} className="hidden" />
+        </div>
+      )}
+
       <main className={isGuidanceReporter ? "flex-1 overflow-auto p-8" : "max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col items-center"}>
         <div className="w-full bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 sm:p-10 flex flex-col items-start">
@@ -231,7 +438,48 @@ export default function ReportLost() {
             </div>
 
             <form onSubmit={handleSubmit} className="w-full space-y-6">
-              {/* Item Title */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-gray-700">Person Name <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    name="personName"
+                    required
+                    value={formData.personName}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                    placeholder="e.g., Juan Dela Cruz"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-gray-700">Grade</label>
+                      <input
+                        type="text"
+                        name="grade"
+                        value={formData.grade}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                        placeholder="e.g., 10"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-gray-700">Section</label>
+                      <input
+                        type="text"
+                        name="section"
+                        value={formData.section}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                        placeholder="e.g., Einstein"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-gray-700">Item Name <span className="text-red-500">*</span></label>
                 <input 
@@ -241,11 +489,10 @@ export default function ReportLost() {
                   value={formData.itemTitle} 
                   onChange={handleInputChange} 
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none transition-all bg-gray-50/50 focus:bg-white" 
-                  placeholder="e.g., Black Phone" 
+                  placeholder="e.g., Phone/Mask/Bag/Wallet" 
                 />
               </div>
 
-              {/* Category & Date Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
                 <div className="space-y-1.5">
                   <label className="text-sm font-bold text-gray-700">Category <span className="text-red-500">*</span></label>
@@ -257,15 +504,25 @@ export default function ReportLost() {
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm appearance-none bg-gray-50/50 cursor-pointer focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none focus:bg-white transition-all"
                     >
                       {categories.map((cat) => (
-                        <option key={cat} value={cat}>{cat}</option>
+                        <option key={cat} value={cat}>{getCategoryLabel(cat)}</option>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
+                  {isOtherCategory && (
+                    <input
+                      type="text"
+                      value={otherCategory}
+                      onChange={(e) => setOtherCategory(e.target.value)}
+                      className="mt-3 w-full px-4 py-3 border border-cyan-500 rounded-xl text-sm outline-none animate-in slide-in-from-top-2 duration-300 ring-2 ring-cyan-100 bg-white"
+                      placeholder="Please specify category"
+                      autoFocus
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-gray-700">When did you lose it? <span className="text-red-500">*</span></label>
+                  <label className="text-sm font-bold text-gray-700">Date Lost <span className="text-red-500">*</span></label>
                   <input 
                     type="date" 
                     name="dateLost" 
@@ -278,7 +535,6 @@ export default function ReportLost() {
                 </div>
               </div>
 
-              {/* Location Section */}
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-gray-700 flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-gray-400" />
@@ -294,13 +550,21 @@ export default function ReportLost() {
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm appearance-none bg-gray-50/50 cursor-pointer focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none focus:bg-white transition-all"
                     >
                       <option value="" disabled>Select a location...</option>
-                      <option value="Room 101">Room 101</option>
-                      <option value="Room 102">Room 102</option>
-                      <option value="Library">Library</option>
-                      <option value="Cafeteria">Cafeteria</option>
+                      <option value="TLE BUILDING">TLE BUILDING</option>
+                      <option value="DPWH 2">DPWH 2</option>
+                      <option value="YNARES 3">YNARES 3</option>
+                      <option value="PLED 1">PLED 1</option>
+                      <option value="PLED 3">PLED 3</option>
+                      <option value="DPWH 1">DPWH 1</option>
+                      <option value="YNARES 2">YNARES 2</option>
+                      <option value="YNARES 1">YNARES 1</option>
+                      <option value="ACG BUILDING">ACG BUILDING</option>
+                      <option value="PLED 4">PLED 4</option>
+                      <option value="PLED 5">PLED 5</option>
                       <option value="Gym">Gym</option>
-                      <option value="School Grounds">School Grounds</option>
-                      <option value="Other">Other (Specify below...)</option>
+                      <option value="Canteen">Canteen</option>
+                      <option value="School Ground">School Ground</option>
+                      <option value="Other">Others(Specify below)</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
@@ -320,7 +584,6 @@ export default function ReportLost() {
                 </div>
               </div>
 
-              {/* Description */}
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-gray-700">Description <span className="text-red-500">*</span></label>
                 <textarea
@@ -330,11 +593,10 @@ export default function ReportLost() {
                   value={formData.description}
                   onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm resize-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none bg-gray-50/50 focus:bg-white transition-all"
-                  placeholder="Brand/Model • Color/Material • Unique Marks • Where you last saw it"
+                  placeholder="Brand/Model • Color/Material • Unique Marks "
                 />
               </div>
 
-              {/* Image Upload with Preview */}
               <div className="space-y-3 pt-2">
                 <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
                   <Camera className="w-4 h-4 text-gray-400" />
@@ -357,17 +619,32 @@ export default function ReportLost() {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <button 
                       type="button" 
-                      onClick={() => document.getElementById('imageUploadLost')?.click()} 
+                      onClick={() => fileInputRef.current?.click()} 
                       className="flex items-center justify-center gap-2 px-6 py-3 border border-dashed border-cyan-300 rounded-xl text-cyan-600 text-sm font-bold bg-cyan-50/50 hover:bg-cyan-50 transition-colors"
                     >
                       <Upload className="w-4 h-4" /> Add file
                     </button>
+                    {isGuidanceReporter && (
+                      <button
+                        type="button"
+                        onClick={openCameraModal}
+                        className="flex items-center justify-center gap-2 px-6 py-3 border border-dashed border-emerald-300 rounded-xl text-emerald-700 text-sm font-bold bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                      >
+                        <Camera className="w-4 h-4" /> Use Camera
+                      </button>
+                    )}
                   </div>
                 )}
-                <input id="imageUploadLost" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                <input
+                  ref={fileInputRef}
+                  id="imageUploadLost"
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
               </div>
 
-              {/* Action Buttons */}
               <div className="pt-6 flex flex-col-reverse sm:flex-row gap-4 w-full">
                 <button 
                   type="button" 
@@ -400,7 +677,6 @@ export default function ReportLost() {
         </div>
       </main>
 
-      {/* Floating Chatbot */}
       {!isGuidanceReporter && showChatbot && (
         <>
           <div className="fixed bottom-6 right-6 z-50">
@@ -422,7 +698,6 @@ export default function ReportLost() {
             </button>
           </div>
           
-          {/* 4. CHATBOT CONNECTED TO DATABASE */}
           <Chatbot 
             isOpen={isChatbotOpen} 
             onClose={() => setIsChatbotOpen(false)} 

@@ -8,10 +8,14 @@ import ClaimedUnclaimedChart from '../../components/admin/ClaimedUnclaimedChart'
 import InfoCard from '../../components/InfoCard';
 import ActivityFeed from '../../components/admin/ActivityFeed';
 import { fetchDashboardStats } from '../../services/api'; 
+import { useAdminTheme } from '../../contexts/AdminThemeContext';
 
 interface ChartData {
-  month: string;
-  value: number;
+  period: string;
+  lost: number;
+  found: number;
+  matched: number;
+  claimed: number;
 }
 
 interface DashboardData {
@@ -24,10 +28,10 @@ interface DashboardData {
     reportsByMonth: ChartData[];
 }
 
-type TimePeriod = 'weekly' | 'monthly' | 'yearly';
-type StatusFilter = 'all' | 'lost' | 'found' | 'claimed';
+type TimePeriod = 'last7' | 'last30' | 'last90';
 
 export default function AdminDashboard() {
+  const { isDark } = useAdminTheme();
   const [stats, setStats] = useState<DashboardData>({
     totalLostItems: 0,
     totalFoundItems: 0,
@@ -39,13 +43,12 @@ export default function AdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>('yearly');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('last30');
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const data = await fetchDashboardStats(timePeriod, statusFilter);
+        const data = await fetchDashboardStats(timePeriod);
         // @ts-ignore - Ignoring potential type mismatch during dev if API types aren't fully sync'd yet
         setStats({
           totalLostItems: data.totalLostItems,
@@ -64,13 +67,13 @@ export default function AdminDashboard() {
       }
     };
     loadStats();
-  }, [timePeriod, statusFilter]);
+  }, [timePeriod]);
   
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading Dashboard...</div>;
+  if (loading) return <div className={`p-8 text-center ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>Loading Dashboard...</div>;
   if (error) return <div className="p-8 text-center text-red-500 font-semibold">{error}</div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-gray-100/60">
+    <div className={`min-h-screen ${isDark ? 'bg-slate-950' : 'bg-gradient-to-b from-slate-50 to-gray-100/60'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <StatCard
@@ -97,7 +100,7 @@ export default function AdminDashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <InfoCard title="Pending reports" value={stats.pendingReports} />
+          <InfoCard title="Unclaimed items" value={stats.totalUnclaimedItems} />
           <InfoCard title="Registered users" value={stats.totalUsers} />
         </div>
 
@@ -107,9 +110,7 @@ export default function AdminDashboard() {
             <TotalReportsChart 
               data={stats.reportsByMonth} 
               timePeriod={timePeriod}
-              statusFilter={statusFilter}
               onTimePeriodChange={setTimePeriod}
-              onStatusFilterChange={setStatusFilter}
             />
           </div>
           <div className="xl:col-span-4 h-full">

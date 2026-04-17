@@ -32,7 +32,14 @@ export default function GuidanceAccountSettings() {
           email: me.email || user.email || '',
         }));
       } catch {
-        setError('Failed to load your account details.');
+        const [firstName, ...lastNameParts] = (user.name || '').split(' ');
+        setForm((prev) => ({
+          ...prev,
+          first_name: firstName || '',
+          last_name: lastNameParts.join(' '),
+          email: user.email || '',
+        }));
+        setError('Failed to load your account details from server. Showing session data instead.');
       } finally {
         setLoading(false);
       }

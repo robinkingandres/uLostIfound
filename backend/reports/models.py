@@ -23,6 +23,24 @@ class Report(models.Model):
     )
     
     item_name = models.CharField(max_length=255)
+    person_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Name of the person linked to the report (owner/claimer). Required for lost reports."
+    )
+    person_grade = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        help_text="Grade level of the person linked to the report."
+    )
+    person_section = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Section/room of the person linked to the report."
+    )
     description = models.TextField()
     type = models.CharField(max_length=10, choices=REPORT_TYPE_CHOICES)
     category = models.CharField(max_length=100)
@@ -31,6 +49,12 @@ class Report(models.Model):
     status = models.CharField(max_length=10, choices=REPORT_STATUS_CHOICES, default='Pending')
     date_reported = models.DateTimeField(auto_now_add=True)
     image = models.ImageField(upload_to='report_images/', null=True, blank=True)
+    returned_by_photo = models.ImageField(
+        upload_to='returned_by_photos/',
+        null=True,
+        blank=True,
+        help_text="Photo of the person who returned the found item (Guidance reports only)."
+    )
 
     class Meta:
         ordering = ['-date_reported']
@@ -50,9 +74,51 @@ class Claim(models.Model):
     )
 
     report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='claims')
-    claimant = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='claims')
+    claimant = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='claims',
+        null=True,
+        blank=True
+    )
+    claimant_full_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Manual claimant full name for walk-in claims without system account."
+    )
+    claimant_school_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Manual claimant school ID or identifier."
+    )
     proof_description = models.TextField(help_text="Describe why this item belongs to you (e.g., specific marks, contents).")
     proof_image = models.ImageField(upload_to='claim_proofs/', null=True, blank=True, help_text="Upload an image as proof of ownership.")
+    claimant_photo = models.ImageField(
+        upload_to='claimant_photos/',
+        null=True,
+        blank=True,
+        help_text="Photo of the claimant for in-person identity verification and release documentation."
+    )
+    claimant_id_photo = models.ImageField(
+        upload_to='claimant_id_photos/',
+        null=True,
+        blank=True,
+        help_text="Photo of claimant's valid ID or student ID."
+    )
+    authorization_letter = models.ImageField(
+        upload_to='authorization_letters/',
+        null=True,
+        blank=True,
+        help_text="Authorization letter when claimant is not the owner."
+    )
+    claimant_contact = models.CharField(
+        max_length=30,
+        blank=True,
+        default='',
+        help_text="Optional contact number for the claimant."
+    )
     status = models.CharField(max_length=10, choices=CLAIM_STATUS_CHOICES, default='Pending')
     date_created = models.DateTimeField(auto_now_add=True)
     rejection_reason = models.TextField(blank=True, null=True)
@@ -63,11 +129,18 @@ class Claim(models.Model):
             models.UniqueConstraint(
                 fields=['report', 'claimant'],
                 name='unique_claim_per_user_per_report',
+                condition=models.Q(claimant__isnull=False),
             ),
         ]
 
     def __str__(self):
-        return f"Claim for {self.report.item_name} by {self.claimant.username}"
+        if self.claimant_full_name:
+            claimant_label = self.claimant_full_name
+        elif self.claimant:
+            claimant_label = self.claimant.username
+        else:
+            claimant_label = "Unknown claimant"
+        return f"Claim for {self.report.item_name} by {claimant_label}"
     
 class Notification(models.Model):
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')

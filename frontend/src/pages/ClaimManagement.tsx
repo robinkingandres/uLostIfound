@@ -1,24 +1,20 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  CheckCircle,
-  XCircle,
   Check,
   X,
-  PackageCheck,
-  Clock,
   Search
 } from "lucide-react";
-import StatCard from "../components/admin/StatCard";
 import type { Claim, ClaimStatus } from "../types/claim";
 import { fetchClaims, updateClaimStatus } from "../services/api";
 import ClaimDetailsModal from "../components/admin/ClaimDetailsModal";
+import { useAdminTheme } from '../contexts/AdminThemeContext';
 
 export default function ClaimManagement() {
+  const { isDark } = useAdminTheme();
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [filter, setFilter] = useState<ClaimStatus | "All">("All");
   const [search, setSearch] = useState("");
 
   const loadClaims = useCallback(async () => {
@@ -36,21 +32,15 @@ export default function ClaimManagement() {
     loadClaims();
   }, [loadClaims]);
 
-  // --- THE FIX IS HERE ---
   const handleStatusUpdate = async (id: number, newStatus: ClaimStatus, rejectionReason?: string) => {
     try {
-      // Pass the rejectionReason to the API
       await updateClaimStatus(id, newStatus, rejectionReason);
       
-      // Update local state to reflect change immediately
       setClaims((prev) =>
         prev.map((c) => (c.id === id ? { ...c, status: newStatus } : c))
       );
       
-      // Close modal if open
       setIsModalOpen(false);
-      
-      // Optional: Refresh from server to ensure sync
       loadClaims();
     } catch (error) {
       console.error("Failed to update status:", error);
@@ -59,12 +49,11 @@ export default function ClaimManagement() {
   };
 
   const filteredClaims = claims.filter((claim) => {
-    const matchesFilter = filter === "All" || claim.status === filter;
     const matchesSearch = 
       claim.itemName.toLowerCase().includes(search.toLowerCase()) ||
       claim.claimantName.toLowerCase().includes(search.toLowerCase()) ||
       claim.id.toString().includes(search);
-    return matchesFilter && matchesSearch;
+    return matchesSearch;
   });
 
   const getStatusColor = (status: ClaimStatus) => {
@@ -77,107 +66,64 @@ export default function ClaimManagement() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          title="Pending Review"
-          value={claims.filter((c) => c.status === "Pending").length}
-          icon={Clock}
-          bgColor="bg-white"
-          iconBg="bg-yellow-500"
-        />
-        <StatCard
-          title="To Be Claimed"
-          value={claims.filter((c) => c.status === "Approved").length}
-          icon={CheckCircle}
-          bgColor="bg-white"
-          iconBg="bg-green-500"
-        />
-        <StatCard
-          title="Completed"
-          value={claims.filter((c) => c.status === "Claimed").length}
-          icon={PackageCheck}
-          bgColor="bg-white"
-          iconBg="bg-blue-500"
-        />
-        <StatCard
-          title="Rejected"
-          value={claims.filter((c) => c.status === "Rejected").length}
-          icon={XCircle}
-          bgColor="bg-white"
-          iconBg="bg-red-500"
-        />
-      </div>
-
-      {/* Filters & Search */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
-        <div className="flex gap-2 bg-gray-50 p-1 rounded-lg">
-          {(["All", "Pending", "Approved", "Claimed", "Rejected"] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                filter === s
-                  ? "bg-white text-blue-600 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+    <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
+      
+      {/* Updated Search Layout to match image_8aec82.png */}
+      <div className={`p-6 rounded-xl shadow-sm border ${isDark ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-gray-100'}`}>
+        <div className="relative w-full">
+          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />
           <input
             type="text"
-            placeholder="Search claims..."
+            placeholder="Search reports by item name, description, location, reporter, or ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className={`w-full pl-12 pr-4 py-3 rounded-lg focus:outline-none focus:ring-1 transition-all ${
+              isDark
+                ? 'bg-[#020617] border border-slate-700 text-slate-100 placeholder:text-slate-600 focus:ring-slate-600 focus:border-slate-600'
+                : 'bg-gray-50 border border-gray-200 text-gray-900 focus:ring-blue-500/20'
+            }`}
           />
         </div>
       </div>
 
       {/* Claims Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className={`rounded-xl shadow-sm border overflow-hidden ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className={`${isDark ? 'bg-slate-800 border-b border-slate-700' : 'bg-gray-70 border-b border-gray-100'}`}>
               <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Item</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Claimant</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Date</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase text-right">Actions</th>
+                <th className={`px-6 py-4 text-xs font-semibold uppercase ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>Item</th>
+                <th className={`px-6 py-4 text-xs font-semibold uppercase ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>Claimant</th>
+                <th className={`px-6 py-4 text-xs font-semibold uppercase ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>Date</th>
+                <th className={`px-6 py-4 text-xs font-semibold uppercase ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>Status</th>
+                <th className={`px-6 py-4 text-xs font-semibold uppercase text-right ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className={isDark ? 'divide-y divide-slate-800' : 'divide-y divide-gray-50'}>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className={`px-6 py-8 text-center ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
                     Loading claims...
                   </td>
                 </tr>
               ) : filteredClaims.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                    No claims found matching your filters.
+                  <td colSpan={5} className={`px-6 py-8 text-center ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                    No claims found.
                   </td>
                 </tr>
               ) : (
                 filteredClaims.map((claim) => (
-                  <tr key={claim.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={claim.id} className={`transition-colors ${isDark ? 'hover:bg-slate-800/60' : 'hover:bg-gray-50/50'}`}>
                     <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900">{claim.itemName}</div>
-                      <div className="text-xs text-gray-500">ID: #{claim.id}</div>
+                      <div className={`font-medium ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{claim.itemName}</div>
+                      <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>ID: #{claim.id}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{claim.claimantName}</div>
-                      <div className="text-xs text-gray-500">{claim.claimantRole}</div>
+                      <div className={`text-sm font-medium ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{claim.claimantName}</div>
+                      <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>{claim.claimantRole}</div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
+                    <td className={`px-6 py-4 text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
                       {new Date(claim.createdAt || claim.date).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4">
@@ -192,12 +138,13 @@ export default function ClaimManagement() {
                             setSelectedClaim(claim);
                             setIsModalOpen(true);
                           }}
-                          className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                            isDark ? 'text-slate-200 bg-slate-800 hover:bg-slate-700' : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+                          }`}
                         >
                           View Details
                         </button>
                         
-                        {/* Quick Actions for Pending */}
                         {claim.status === "Pending" && (
                           <>
                             <button
@@ -211,7 +158,6 @@ export default function ClaimManagement() {
                               onClick={() => {
                                 setSelectedClaim(claim);
                                 setIsModalOpen(true);
-                                // We open modal for rejection to force reason input
                               }}
                               className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                               title="Reject"
@@ -230,7 +176,6 @@ export default function ClaimManagement() {
         </div>
       </div>
 
-      {/* Detail Modal */}
       <ClaimDetailsModal
         open={isModalOpen}
         claim={selectedClaim}
@@ -240,4 +185,3 @@ export default function ClaimManagement() {
     </div>
   );
 }
-

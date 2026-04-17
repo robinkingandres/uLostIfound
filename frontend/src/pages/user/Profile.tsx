@@ -10,6 +10,8 @@ import type { Report } from '../../types/report';
 import type { Claim } from '../../types/claim';
 import chatbotIcon from '../../assets/chatbot.png';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 export default function Profile() {
   const { user, refreshUser } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -133,7 +135,7 @@ export default function Profile() {
             >
               {user?.avatar ? (
                 <img 
-                  src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8000${user.avatar}`} 
+                  src={user.avatar.startsWith('http') ? user.avatar : `${API_BASE}${user.avatar}`} 
                   alt="Profile" 
                   className="w-full h-full object-cover"
                   onError={(e) => {

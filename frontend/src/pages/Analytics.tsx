@@ -6,8 +6,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -22,9 +20,11 @@ import {
   type AdminAnalyticsResponse,
   type AdminAnalyticsExportResponse,
 } from '../services/api';
+import AIMatchPerformance from '../components/admin/AIMatchPerformance';
+import HonestyAwardsPanel from '../components/admin/HonestyAwardsPanel';
+import { useAdminTheme } from '../contexts/AdminThemeContext';
 
-type Timeframe = 'week' | 'month' | 'year';
-type MetricKey = 'lost' | 'found' | 'claims' | 'ai';
+type Timeframe = 'last7' | 'last30' | 'last90';
 
 type DetailState = {
   title: string;
@@ -36,14 +36,7 @@ const cardMotion = {
   show: (i: number) => ({ opacity: 1, x: 0, transition: { delay: i * 0.08, duration: 0.35 } }),
 };
 
-const lineColors = {
-  lost: '#ef4444',
-  found: '#22c55e',
-  claims: '#3b82f6',
-  ai: '#8b5cf6',
-};
-
-const statusColors = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#64748b'];
+const lostFoundColors = ['#ef4444', '#22c55e'];
 
 function dateOffset(days: number) {
   const d = new Date();
@@ -51,9 +44,6 @@ function dateOffset(days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-function toTitleCase(v: string) {
-  return v.charAt(0).toUpperCase() + v.slice(1);
-}
 
 const EXPORT_COLUMNS = [
   'Date Reported',
@@ -181,11 +171,11 @@ function exportDashboardPdfWithGraphs(
       <body>
         <h1>Admin Analytics Dashboard</h1>
         <div class="meta">Range: ${escapeHtml(data.filters.date_from)} to ${escapeHtml(data.filters.date_to)} | Category: ${escapeHtml(data.filters.category)}</div>
-        <div class="summary">
-          <div class="chip">Total Reports: ${data.kpis.total_reports}</div>
-          <div class="chip">Claims Submitted: ${data.kpis.claims_submitted}</div>
+          <div class="summary">
+          <div class="chip">Daily Reports Added: ${data.kpis.reports_today}</div>
+          <div class="chip">Items Claimed Today: ${data.kpis.claims_today}</div>
           <div class="chip">Resolution Rate: ${data.kpis.resolution_rate}%</div>
-          <div class="chip">AI Matches: ${data.kpis.ai_matches_generated}</div>
+          <div class="chip">Items Matched Today: ${data.kpis.ai_matches_today}</div>
         </div>
         <h2>Graph Snapshot</h2>
         <div class="charts">${chartBlocks}</div>
@@ -311,18 +301,18 @@ function exportDetailedPdf(exportData: AdminAnalyticsExportResponse) {
   setTimeout(() => win.print(), 250);
 }
 
-function SkeletonCard() {
-  return <div className="h-32 rounded-2xl border border-gray-200 bg-gray-100 animate-pulse" />;
+function SkeletonCard({ isDark }: { isDark: boolean }) {
+  return <div className={`h-32 rounded-2xl border animate-pulse ${isDark ? 'border-slate-800 bg-slate-800/40' : 'border-gray-200 bg-gray-100'}`} />;
 }
 
-function SkeletonPanel({ height = 'h-80' }: { height?: string }) {
-  return <div className={`${height} rounded-2xl border border-gray-200 bg-gray-100 animate-pulse`} />;
+function SkeletonPanel({ height = 'h-80', isDark }: { height?: string; isDark: boolean }) {
+  return <div className={`${height} rounded-2xl border animate-pulse ${isDark ? 'border-slate-800 bg-slate-800/40' : 'border-gray-200 bg-gray-100'}`} />;
 }
 
 export default function Analytics() {
-  const [timeframe, setTimeframe] = useState<Timeframe>('month');
-  const [activeMetrics, setActiveMetrics] = useState<MetricKey[]>(['lost', 'found', 'claims', 'ai']);
-  const [dateFrom, setDateFrom] = useState(dateOffset(-30));
+  const { isDark } = useAdminTheme();
+  const [timeframe, setTimeframe] = useState<Timeframe>('last30');
+  const [dateFrom, setDateFrom] = useState(dateOffset(-29));
   const [dateTo, setDateTo] = useState(dateOffset(0));
   const [category, setCategory] = useState('all');
   const [data, setData] = useState<AdminAnalyticsResponse | null>(null);
@@ -339,8 +329,7 @@ export default function Analytics() {
         date_from: dateFrom,
         date_to: dateTo,
         category,
-        timeframe,
-        metrics: activeMetrics,
+        timeframe: timeframe === 'last7' ? 'week' : timeframe === 'last30' ? 'month' : 'year',
       });
       setData(payload);
     } catch (err) {
@@ -351,20 +340,30 @@ export default function Analytics() {
   };
 
   useEffect(() => {
-    if (timeframe === 'week') setDateFrom(dateOffset(-7));
-    if (timeframe === 'month') setDateFrom(dateOffset(-30));
-    if (timeframe === 'year') setDateFrom(dateOffset(-365));
+    if (timeframe === 'last7') setDateFrom(dateOffset(-6));
+    if (timeframe === 'last30') setDateFrom(dateOffset(-29));
+    if (timeframe === 'last90') setDateFrom(dateOffset(-89));
     setDateTo(dateOffset(0));
   }, [timeframe]);
 
   useEffect(() => {
     loadAnalytics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFrom, dateTo, category, timeframe, activeMetrics]);
+  }, [dateFrom, dateTo, category, timeframe]);
 
-  const statusChartData = useMemo(() => {
+  const lostFoundChartData = useMemo(() => {
     if (!data) return [];
-    return Object.entries(data.status_breakdown).map(([name, value]) => ({ name: toTitleCase(name), value }));
+    const totals = data.trends.reduce(
+      (acc, item) => ({
+        lost: acc.lost + (item.lost ?? 0),
+        found: acc.found + (item.found ?? 0),
+      }),
+      { lost: 0, found: 0 }
+    );
+    return [
+      { name: 'Lost', value: totals.lost },
+      { name: 'Found', value: totals.found },
+    ];
   }, [data]);
 
   const categories = useMemo(() => {
@@ -372,36 +371,57 @@ export default function Analytics() {
     return ['all', ...data.categories.map((c) => c.name)];
   }, [data]);
 
+
+  const locationChartHeight = useMemo(() => {
+    if (!data?.locations?.length) return 320;
+    return Math.max(320, data.locations.length * 32);
+  }, [data]);
+
   if (error) {
     return <div className="p-8 text-red-600 font-semibold">{error}</div>;
   }
 
   const kpis = data?.kpis;
-  const timeframeText = timeframe === 'week' ? 'Weekly' : timeframe === 'month' ? 'Monthly' : 'Yearly';
-  const rangeText = timeframe === 'week' ? '7 Days' : timeframe === 'month' ? '30 Days' : '365 Days';
+  const timeframeText = timeframe === 'last7' ? 'Last 7 Days' : timeframe === 'last30' ? 'Last 30 Days' : 'Last 90 Days';
 
-  const toggleMetric = (metric: MetricKey) => {
-    setActiveMetrics((prev) => {
-      if (prev.includes(metric)) return prev.filter((m) => m !== metric);
-      return [...prev, metric];
-    });
-  };
 
   const loadExportData = () =>
     fetchAdminAnalyticsExportData({
       date_from: dateFrom,
       date_to: dateTo,
       category,
-      timeframe,
+      timeframe: timeframe === 'last7' ? 'week' : timeframe === 'last30' ? 'month' : 'year',
     });
 
+  const timeframeActions = (
+    <div className={`inline-flex rounded-lg border p-1 self-start sm:self-auto ${isDark ? 'border-slate-700 bg-slate-800' : 'border-gray-200 bg-gray-50'}`}>
+      {([
+        { key: 'last7', label: 'Last 7 days' },
+        { key: 'last30', label: 'Last 30 days' },
+        { key: 'last90', label: 'Last 90 days' },
+      ] as const).map((item) => (
+        <button
+          key={item.key}
+          onClick={() => setTimeframe(item.key)}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${
+            timeframe === item.key
+              ? isDark ? 'bg-slate-100 text-slate-900 shadow-sm' : 'bg-gray-900 text-white shadow-sm'
+              : isDark ? 'text-slate-400 hover:text-slate-100' : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="p-4 md:p-8 space-y-6">
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
+    <div className={`p-4 md:p-8 space-y-6 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
+      <div className={`rounded-2xl border p-4 md:p-6 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`}>
         <div className="flex flex-col lg:flex-row gap-4 lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Lost & Found Analytics Dashboard</h1>
-            <p className="text-sm text-gray-500">8 core metrics for operational efficiency and AI match monitoring.</p>
+            <h1 className={`text-2xl font-bold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>Lost & Found Analytics Dashboard</h1>
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>8 core metrics for operational efficiency and match monitoring.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -419,7 +439,9 @@ export default function Analytics() {
                 }
               }}
               disabled={!data || exporting !== null}
-              className="px-3 py-2 rounded-lg border text-sm bg-white border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              className={`px-3 py-2 rounded-lg border text-sm disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2 ${
+                isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-gray-300 text-gray-900'
+              }`}
             >
               {exporting === 'dashboard' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               Export Dashboard PDF
@@ -437,7 +459,9 @@ export default function Analytics() {
                 }
               }}
               disabled={exporting !== null}
-              className="px-3 py-2 rounded-lg border text-sm bg-white border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              className={`px-3 py-2 rounded-lg border text-sm disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2 ${
+                isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-gray-300 text-gray-900'
+              }`}
             >
               {exporting === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               Export History PDF
@@ -459,29 +483,28 @@ export default function Analytics() {
                 }
               }}
               disabled={exporting !== null}
-              className="px-3 py-2 rounded-lg border text-sm bg-white border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              className={`px-3 py-2 rounded-lg border text-sm disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2 ${
+                isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-gray-300 text-gray-900'
+              }`}
             >
               {exporting === 'excel' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               Export Excel
             </button>
-            <button onClick={() => setTimeframe('week')} className={`px-3 py-2 rounded-lg border text-sm ${timeframe === 'week' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Week</button>
-            <button onClick={() => setTimeframe('month')} className={`px-3 py-2 rounded-lg border text-sm ${timeframe === 'month' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Month</button>
-            <button onClick={() => setTimeframe('year')} className={`px-3 py-2 rounded-lg border text-sm ${timeframe === 'year' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300'}`}>Year</button>
           </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
-            <label className="text-xs font-semibold text-gray-600">From</label>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+            <label className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>From</label>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={`w-full mt-1 rounded-lg border px-3 py-2 text-sm ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100' : 'border-gray-300 bg-white text-gray-900'}`} />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">To</label>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+            <label className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>To</label>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={`w-full mt-1 rounded-lg border px-3 py-2 text-sm ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100' : 'border-gray-300 bg-white text-gray-900'}`} />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">Category</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white">
+            <label className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>Category</label>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className={`w-full mt-1 rounded-lg border px-3 py-2 text-sm ${isDark ? 'border-slate-700 bg-slate-950 text-slate-100' : 'border-gray-300 bg-white text-gray-900'}`}>
               {categories.map((c) => (
                 <option key={c} value={c}>{c === 'all' ? 'All categories' : c}</option>
               ))}
@@ -490,39 +513,26 @@ export default function Analytics() {
           <div className="flex items-end">
             <button
               onClick={() => loadAnalytics({ keepLoading: true })}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white hover:scale-[1.01] transition-transform"
+              className={`w-full inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm hover:scale-[1.01] transition-transform ${
+                isDark ? 'border-slate-700 bg-slate-900 text-slate-200' : 'border-gray-300 bg-white text-gray-900'
+              }`}
             >
               <RefreshCw className="w-4 h-4" /> Refresh
             </button>
           </div>
         </div>
 
-        <details className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-          <summary className="cursor-pointer text-sm font-medium text-gray-700">Trend Metrics</summary>
-          <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
-            {(['lost', 'found', 'claims', 'ai'] as MetricKey[]).map((metric) => (
-              <label key={metric} className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={activeMetrics.includes(metric)}
-                  onChange={() => toggleMetric(metric)}
-                />
-                {toTitleCase(metric)}
-              </label>
-            ))}
-          </div>
-        </details>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {loading || !kpis ? (
-          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} isDark={isDark} />)
         ) : (
           [
-            { title: 'Total Reports', today: `+${kpis.reports_today} today`, value: kpis.total_reports, foot: `${kpis.total_reports.toLocaleString()} total` },
-            { title: 'Claims Submitted', today: `+${kpis.claims_today} today`, value: kpis.claims_submitted, foot: `${kpis.claims_submitted.toLocaleString()} total` },
+            { title: 'Daily Reports Added', today: `+${kpis.reports_today} today`, value: kpis.reports_today, foot: `${kpis.total_reports.toLocaleString()} total` },
+            { title: 'Items Claimed Today', today: `+${kpis.claims_today} today`, value: kpis.claims_today, foot: `${kpis.claims_submitted.toLocaleString()} total` },
             { title: 'Resolution Rate', today: `${kpis.claims_resolved.toLocaleString()} resolved`, value: `${kpis.resolution_rate}%`, foot: `${kpis.avg_resolution_time_days} days avg` },
-            { title: 'AI Matches', today: `+${kpis.ai_matches_today} today`, value: kpis.ai_matches_generated, foot: `${kpis.ai_matches_generated.toLocaleString()} total` },
+            { title: 'Items Matched Today', today: `+${kpis.ai_matches_today} today`, value: kpis.ai_matches_today, foot: `${kpis.ai_matches_generated.toLocaleString()} total` },
           ].map((card, i) => (
             <motion.button
               type="button"
@@ -533,118 +543,45 @@ export default function Analytics() {
               animate="show"
               whileHover={{ scale: 1.015 }}
               onClick={() => setDetail({ title: card.title, rows: [{ metric: card.title, value: card.value, detail: card.foot }] })}
-              className="text-left rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+              className={`text-left rounded-2xl border p-5 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`}
             >
-              <div className="text-sm font-semibold text-gray-600">{card.title}</div>
-              <div className="mt-2 text-xs text-gray-500">{card.today}</div>
-              <div className="mt-2 text-3xl font-bold text-gray-900">{card.value}</div>
-              <div className="mt-2 text-xs text-gray-500">{card.foot}</div>
+              <div className={`text-sm font-semibold ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>{card.title}</div>
+              <div className={`mt-2 text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>{card.today}</div>
+              <div className={`mt-2 text-3xl font-bold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{card.value}</div>
+              <div className={`mt-2 text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>{card.foot}</div>
             </motion.button>
           ))
         )}
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        <div
-          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
-          data-dashboard-chart
-          data-chart-title={`${timeframeText} Trends`}
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">{timeframeText} Trends</h2>
-            <span className="text-xs text-gray-500">Lost, Found, Claims, AI Matches</span>
-          </div>
-          {loading || !data ? (
-            <div className="mt-4"><SkeletonPanel height="h-96" /></div>
-          ) : (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }} className="h-96 mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data.trends} onClick={(state: any) => {
-                  const active = state?.activePayload?.[0]?.payload as AdminAnalyticsResponse['trends'][number] | undefined;
-                  if (!active) return;
-                  setDetail({ title: `Trend Details - ${active.month}`, rows: [{ month: active.month, lost: active.lost, found: active.found, claims: active.claims, ai: active.ai }] });
-                }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  {activeMetrics.includes('lost') ? <Line type="monotone" dataKey="lost" stroke={lineColors.lost} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={900} /> : null}
-                  {activeMetrics.includes('found') ? <Line type="monotone" dataKey="found" stroke={lineColors.found} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={1000} /> : null}
-                  {activeMetrics.includes('claims') ? <Line type="monotone" dataKey="claims" stroke={lineColors.claims} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={1100} /> : null}
-                  {activeMetrics.includes('ai') ? <Line type="monotone" dataKey="ai" stroke={lineColors.ai} strokeWidth={3} dot={{ r: 3 }} isAnimationActive animationDuration={1200} /> : null}
-                </LineChart>
-              </ResponsiveContainer>
-            </motion.div>
-          )}
-        </div>
+        <HonestyAwardsPanel
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          category={category}
+          actions={timeframeActions}
+          onInspect={(title, rows) => setDetail({ title, rows })}
+        />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div
-          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
-          data-dashboard-chart
-          data-chart-title={`Due Claims (${timeframeText})`}
-        >
-          <h2 className="font-semibold text-gray-900">Due Claims ({timeframeText})</h2>
-          {loading || !data ? (
-            <div className="mt-4"><SkeletonPanel /></div>
-          ) : (
-            <div className="h-80 mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.due_claims_monthly} onClick={(state: any) => {
-                  const active = state?.activePayload?.[0]?.payload as { month: string; count: number } | undefined;
-                  if (!active) return;
-                  setDetail({ title: `Due Claims - ${active.month}`, rows: [active] });
-                }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#ef4444" radius={[8, 8, 0, 0]} isAnimationActive animationDuration={900} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-
-        <div
-          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
-          data-dashboard-chart
-          data-chart-title={`Pending Claims (${timeframeText})`}
-        >
-          <h2 className="font-semibold text-gray-900">Pending Claims ({timeframeText})</h2>
-          {loading || !data ? (
-            <div className="mt-4"><SkeletonPanel /></div>
-          ) : (
-            <div className="h-80 mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.pending_claims_monthly} onClick={(state: any) => {
-                  const active = state?.activePayload?.[0]?.payload as { month: string; count: number } | undefined;
-                  if (!active) return;
-                  setDetail({ title: `Pending Claims - ${active.month}`, rows: [active] });
-                }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} isAnimationActive animationDuration={1000} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
+      <div className="grid grid-cols-1 gap-6">
+        <AIMatchPerformance
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          category={category}
+          onInspect={(title, rows) => setDetail({ title, rows })}
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div
-          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          className={`rounded-2xl border p-4 md:p-6 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`}
           data-dashboard-chart
           data-chart-title={`${timeframeText} Category Breakdown`}
         >
-          <h2 className="font-semibold text-gray-900">{timeframeText} Category Breakdown</h2>
+          <h2 className={`font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{timeframeText} Category Breakdown</h2>
           {loading || !data ? (
-            <div className="mt-4"><SkeletonPanel /></div>
+            <div className="mt-4"><SkeletonPanel isDark={isDark} /></div>
           ) : (
             <div className="h-80 mt-4">
               <ResponsiveContainer width="100%" height="100%">
@@ -665,30 +602,30 @@ export default function Analytics() {
         </div>
 
         <div
-          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          className={`rounded-2xl border p-4 md:p-6 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`}
           data-dashboard-chart
-          data-chart-title={`Status: Last ${rangeText}`}
+          data-chart-title="Lost vs Found"
         >
-          <h2 className="font-semibold text-gray-900">Status: Last {rangeText}</h2>
+          <h2 className={`font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>Lost vs Found</h2>
           {loading || !data ? (
-            <div className="mt-4"><SkeletonPanel /></div>
+            <div className="mt-4"><SkeletonPanel isDark={isDark} /></div>
           ) : (
             <div className="h-80 mt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={statusChartData}
+                    data={lostFoundChartData}
                     dataKey="value"
                     nameKey="name"
                     innerRadius={55}
                     outerRadius={95}
                     paddingAngle={2}
-                    onClick={(entry: any) => setDetail({ title: `Status - ${entry.name}`, rows: [entry.payload] })}
+                    onClick={(entry: any) => setDetail({ title: `Lost vs Found - ${entry.name}`, rows: [entry.payload] })}
                     isAnimationActive
                     animationDuration={900}
                   >
-                    {statusChartData.map((_, index) => (
-                      <Cell key={index} fill={statusColors[index % statusColors.length]} />
+                    {lostFoundChartData.map((_, index) => (
+                      <Cell key={index} fill={lostFoundColors[index % lostFoundColors.length]} />
                     ))}
                   </Pie>
                   <Tooltip />
@@ -700,74 +637,68 @@ export default function Analytics() {
         </div>
 
         <div
-          className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm"
+          className={`rounded-2xl border p-4 md:p-6 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`}
           data-dashboard-chart
-          data-chart-title="Top Locations"
+          data-chart-title="Top Locations for Lost and Found Items"
         >
-          <h2 className="font-semibold text-gray-900">Top Locations</h2>
+          <h2 className={`font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>Top Locations for Lost and Found Items</h2>
           {loading || !data ? (
-            <div className="mt-4"><SkeletonPanel /></div>
+            <div className="mt-4"><SkeletonPanel isDark={isDark} /></div>
           ) : (
-            <div className="h-80 mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.locations} layout="vertical" margin={{ left: 30 }} onClick={(state: any) => {
-                  const active = state?.activePayload?.[0]?.payload as { name: string; count: number } | undefined;
-                  if (!active) return;
-                  setDetail({ title: `Location - ${active.name}`, rows: [active] });
-                }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis type="number" />
-                  <YAxis type="category" dataKey="name" width={110} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#14b8a6" radius={[0, 8, 8, 0]} isAnimationActive animationDuration={900} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="mt-4 max-h-[420px] overflow-y-auto">
+              <div style={{ height: locationChartHeight }} className="min-h-[320px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data.locations} layout="vertical" margin={{ left: 30 }} onClick={(state: any) => {
+                    const active = state?.activePayload?.[0]?.payload as { name: string; count: number } | undefined;
+                    if (!active) return;
+                    setDetail({ title: `Location - ${active.name}`, rows: [active] });
+                  }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis type="number" allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" width={110} />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#14b8a6" radius={[0, 8, 8, 0]} isAnimationActive animationDuration={900} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {kpis && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className={`rounded-xl border p-3 ${kpis.resolution_rate >= 80 ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
-            <div className="text-xs text-gray-600">Resolution Threshold</div>
-            <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-gray-900">
+        <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
+          <div className={`rounded-xl border p-3 ${
+            kpis.resolution_rate >= 80
+              ? isDark ? 'border-green-500/30 bg-green-500/10' : 'border-green-200 bg-green-50'
+              : isDark ? 'border-amber-500/30 bg-amber-500/10' : 'border-amber-200 bg-amber-50'
+          }`}>
+            <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>Resolution Threshold</div>
+            <div className={`mt-1 flex items-center gap-2 text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
               {kpis.resolution_rate >= 80 ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <AlertTriangle className="w-4 h-4 text-amber-600" />}
               {kpis.resolution_rate >= 80 ? 'Healthy (>=80%)' : 'Needs attention (<80%)'}
             </div>
-          </div>
-          <div className={`rounded-xl border p-3 ${kpis.overdue_claims > 7 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'}`}>
-            <div className="text-xs text-gray-600">Overdue Claims (&gt;7 days)</div>
-            <div className="mt-1 text-xl font-bold text-gray-900">{kpis.overdue_claims}</div>
-          </div>
-          <div className="rounded-xl border border-gray-200 p-3 bg-white">
-            <div className="text-xs text-gray-600">Pending Claims</div>
-            <div className="mt-1 text-xl font-bold text-gray-900">{kpis.pending_claims}</div>
-          </div>
-          <div className="rounded-xl border border-gray-200 p-3 bg-white">
-            <div className="text-xs text-gray-600">Avg Resolution Time</div>
-            <div className="mt-1 text-xl font-bold text-gray-900">{kpis.avg_resolution_time_days} days</div>
           </div>
         </div>
       )}
 
       {detail && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setDetail(null)}>
-          <div className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white shadow-xl p-5" onClick={(e) => e.stopPropagation()}>
+          <div className={`w-full max-w-xl rounded-2xl border shadow-xl p-5 ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">{detail.title}</h3>
-              <button onClick={() => setDetail(null)} className="text-sm text-gray-500 hover:text-gray-900">Close</button>
+              <h3 className={`font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{detail.title}</h3>
+              <button onClick={() => setDetail(null)} className={`text-sm ${isDark ? 'text-slate-400 hover:text-slate-100' : 'text-gray-500 hover:text-gray-900'}`}>Close</button>
             </div>
             <div className="mt-4 overflow-auto max-h-72">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-500 border-b">
+                  <tr className={`text-left border-b ${isDark ? 'text-slate-400 border-slate-800' : 'text-gray-500 border-gray-200'}`}>
                     {Object.keys(detail.rows[0] || {}).map((k) => <th key={k} className="py-2 pr-2">{k}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {detail.rows.map((row, i) => (
-                    <tr key={i} className="border-b last:border-b-0">
+                    <tr key={i} className={`border-b last:border-b-0 ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
                       {Object.values(row).map((val, idx) => <td key={idx} className="py-2 pr-2">{String(val)}</td>)}
                     </tr>
                   ))}

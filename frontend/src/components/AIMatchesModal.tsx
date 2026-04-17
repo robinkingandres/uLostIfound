@@ -4,7 +4,7 @@ import { fetchReportAIMatches } from '../services/api';
 import type { AIMatch } from '../services/api';
 import type { Report } from '../types/report';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const getImageUrl = (imagePath: string | null | undefined) => {
   if (!imagePath) return 'https://via.placeholder.com/150?text=No+Image';

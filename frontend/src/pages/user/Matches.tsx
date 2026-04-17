@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Clock, CheckCircle, PackageCheck, TrendingUp, MapPin, Calendar, Sparkles, X, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle, PackageCheck, TrendingUp, MapPin, Calendar, Sparkles, X, Pencil, Trash2, FileText } from 'lucide-react';
 import UserHeader from '../../components/UserHeader';
 import Chatbot from '../../components/Chatbot';
 import EditReportModal from '../../components/EditReportModal';
@@ -14,7 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 type MatchCategory = 'All' | 'AI Matches' | 'Pending' | 'Verified' | 'Complete';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface MatchItem {
   id: number;
@@ -528,6 +528,52 @@ interface MatchDetailsModalProps {
 function MatchDetailsModal({ match, onClose, report, claim, getImageUrl, onEdit, onDelete, isDeleting }: MatchDetailsModalProps) {
   const displayProgress = Math.max(0, Math.min(100, Math.round(match.progressPercentage ?? 25)));
 
+  const printClaimReport = () => {
+    if (!claim) return;
+    const reportImage = claim.reportImage || (report?.image ? getImageUrl(report.image) : '');
+    const proofImage = claim.proof_image || claim.proofImage || '';
+    const claimantPhoto = claim.claimant_photo || claim.claimantPhoto || '';
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Claim Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+            h1 { margin: 0 0 8px 0; }
+            .meta { font-size: 12px; color: #6b7280; margin-bottom: 16px; }
+            .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+            .label { font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 700; }
+            .value { font-size: 14px; margin-top: 4px; }
+            img { max-width: 100%; max-height: 220px; object-fit: cover; border: 1px solid #e5e7eb; border-radius: 8px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+          </style>
+        </head>
+        <body>
+          <h1>Claim Report</h1>
+          <div class="meta">Generated: ${new Date().toLocaleString()} | Claim ID: #${claim.id}</div>
+          <div class="card"><div class="label">Item</div><div class="value">${claim.itemName}</div></div>
+          <div class="card"><div class="label">Claimant</div><div class="value">${claim.claimantName} (${claim.claimantRole})</div></div>
+          <div class="card"><div class="label">Proof Details</div><div class="value">${claim.proofDescription || 'N/A'}</div></div>
+          <div class="grid">
+            <div class="card"><div class="label">Item Image</div>${reportImage ? `<img src="${reportImage}" alt="Item"/>` : '<div class="value">No image</div>'}</div>
+            <div class="card"><div class="label">Proof Image</div>${proofImage ? `<img src="${proofImage}" alt="Proof"/>` : '<div class="value">No image</div>'}</div>
+          </div>
+          <div class="card"><div class="label">Claimant Photo</div>${claimantPhoto ? `<img src="${claimantPhoto}" alt="Claimant"/>` : '<div class="value">No claimant photo</div>'}</div>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 250);
+  };
+
   const getStatusMessage = () => {
     if (match.type === 'ai-match') {
       return {
@@ -752,6 +798,17 @@ function MatchDetailsModal({ match, onClose, report, claim, getImageUrl, onEdit,
                 </div>
               </div>
             </div>
+
+            {claim && (
+              <button
+                type="button"
+                onClick={printClaimReport}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+              >
+                <FileText className="w-4 h-4" />
+                Claim Report
+              </button>
+            )}
 
             {/* Edit / Delete for Pending reports */}
             {match.type === 'report' && match.status === 'Pending' && report && onEdit && onDelete && (

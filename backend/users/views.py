@@ -1,17 +1,28 @@
 import random
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db.models import Q
 from rest_framework import viewsets, filters, status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import authenticate, login, logout, get_user_model 
 from django.middleware.csrf import get_token 
+from django.http import JsonResponse
+from django.views.decorators.csrf import ensure_csrf_cookie
 from .serializers import UserSerializer, SiteSettingsSerializer, CategorySerializer
+from .email_utils import send_resend_email
 from .models import PasswordResetCode, SiteSettings, Category # Import the new model
 from core.permissions import IsAdmin
 
 # Load the custom user model once
 User = get_user_model() 
+
+# --- NEW CSRF TOKEN VIEW ---
+@ensure_csrf_cookie
+def csrf_token_view(request):
+    """Sends the CSRF token to the frontend as JSON."""
+    return JsonResponse({'csrfToken': get_token(request)})
+# ---------------------------
 
 class LoginView(APIView):
     permission_classes = () # Allow any request
@@ -20,24 +31,20 @@ class LoginView(APIView):
         username = request.data.get('username')
         password = request.data.get('password')
         
-        # This calls your CustomUserAuthBackend now
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
-            # User found and session established
             login(request, user)
-            
-            # Use the existing UserSerializer to return user data
             serializer = UserSerializer(user)
-            
-            # --- FIX: Create Response object and explicitly set CSRF cookie ---
             response = Response(serializer.data)
-            csrf_token = get_token(request) # Get the current token
-            response.set_cookie('csrftoken', csrf_token) # Set the cookie explicitly
+            
+            # --- FIX: Let Django's secure middleware handle the cookie ---
+            # By just calling get_token, Django automatically attaches the secure 
+            # cookie using the rules from settings.py!
+            get_token(request) 
             
             return response
         else:
-            # User not found or incorrect password/inactive account
             return Response(
                 {"detail": "Invalid credentials or account not active."}, 
                 status=status.HTTP_401_UNAUTHORIZED
@@ -69,6 +76,11 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         Allow users to update their own profile, but restrict other actions to admins.
         """
+        if self.action == 'list':
+            user = self.request.user
+            if user.is_authenticated and (user.role in ['Admin', 'Guidance'] or user.is_superuser):
+                return [permissions.IsAuthenticated()]
+            return [IsAdmin()]
         if self.action in ['update', 'partial_update', 'retrieve']:
             # Allow authenticated users to update/retrieve their own profile
             return [permissions.IsAuthenticated()]
@@ -90,6 +102,10 @@ class UserViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.role == 'Admin' or user.is_superuser:
             return User.objects.all()
+        if user.role == 'Guidance':
+            return User.objects.filter(
+                Q(id=user.id) | Q(role__in=['Student', 'Teacher'])
+            ).order_by('last_name', 'first_name', 'username')
         # Regular users can only see themselves
         return User.objects.filter(id=user.id)
 
@@ -278,13 +294,31 @@ class RequestPasswordResetView(APIView):
             PasswordResetCode.objects.create(user=user, code=code)
             
             # Send Email
-            send_mail(
-                subject='uLostIfound - Password Reset Code',
-                message=f'Your verification code is: {code}\n\nThis code expires in 15 minutes.',
-                from_email=settings.EMAIL_HOST_USER,
-                recipient_list=[email],
-                fail_silently=False,
-            )
+            if getattr(settings, 'RESEND_API_KEY', None):
+                ok, err = send_resend_email(
+                    to_email=email,
+                    subject='uLostIfound - Password Reset Code',
+                    text=f'Your verification code is: {code}\n\nThis code expires in 15 minutes.',
+                )
+                if not ok:
+                    print(err)
+                    return Response({"detail": "Failed to send email."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            else:
+                if (
+                    settings.EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend'
+                    and (not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD)
+                ):
+                    return Response(
+                        {"detail": "Email service is not configured. Please contact the administrator."},
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+                send_mail(
+                    subject='uLostIfound - Password Reset Code',
+                    message=f'Your verification code is: {code}\n\nThis code expires in 15 minutes.',
+                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', settings.EMAIL_HOST_USER),
+                    recipient_list=[email],
+                    fail_silently=False,
+                )
             
             return Response({"detail": "Verification code sent to your email."})
             

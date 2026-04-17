@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { X, Check, XCircle, Zap } from 'lucide-react';
+import { X, Check, XCircle } from 'lucide-react';
 import type { Report } from '../types/report';
-import AIMatchesModal from './AIMatchesModal';
+import { useAdminTheme } from '../contexts/AdminThemeContext';
 
 interface ReportDetailsModalProps {
   report: Report;
@@ -16,7 +16,7 @@ export default function ReportDetailsModal({
   onVerify,
   onReject,
 }: ReportDetailsModalProps) {
-  const [showAIMatches, setShowAIMatches] = useState(false);
+  const { isDark } = useAdminTheme();
   const [showImagePreview, setShowImagePreview] = useState(false);
   const canModerate = report.status === 'Pending';
   const getStatusColor = (status: string) => {
@@ -40,12 +40,12 @@ export default function ReportDetailsModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-2xl w-full max-h-96 overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-900">Report Details</h2>
+      <div className={`rounded-xl max-w-2xl w-full max-h-96 overflow-y-auto ${isDark ? 'bg-slate-900' : 'bg-white'}`}>
+        <div className={`sticky top-0 p-6 flex justify-between items-center border-b ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
+          <h2 className={`text-2xl font-bold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>Report Details</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className={`transition-colors ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-gray-400 hover:text-gray-600'}`}
           >
             <X className="w-6 h-6" />
           </button>
@@ -62,23 +62,23 @@ export default function ReportDetailsModal({
               <img
                 src={report.image}
                 alt={report.itemName}
-                className="w-full h-40 object-contain bg-gray-100 rounded-lg mb-1 cursor-zoom-in"
+                className={`w-full h-40 object-contain rounded-lg mb-1 cursor-zoom-in ${isDark ? 'bg-slate-800' : 'bg-gray-100'}`}
               />
-              <span className="text-xs text-gray-500 group-hover:text-gray-700">Click image to view full size</span>
+              <span className={`text-xs ${isDark ? 'text-slate-500 group-hover:text-slate-300' : 'text-gray-500 group-hover:text-gray-700'}`}>Click image to view full size</span>
             </button>
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Item name</p>
-              <p className="text-sm font-semibold text-gray-900">{report.itemName}</p>
+              <p className={`text-xs uppercase tracking-wide mb-1 ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>Item name</p>
+              <p className={`text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{report.itemName}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Category</p>
-              <p className="text-sm font-semibold text-gray-900">{report.category}</p>
+              <p className={`text-xs uppercase tracking-wide mb-1 ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>Category</p>
+              <p className={`text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{report.category}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Type</p>
+              <p className={`text-xs uppercase tracking-wide mb-1 ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>Type</p>
               <div className="flex items-center gap-2">
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getTypeColor(report.type)}`}>
                   {report.type}
@@ -86,30 +86,30 @@ export default function ReportDetailsModal({
               </div>
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Status</p>
+              <p className={`text-xs uppercase tracking-wide mb-1 ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>Status</p>
               <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(report.status)}`}>
                 {report.status}
               </span>
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Location</p>
-              <p className="text-sm font-semibold text-gray-900">{report.location}</p>
+              <p className={`text-xs uppercase tracking-wide mb-1 ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>Location</p>
+              <p className={`text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{report.location}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Date</p>
-              <p className="text-sm font-semibold text-gray-900">{report.date}</p>
+              <p className={`text-xs uppercase tracking-wide mb-1 ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>Date</p>
+              <p className={`text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{report.date}</p>
             </div>
           </div>
 
           <div className="mb-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Description</p>
-            <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{report.description}</p>
+            <p className={`text-xs uppercase tracking-wide mb-2 ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>Description</p>
+            <p className={`text-sm rounded-lg p-3 ${isDark ? 'text-slate-300 bg-slate-800' : 'text-gray-700 bg-gray-50'}`}>{report.description}</p>
           </div>
 
-          <div className="bg-blue-50 rounded-lg p-4 mb-6">
-            <p className="text-xs text-gray-600 font-semibold mb-1">Reported by</p>
-            <p className="text-sm font-semibold text-gray-900">{report.reporterName || report.reporterUsername || 'Unknown'}</p>
-            <p className="text-xs text-gray-600">{report.reporterRole}</p>
+          <div className={`rounded-lg p-4 mb-6 ${isDark ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
+            <p className={`text-xs font-semibold mb-1 ${isDark ? 'text-blue-200' : 'text-gray-600'}`}>Reported by</p>
+            <p className={`text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{report.reporterName || report.reporterUsername || 'Unknown'}</p>
+            <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>{report.reporterRole}</p>
           </div>
 
           <div className="flex gap-3">
@@ -119,7 +119,7 @@ export default function ReportDetailsModal({
               className={`flex-1 px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors ${
                 canModerate
                   ? 'bg-green-500 hover:bg-green-600 text-white'
-                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  : isDark ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed'
               }`}
             >
               <Check className="w-4 h-4" />
@@ -131,22 +131,15 @@ export default function ReportDetailsModal({
               className={`flex-1 px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors ${
                 canModerate
                   ? 'bg-red-500 hover:bg-red-600 text-white'
-                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  : isDark ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed'
               }`}
             >
               <XCircle className="w-4 h-4" />
               Reject Report
             </button>
-            <button 
-              onClick={() => setShowAIMatches(true)}
-              className="flex-1 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors"
-            >
-              <Zap className="w-4 h-4" />
-              View AI Matches
-            </button>
           </div>
           {!canModerate && (
-            <p className="text-xs text-gray-500 mt-2">
+            <p className={`text-xs mt-2 ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
               This report is finalized and can no longer be edited.
             </p>
           )}
@@ -173,12 +166,6 @@ export default function ReportDetailsModal({
             onClick={(e) => e.stopPropagation()}
           />
         </div>
-      )}
-      {showAIMatches && (
-        <AIMatchesModal
-          report={report}
-          onClose={() => setShowAIMatches(false)}
-        />
       )}
     </div>
   );

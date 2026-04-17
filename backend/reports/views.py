@@ -3,8 +3,29 @@ from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model 
-from django.db.models import Q, Count, Avg, F, Sum
-from django.db.models.functions import TruncMonth, TruncDay, TruncWeek, TruncYear, TruncHour
+from django.db.models import (
+    Q,
+    Count,
+    Avg,
+    F,
+    Sum,
+    Exists,
+    OuterRef,
+    Value,  
+    CharField,
+)
+from django.db.models.functions import (
+    TruncMonth,
+    TruncDay,
+    TruncWeek,
+    TruncYear,
+    TruncHour,
+    Coalesce,
+    Concat,
+    Trim,
+    NullIf,
+    Greatest,
+)
 from django.utils import timezone
 from datetime import timedelta, datetime, date
 from django.db import IntegrityError
@@ -30,18 +51,21 @@ class DashboardStatsView(APIView):
 
     def get(self, request, format=None):
         # Get filter parameters
-        time_period = request.query_params.get('time_period', 'yearly').lower()  # weekly, monthly, yearly
-        status_filter = request.query_params.get('status', 'all').lower()  # all, lost, found, claimed
-        
-        # Build base queryset with status filter
-        base_queryset = Report.objects.all()
-        if status_filter == 'lost':
-            base_queryset = base_queryset.filter(type='Lost')
-        elif status_filter == 'found':
-            base_queryset = base_queryset.filter(type='Found')
-        elif status_filter == 'claimed':
-            base_queryset = base_queryset.filter(status='Claimed')
-        # 'all' means no type/status filter
+        time_period = request.query_params.get('time_period', 'monthly').lower()  # weekly, monthly, semester/last90, yearly
+        if time_period in ['last90', 'last90days', '90days']:
+            time_period = 'last90'
+
+        if time_period not in ['weekly', 'monthly', 'semester', 'last90', 'yearly']:
+            time_period = 'monthly'
+
+        # Base queryset (no status filter; we want all series at once)
+        base_queryset = Report.objects.all().annotate(
+            has_active_match=Exists(
+                AIMatch.objects.filter(
+                    Q(lost_report_id=OuterRef('pk')) | Q(found_report_id=OuterRef('pk'))
+                ).exclude(status='Rejected')
+            )
+        )
         
         # 1. Basic Counts (always use all reports, not filtered)
         total_reports = Report.objects.count()
@@ -52,98 +76,73 @@ class DashboardStatsView(APIView):
         pending_reports = Report.objects.filter(status='Pending').count()
         total_users = User.objects.count()
         
-        # 2. Time-based Report Stats (for the main bar chart)
-        now = timezone.now()
-        
+        # 2. Time-based Report Stats (line chart: lost, found, matched, claimed)
+        today = timezone.localdate()
+
+        def period_key(value):
+            if hasattr(value, 'date'):
+                return value.date()
+            return value
+
         if time_period == 'weekly':
-            # Last 4 weeks
-            start_date = now - timedelta(weeks=4)
+            # Current week (Sunday -> Saturday), daily buckets
+            days_since_sunday = (today.weekday() + 1) % 7
+            date_from = today - timedelta(days=days_since_sunday)
+            date_to = date_from + timedelta(days=6)
             trunc_func = TruncDay
-            date_format = '%m/%d'
-            
-            time_data = (
-                base_queryset.filter(date_reported__gte=start_date)
-                .annotate(period=trunc_func('date_reported'))
-                .values('period')
-                .annotate(count=Count('id'))
-                .order_by('period')
-            )
-            
-            # Generate labels for last 4 weeks
-            reports_by_period = []
-            for i in range(4):
-                week_start = now - timedelta(weeks=3-i)
-                week_label = week_start.strftime('%m/%d')
-                period_count = 0
-                for item in time_data:
-                    if item['period'] and hasattr(item['period'], 'date'):
-                        item_date = item['period'].date()
-                        week_start_date = (now - timedelta(weeks=3-i)).date()
-                        week_end_date = (now - timedelta(weeks=2-i)).date()
-                        if week_start_date <= item_date < week_end_date:
-                            period_count += item['count']
-                reports_by_period.append({
-                    'month': week_label,
-                    'value': period_count
-                })
-                
+            period_list = [date_from + timedelta(days=i) for i in range(7)]
+            label_for = lambda d: d.strftime('%A').lower()
+
         elif time_period == 'monthly':
-            # Last 12 months
-            start_date = now - timedelta(days=365)
+            # Current month only (daily buckets)
+            month_start = date(today.year, today.month, 1)
+            days_in_month = calendar.monthrange(today.year, today.month)[1]
+            month_end = date(today.year, today.month, days_in_month)
+            date_from = month_start
+            date_to = month_end
+            trunc_func = TruncDay
+            period_list = [month_start + timedelta(days=i) for i in range(days_in_month)]
+            label_for = lambda d: str(d.day)
+
+        elif time_period in ['semester', 'last90']:
+            # Last 90 days (daily buckets). Keep "semester" as a backwards-compatible alias.
+            date_to = today
+            date_from = today - timedelta(days=89)
+            trunc_func = TruncDay
+            period_list = [date_from + timedelta(days=i) for i in range(90)]
+            label_for = lambda d: d.strftime('%b %d').lower()
+
+        else:  # yearly (fallback)
+            date_from = date(today.year, 1, 1)
+            date_to = today
             trunc_func = TruncMonth
-            date_format = '%b'
-            
-            time_data = (
-                base_queryset.filter(date_reported__gte=start_date)
-                .annotate(period=trunc_func('date_reported'))
-                .values('period')
-                .annotate(count=Count('id'))
-                .order_by('period')
+            period_list = [date(today.year, i, 1) for i in range(1, 13)]
+            label_for = lambda d: d.strftime('%b')
+
+        time_data = (
+            base_queryset.filter(date_reported__date__range=(date_from, date_to))
+            .annotate(period=trunc_func('date_reported'))
+            .values('period')
+            .annotate(
+                lost=Count('id', filter=Q(type='Lost')),
+                found=Count('id', filter=Q(type='Found')),
+                matched=Count('id', filter=Q(has_active_match=True)),
+                claimed=Count('id', filter=Q(status='Claimed')),
             )
-            
-            # Create a dictionary for quick lookup
-            stats_dict = {}
-            for item in time_data:
-                if item['period']:
-                    month_key = item['period'].month if hasattr(item['period'], 'month') else item['period'].strftime('%m')
-                    stats_dict[month_key] = item['count']
-            
-            # Generate last 12 months
-            reports_by_period = []
-            for i in range(11, -1, -1):  # Last 12 months
-                month_date = now - timedelta(days=30*i)
-                month_num = month_date.month
-                month_label = calendar.month_abbr[month_num]
-                reports_by_period.append({
-                    'month': month_label,
-                    'value': stats_dict.get(month_num, 0)
-                })
-                
-        else:  # yearly (default)
-            # Current year, by month
-            current_year = now.year
-            trunc_func = TruncMonth
-            
-            time_data = (
-                base_queryset.filter(date_reported__year=current_year)
-                .annotate(period=trunc_func('date_reported'))
-                .values('period')
-                .annotate(count=Count('id'))
-                .order_by('period')
-            )
-            
-            stats_dict = {}
-            for item in time_data:
-                if item['period']:
-                    month_num = item['period'].month if hasattr(item['period'], 'month') else int(str(item['period']).split('-')[1])
-                    stats_dict[month_num] = item['count']
-            
-            reports_by_period = []
-            for i in range(1, 13):
-                reports_by_period.append({
-                    'month': calendar.month_abbr[i],
-                    'value': stats_dict.get(i, 0)
-                })
+            .order_by('period')
+        )
+
+        stats_map = {period_key(item['period']): item for item in time_data}
+        reports_by_period = []
+        for period_start in period_list:
+            entry = stats_map.get(period_start, {})
+            reports_by_period.append({
+                'period': label_for(period_start),
+                'lost': entry.get('lost', 0),
+                'found': entry.get('found', 0),
+                'matched': entry.get('matched', 0),
+                'claimed': entry.get('claimed', 0),
+            })
 
         data = {
             'totalReports': total_reports,
@@ -197,13 +196,13 @@ class ReportViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         user = request.user
-        is_admin = (user.role == 'Admin' or user.is_superuser)
-        if instance.status in ['Verified', 'Rejected']:
+        is_privileged = (user.role in ['Admin', 'Guidance'] or user.is_superuser)
+        if instance.status in ['Verified', 'Rejected'] and not is_privileged:
             raise exceptions.PermissionDenied(
                 "This report is finalized and can no longer be edited."
             )
-        # Non-admins can only update their own Pending reports
-        if not is_admin:
+        # Non-privileged users can only update their own Pending reports
+        if not is_privileged:
             self.check_report_owner_pending(instance)
         return super().update(request, *args, **kwargs)
 
@@ -217,15 +216,15 @@ class ReportViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         user = self.request.user
-        is_admin = (user.role == 'Admin' or user.is_superuser)
+        is_privileged = (user.role in ['Admin', 'Guidance'] or user.is_superuser)
 
-        # RBAC Check: Prevent non-admins from changing the status
+        # RBAC Check: Prevent non-privileged users from changing the status
         if 'status' in serializer.validated_data:
             new_status_req = serializer.validated_data['status']
             instance = self.get_object()
             
-            if instance.status != new_status_req and not is_admin:
-                raise exceptions.PermissionDenied("Only Admins can change the report status.")
+            if instance.status != new_status_req and not is_privileged:
+                raise exceptions.PermissionDenied("Only Admin/Guidance can change the report status.")
 
         instance = self.get_object()
         old_status = instance.status
@@ -252,7 +251,13 @@ class ReportViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         # Always clone base queryset per request to avoid stale queryset caching.
-        queryset = self.queryset.all()
+        queryset = self.queryset.all().annotate(
+            has_active_match=Exists(
+                AIMatch.objects.filter(
+                    Q(lost_report_id=OuterRef('pk')) | Q(found_report_id=OuterRef('pk'))
+                ).exclude(status='Rejected')
+            )
+        )
         if getattr(self, 'action', None) in ['retrieve', 'update', 'partial_update', 'destroy']:
             return queryset
 
@@ -267,6 +272,9 @@ class ReportViewSet(viewsets.ModelViewSet):
         if not is_admin_or_guidance:
             site_settings = SiteSettings.get_solo()
             visible_statuses = site_settings.home_visible_report_statuses or ['Verified']
+            # Claimed items must stay visible on public board as final release records.
+            if 'Claimed' not in visible_statuses:
+                visible_statuses = [*visible_statuses, 'Claimed']
             queryset = queryset.filter(status__in=visible_statuses)
 
         report_type = (report_type_raw or '').strip().lower()
@@ -282,6 +290,7 @@ class ReportViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=normalized_status)
 
         return queryset
+
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def my_reports(self, request):
         queryset = Report.objects.filter(reporter=request.user)
@@ -305,13 +314,91 @@ class ClaimViewSet(viewsets.ModelViewSet):
     serializer_class = ClaimSerializer
     permission_classes = [permissions.IsAuthenticated] 
 
+    def _handle_status_change(self, updated_claim, new_status):
+        message = ""
+
+        if new_status == 'Approved':
+            message = f"Your claim for '{updated_claim.report.item_name}' has been Verified. Please proceed to the Guidance Office for physical verification and release."
+        elif new_status == 'Rejected':
+            reason = updated_claim.rejection_reason
+            if reason:
+                message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected. Reason: {reason}"
+            else:
+                message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected."
+        elif new_status == 'Claimed':
+            if not updated_claim.claimant_photo:
+                raise exceptions.ValidationError(
+                    {"detail": "Claimant photo is required before releasing an item."}
+                )
+            if not updated_claim.claimant_id_photo:
+                raise exceptions.ValidationError(
+                    {"detail": "Valid ID / Student ID photo is required before releasing an item."}
+                )
+            message = f"Success! The item '{updated_claim.report.item_name}' has been released to you by the Guidance Office."
+
+            report = updated_claim.report
+            report.status = 'Claimed'
+            report.save()
+
+            related_matches = AIMatch.objects.filter(
+                Q(lost_report=report) | Q(found_report=report)
+            ).exclude(status='Rejected')
+            related_matches.update(
+                match_score=100.0,
+                status='Approved'
+            )
+
+            counterpart_report_ids = set()
+            for match in related_matches.select_related('lost_report', 'found_report'):
+                if match.lost_report_id == report.id:
+                    counterpart_report_ids.add(match.found_report_id)
+                elif match.found_report_id == report.id:
+                    counterpart_report_ids.add(match.lost_report_id)
+
+            if counterpart_report_ids:
+                Report.objects.filter(id__in=counterpart_report_ids).exclude(status='Claimed').update(status='Claimed')
+
+        if message and updated_claim.claimant:
+            Notification.objects.create(
+                recipient=updated_claim.claimant,
+                message=message,
+                report=updated_claim.report
+            )
+
     def perform_create(self, serializer):
+        user = self.request.user
+        claimant = user
+        claimant_id = self.request.data.get('claimantId')
+        if claimant_id and (user.role in ['Admin', 'Guidance'] or user.is_superuser):
+            try:
+                claimant = User.objects.get(id=int(claimant_id))
+            except (ValueError, TypeError, User.DoesNotExist):
+                raise exceptions.ValidationError(
+                    {"claimantId": "Selected claimant does not exist."}
+                )
+        claimant_full_name = (self.request.data.get('claimantNameInput') or '').strip()
+        validated_full_name = (serializer.validated_data.get('claimant_full_name') or '').strip()
+        is_manual_claim = bool(
+            (user.role in ['Admin', 'Guidance'] or user.is_superuser)
+            and (claimant_full_name or validated_full_name)
+            and not claimant_id
+        )
+        if is_manual_claim:
+            claimant = None
         try:
-            serializer.save(claimant=self.request.user)
+            created_claim = serializer.save(claimant=claimant)
         except IntegrityError:
             raise exceptions.ValidationError(
                 {"detail": "You already submitted a claim for this item."}
             )
+
+        is_privileged = (user.role in ['Admin', 'Guidance'] or user.is_superuser)
+        if is_privileged and created_claim.status != 'Claimed':
+            created_claim.refresh_from_db()
+            if created_claim.claimant_photo and created_claim.claimant_id_photo:
+                created_claim.status = 'Claimed'
+                created_claim.save(update_fields=['status'])
+                self._handle_status_change(created_claim, 'Claimed')
 
     def get_queryset(self):
         user = self.request.user
@@ -351,26 +438,12 @@ class ClaimViewSet(viewsets.ModelViewSet):
         if not is_admin_or_guidance:
             return Response({"detail": "You do not have permission to update claims."}, status=status.HTTP_403_FORBIDDEN)
         
-        # 2. Strict Workflow Check
+        # 2. Workflow Check
         new_status = request.data.get('status')
         
         if new_status:
-            # ADMIN RESTRICTION: Can only Approve or Reject. Cannot Release (Claimed).
-            if user.role == 'Admin' and not user.is_superuser:
-                if new_status == 'Claimed':
-                    return Response(
-                        {"detail": "Admins can only Approve/Reject. Guidance Officer must perform final release."}, 
-                        status=status.HTTP_403_FORBIDDEN
-                    )
-            
-            # GUIDANCE RESTRICTION: Can only Release (Claimed) or Reject. Cannot Approve from Pending.
-            if user.role == 'Guidance' and not user.is_superuser:
-                current_status = instance.status
-                if current_status == 'Pending' and new_status == 'Approved':
-                     return Response(
-                        {"detail": "Guidance Officers cannot approve pending claims. Admin must verify first."}, 
-                        status=status.HTTP_403_FORBIDDEN
-                    )
+            # Any admin/guidance account can move claim status directly, including Claimed.
+            pass
 
         return super().update(request, *args, **kwargs)
     
@@ -383,45 +456,7 @@ class ClaimViewSet(viewsets.ModelViewSet):
         new_status = updated_claim.status
 
         if old_status != new_status:
-            message = ""
-            
-            # Admin Verification
-            if new_status == 'Approved':
-                message = f"Your claim for '{updated_claim.report.item_name}' has been Verified by Admin. Please proceed to the Guidance Office for physical verification and release."
-            
-            # Rejection (By either Admin or Guidance)
-            elif new_status == 'Rejected':
-                # Check if a specific reason was provided
-                reason = updated_claim.rejection_reason
-                if reason:
-                    message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected. Reason: {reason}"
-                else:
-                    message = f"Update: Your claim for '{updated_claim.report.item_name}' was Rejected."
-            
-            # Guidance Release
-            elif new_status == 'Claimed':
-                message = f"Success! The item '{updated_claim.report.item_name}' has been released to you by the Guidance Office."
-                
-                # Update parent report
-                report = updated_claim.report
-                report.status = 'Claimed'
-                report.save()
-
-                # Mark related AI matches as completed confidence.
-                AIMatch.objects.filter(
-                    Q(lost_report=report) | Q(found_report=report)
-                ).exclude(status='Rejected').update(
-                    match_score=100.0,
-                    status='Approved'
-                )
-
-            # Create the notification object if a message was generated
-            if message:
-                Notification.objects.create(
-                    recipient=updated_claim.claimant,
-                    message=message,
-                    report=updated_claim.report
-                )
+            self._handle_status_change(updated_claim, new_status)
     # --- FIX END ---
 
 # --- NOTIFICATION VIEWSET ---
@@ -472,12 +507,17 @@ class ActivityFeedView(APIView):
 
         # 4. Format Claims
         for c in recent_claims:
-            user_name = f"{c.claimant.first_name} {c.claimant.last_name}".strip() or c.claimant.username
-            
+            if c.claimant:
+                user_name = f"{c.claimant.first_name} {c.claimant.last_name}".strip() or c.claimant.username
+                role = c.claimant.role
+            else:
+                user_name = c.claimant_full_name.strip() or "Walk-in claimant"
+                role = "Guest"
+
             activities.append({
                 'id': f'claim-{c.id}',
                 'user': user_name,
-                'role': c.claimant.role,
+                'role': role,
                 'action': 'Submitted a claim for',
                 'item': c.report.item_name,
                 'timestamp': c.date_created
@@ -508,7 +548,7 @@ class AIMatchViewSet(viewsets.ModelViewSet):
         
         # Admins see all matches
         if user.role in ['Admin', 'Guidance'] or user.is_superuser:
-            queryset = AIMatch.objects.all()
+            queryset = AIMatch.objects.exclude(status='Rejected')
         else:
             # Regular users only see approved matches related to their reports
             queryset = AIMatch.objects.filter(
@@ -530,19 +570,16 @@ class AIMatchViewSet(viewsets.ModelViewSet):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
         
+        # Never show rejected matches in AI match result lists.
+        queryset = queryset.exclude(status='Rejected')
+        
         return queryset.order_by('-match_score', '-date_created')
 
     def update(self, request, *args, **kwargs):
-        user = request.user
-        
-        # Only Admin/Guidance can update match status
-        if user.role not in ['Admin', 'Guidance'] and not user.is_superuser:
-            return Response(
-                {"detail": "You do not have permission to update matches."}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        return super().update(request, *args, **kwargs)
+        return Response(
+            {"detail": "Manual approve/reject is disabled. Matches are auto-accepted by the system."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
 
     def perform_update(self, serializer):
         instance = self.get_object()
@@ -575,12 +612,18 @@ class AIMatchViewSet(viewsets.ModelViewSet):
             
             updated_match.save()
 
-    @action(detail=False, methods=['post'], permission_classes=[IsAdmin])
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def scan_all(self, request):
         """
         Trigger a full scan to find all potential matches.
-        Admin only.
+        Admin and Guidance.
         """
+        user = request.user
+        if user.role not in ['Admin', 'Guidance'] and not user.is_superuser:
+            return Response(
+                {"detail": "You do not have permission to scan for matches."},
+                status=status.HTTP_403_FORBIDDEN
+            )
         try:
             site_settings = SiteSettings.get_solo()
             if not site_settings.ai_matching_enabled:
@@ -591,12 +634,17 @@ class AIMatchViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_200_OK)
             from .ai_matching import find_potential_matches_all
             min_score_raw = request.data.get('min_score', None)
-            min_score = float(min_score_raw) if min_score_raw is not None else float(site_settings.ai_min_score)
+            try:
+                min_score = float(min_score_raw) if min_score_raw not in [None, ''] else float(site_settings.ai_min_score)
+            except (TypeError, ValueError):
+                min_score = float(site_settings.ai_min_score)
             new_matches = find_potential_matches_all(min_score=min_score)
+            total_matches = AIMatch.objects.exclude(status='Rejected').count()
             return Response({
                 'status': 'success',
-                'message': f'Found {len(new_matches)} new potential matches.',
-                'matches_created': len(new_matches)
+                'message': f'Scan complete. {len(new_matches)} new match(es) created. Active matches: {total_matches}.',
+                'matches_created': len(new_matches),
+                'active_matches': total_matches
             }, status=status.HTTP_200_OK)
         except Exception as e:
             print(f"AI scan_all failed: {e}")
@@ -902,10 +950,10 @@ class AdminAnalyticsView(APIView):
             if date_from_param:
                 date_from = datetime.strptime(date_from_param, '%Y-%m-%d').date()
             else:
-                default_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 365)
+                default_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 90)
                 date_from = today - timedelta(days=default_days - 1)
         except ValueError:
-            fallback_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 365)
+            fallback_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 90)
             date_from = today - timedelta(days=fallback_days - 1)
 
         try:
@@ -952,18 +1000,10 @@ class AdminAnalyticsView(APIView):
                     resolution_days.append(delta_days)
         avg_resolution_time_days = (sum(resolution_days) / len(resolution_days)) if resolution_days else 0
 
-        if timeframe == 'week':
-            trunc_func = TruncDay
-            period_step = 'day'
-            period_label = lambda d: d.strftime('%a')
-        elif timeframe == 'month':
-            trunc_func = TruncWeek
-            period_step = 'week'
-            period_label = lambda d: d.strftime('%b %d')
-        else:
-            trunc_func = TruncMonth
-            period_step = 'month'
-            period_label = lambda d: d.strftime('%b')
+        # Always return daily buckets for analytics ranges to keep x-axis accurate.
+        trunc_func = TruncDay
+        period_step = 'day'
+        period_label = lambda d: d.isoformat()
 
         period_reports = (
             reports_qs
@@ -1077,7 +1117,7 @@ class AdminAnalyticsView(APIView):
             reports_qs
             .values('location')
             .annotate(count=Count('id'))
-            .order_by('-count')[:8]
+            .order_by('-count')
         )
         locations = [
             {'name': item['location'] or 'Unspecified', 'count': item['count']}
@@ -1115,6 +1155,242 @@ class AdminAnalyticsView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
+def _parse_admin_date_range(request, *, default_days=30):
+    today = timezone.localdate()
+    date_from_param = (request.query_params.get('date_from') or '').strip()
+    date_to_param = (request.query_params.get('date_to') or '').strip()
+
+    try:
+        date_from = datetime.strptime(date_from_param, '%Y-%m-%d').date() if date_from_param else (today - timedelta(days=default_days - 1))
+    except ValueError:
+        date_from = today - timedelta(days=default_days - 1)
+
+    try:
+        date_to = datetime.strptime(date_to_param, '%Y-%m-%d').date() if date_to_param else today
+    except ValueError:
+        date_to = today
+
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
+
+    return date_from, date_to
+
+
+class AdminAIMatchPerformanceView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request, format=None):
+        date_from, date_to = _parse_admin_date_range(request)
+        category = (request.query_params.get('category') or 'all').strip()
+
+        reports_qs = Report.objects.filter(date_reported__date__range=(date_from, date_to))
+        matches_qs = AIMatch.objects.filter(date_created__date__range=(date_from, date_to))
+
+        if category and category.lower() != 'all':
+            reports_qs = reports_qs.filter(category=category)
+            matches_qs = matches_qs.filter(Q(lost_report__category=category) | Q(found_report__category=category))
+
+        successful_match_exists = Exists(
+            AIMatch.objects.filter(
+                Q(lost_report_id=OuterRef('pk')) | Q(found_report_id=OuterRef('pk')),
+                status='Approved',
+            )
+        )
+        reports_qs = reports_qs.annotate(has_successful_match=successful_match_exists)
+        successful_reports = reports_qs.filter(has_successful_match=True).count()
+        unmatched_reports = reports_qs.filter(has_successful_match=False).count()
+
+        approved_matches = list(
+            matches_qs.filter(status='Approved')
+            .select_related('lost_report', 'found_report')
+            .only('date_created', 'lost_report__date_reported', 'found_report__date_reported')
+        )
+
+        bucket_defs = [
+            ('0d', lambda d: d == 0),
+            ('1d', lambda d: d == 1),
+            ('2d', lambda d: d == 2),
+            ('3-4d', lambda d: 3 <= d <= 4),
+            ('5-7d', lambda d: 5 <= d <= 7),
+            ('8-14d', lambda d: 8 <= d <= 14),
+            ('15-30d', lambda d: 15 <= d <= 30),
+            ('31+d', lambda d: d >= 31),
+        ]
+        bucket_counts = {label: 0 for (label, _) in bucket_defs}
+
+        deltas = []
+        delta_hours = []
+        for match in approved_matches:
+            lost_dt = getattr(match.lost_report, 'date_reported', None)
+            found_dt = getattr(match.found_report, 'date_reported', None)
+            later_report = None
+            if lost_dt and found_dt:
+                later_report = max(lost_dt, found_dt)
+            else:
+                later_report = lost_dt or found_dt
+            if not later_report or not match.date_created:
+                continue
+            delta_seconds = (match.date_created - later_report).total_seconds()
+            if delta_seconds < 0:
+                continue
+            delta_hours.append(delta_seconds / 3600)
+            delta_days = (match.date_created.date() - later_report.date()).days
+            deltas.append(delta_days)
+            for label, predicate in bucket_defs:
+                if predicate(delta_days):
+                    bucket_counts[label] += 1
+                    break
+
+        histogram = [{'bucket': label, 'count': bucket_counts[label]} for (label, _) in bucket_defs]
+        avg_hours = (sum(delta_hours) / len(delta_hours)) if delta_hours else 0.0
+
+        accepted_count = matches_qs.filter(status='Approved').count()
+        pending_count = matches_qs.filter(status='Pending').count()
+        rejected_count = matches_qs.filter(status='Rejected').count()
+        total_suggestions = accepted_count + pending_count + rejected_count
+        success_rate = round((accepted_count / total_suggestions * 100), 1) if total_suggestions else 0.0
+
+        return Response({
+            'filters': {
+                'date_from': date_from.isoformat(),
+                'date_to': date_to.isoformat(),
+                'category': category,
+            },
+            'donut': {
+                'successful_matches': successful_reports,
+                'unmatched_reports': unmatched_reports,
+            },
+            'suggestions': {
+                'accepted': accepted_count,
+                'pending': pending_count,
+                'rejected': rejected_count,
+                'total': total_suggestions,
+                'success_rate': success_rate,
+            },
+            'histogram': histogram,
+            'avg_time_to_match_hours': round(avg_hours, 1),
+        }, status=status.HTTP_200_OK)
+
+
+class AdminHonestyRankingView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request, format=None):
+        date_from, date_to = _parse_admin_date_range(request)
+        category = (request.query_params.get('category') or 'all').strip()
+
+        base_qs = Report.objects.filter(
+            type='Found',
+            date_reported__date__range=(date_from, date_to),
+        ).select_related('reporter')
+
+        if category and category.lower() != 'all':
+            base_qs = base_qs.filter(category=category)
+
+        full_name = Trim(
+            Concat(
+                Coalesce(F('reporter__first_name'), Value('')),
+                Value(' '),
+                Coalesce(F('reporter__last_name'), Value('')),
+            )
+        )
+        identifier_expr = Coalesce(
+            NullIf(full_name, Value('')),
+            NullIf(F('reporter__school_id'), Value('')),
+            NullIf(F('reporter__email'), Value('')),
+            NullIf(F('reporter__username'), Value('')),
+            Value('Unknown'),
+            output_field=CharField(),
+        )
+
+        leaders = list(
+            base_qs
+            .annotate(identifier=identifier_expr)
+            .values('identifier')
+            .annotate(surrender_count=Count('id'))
+            .order_by('-surrender_count', 'identifier')[:25]
+        )
+
+        payload = []
+        for idx, row in enumerate(leaders, start=1):
+            payload.append({
+                'rank': idx,
+                'identifier': row['identifier'],
+                'surrender_count': row['surrender_count'],
+            })
+
+        return Response({
+            'filters': {
+                'date_from': date_from.isoformat(),
+                'date_to': date_to.isoformat(),
+                'category': category,
+            },
+            'results': payload,
+        }, status=status.HTTP_200_OK)
+
+
+class AdminHonestyAwardsView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request, format=None):
+        date_from, date_to = _parse_admin_date_range(request)
+        category = (request.query_params.get('category') or 'all').strip()
+        limit_param = (request.query_params.get('limit') or '').strip()
+
+        try:
+            limit = int(limit_param) if limit_param else 50
+        except (TypeError, ValueError):
+            limit = 50
+
+        limit = max(1, min(limit, 200))
+
+        base_qs = Report.objects.filter(
+            type='Found',
+            date_lost_or_found__range=(date_from, date_to),
+        ).select_related('reporter')
+
+        if category and category.lower() != 'all':
+            base_qs = base_qs.filter(category=category)
+
+        base_qs = base_qs.order_by('-date_lost_or_found', '-date_reported')
+
+        results = []
+        for report in base_qs[:limit]:
+            reporter = report.reporter
+            reported_name = (report.person_name or '').strip()
+            full_name = f"{(reporter.first_name or '').strip()} {(reporter.last_name or '').strip()}".strip()
+            reporter_label = reported_name or full_name or getattr(reporter, 'username', '') or 'Unknown'
+
+            results.append({
+                'report_id': report.id,
+                'found_by': reporter_label,
+                'grade': report.person_grade or '',
+                'section': report.person_section or '',
+                'date_found': report.date_lost_or_found.isoformat() if report.date_lost_or_found else '',
+                'category': report.category or 'Uncategorized',
+                'item_name': report.item_name or '',
+                'returned': report.status == 'Claimed',
+            })
+
+        return Response({
+            'filters': {
+                'date_from': date_from.isoformat(),
+                'date_to': date_to.isoformat(),
+                'category': category,
+            },
+            'results': results,
+        }, status=status.HTTP_200_OK)
+
+
+from datetime import datetime, timedelta
+from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+# Make sure to import your Report model and IsAdmin permission at the top of your file
+# from .models import Report
+# from .permissions import IsAdmin
+
 class AdminAnalyticsExportDataView(APIView):
     permission_classes = [IsAdmin]
 
@@ -1132,10 +1408,10 @@ class AdminAnalyticsExportDataView(APIView):
             if date_from_param:
                 date_from = datetime.strptime(date_from_param, '%Y-%m-%d').date()
             else:
-                default_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 365)
+                default_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 90)
                 date_from = today - timedelta(days=default_days - 1)
         except ValueError:
-            fallback_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 365)
+            fallback_days = 7 if timeframe == 'week' else (30 if timeframe == 'month' else 90)
             date_from = today - timedelta(days=fallback_days - 1)
 
         try:
@@ -1160,9 +1436,20 @@ class AdminAnalyticsExportDataView(APIView):
         rows = []
         for report in reports:
             reporter = report.reporter
-            reporter_name = f"{reporter.first_name} {reporter.last_name}".strip() or reporter.username
             report_image_url = request.build_absolute_uri(report.image.url) if report.image else ''
             claims = list(report.claims.all())
+
+            # SAFETY CHECK: Handle cases where reporter might be None (deleted user, etc.)
+            if reporter:
+                reporter_name = f"{reporter.first_name} {reporter.last_name}".strip() or reporter.username
+                reporter_school_id = reporter.school_id
+                reporter_role = reporter.role
+                reporter_email = reporter.email
+            else:
+                reporter_name = 'Unknown Reporter'
+                reporter_school_id = ''
+                reporter_role = ''
+                reporter_email = ''
 
             if not claims:
                 rows.append({
@@ -1176,9 +1463,9 @@ class AdminAnalyticsExportDataView(APIView):
                     'report_description': report.description,
                     'item_image_url': report_image_url,
                     'reporter_name': reporter_name,
-                    'reporter_school_id': reporter.school_id,
-                    'reporter_role': reporter.role,
-                    'reporter_email': reporter.email,
+                    'reporter_school_id': reporter_school_id,
+                    'reporter_role': reporter_role,
+                    'reporter_email': reporter_email,
                     'claim_id': '',
                     'claim_status': '',
                     'claimed_at': '',
@@ -1186,13 +1473,26 @@ class AdminAnalyticsExportDataView(APIView):
                     'claimant_school_id': '',
                     'claimant_email': '',
                     'claim_proof_image_url': '',
+                    'claimant_photo_url': '',
                 })
                 continue
 
             for claim in claims:
                 claimant = claim.claimant
-                claimant_name = f"{claimant.first_name} {claimant.last_name}".strip() or claimant.username
+                
+                # SAFETY CHECK: Handle cases where claimant is None (the fix for your bug)
+                if claimant:
+                    claimant_name = f"{claimant.first_name} {claimant.last_name}".strip() or claimant.username
+                    claimant_school_id = claimant.school_id
+                    claimant_email = claimant.email
+                else:
+                    claimant_name = 'Unknown Claimant'
+                    claimant_school_id = ''
+                    claimant_email = ''
+
                 claim_proof_image_url = request.build_absolute_uri(claim.proof_image.url) if claim.proof_image else ''
+                claimant_photo_url = request.build_absolute_uri(claim.claimant_photo.url) if claim.claimant_photo else ''
+                
                 rows.append({
                     'date_reported': report.date_reported.strftime('%Y-%m-%d'),
                     'record_type': report.type,
@@ -1204,16 +1504,17 @@ class AdminAnalyticsExportDataView(APIView):
                     'report_description': report.description,
                     'item_image_url': report_image_url,
                     'reporter_name': reporter_name,
-                    'reporter_school_id': reporter.school_id,
-                    'reporter_role': reporter.role,
-                    'reporter_email': reporter.email,
+                    'reporter_school_id': reporter_school_id,
+                    'reporter_role': reporter_role,
+                    'reporter_email': reporter_email,
                     'claim_id': claim.id,
                     'claim_status': claim.status,
                     'claimed_at': claim.date_created.strftime('%Y-%m-%d'),
                     'claimant_name': claimant_name,
-                    'claimant_school_id': claimant.school_id,
-                    'claimant_email': claimant.email,
+                    'claimant_school_id': claimant_school_id,
+                    'claimant_email': claimant_email,
                     'claim_proof_image_url': claim_proof_image_url,
+                    'claimant_photo_url': claimant_photo_url,
                 })
 
         return Response({
